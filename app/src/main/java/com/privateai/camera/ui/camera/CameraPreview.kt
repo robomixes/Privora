@@ -1,14 +1,9 @@
 package com.privateai.camera.ui.camera
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.ImageFormat
 import android.graphics.Matrix
-import android.graphics.Rect
-import android.graphics.YuvImage
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -20,8 +15,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.privateai.camera.bridge.Detection
-import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
 
 @Composable
@@ -50,9 +43,8 @@ fun CameraPreview(
 
             if (onFrameAnalyzed != null) {
                 val imageAnalysis = ImageAnalysis.Builder()
-                    .setTargetResolution(android.util.Size(640, 480))
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .build()
 
                 imageAnalysis.setAnalyzer(analysisExecutor) { imageProxy ->
@@ -89,44 +81,42 @@ fun CameraPreview(
     )
 }
 
-private fun imageProxyToBitmap(imageProxy: ImageProxy): Bitmap? {
+private fun imageProxyToBitmap(imageProxy: androidx.camera.core.ImageProxy): Bitmap? {
     return try {
-        val yBuffer = imageProxy.planes[0].buffer
-        val uBuffer = imageProxy.planes[1].buffer
-        val vBuffer = imageProxy.planes[2].buffer
+        // RGBA_8888 format — direct pixel access, no YUV conversion
+        val plane = imageProxy.planes[0]
+        val buffer = plane.buffer
+        val rowStride = plane.rowStride
+        val pixelStride = plane.pixelStride
+        val width = imageProxy.width
+        val height = imageProxy.height
 
-        val ySize = yBuffer.remaining()
-        val uSize = uBuffer.remaining()
-        val vSize = vBuffer.remaining()
-
-        val nv21 = ByteArray(ySize + uSize + vSize)
-        yBuffer.get(nv21, 0, ySize)
-        vBuffer.get(nv21, ySize, vSize)
-        uBuffer.get(nv21, ySize + vSize, uSize)
-
-        val yuvImage = YuvImage(
-            nv21, ImageFormat.NV21,
-            imageProxy.width, imageProxy.height, null
+        // Create bitmap from RGBA buffer
+        val bitmap = Bitmap.createBitmap(
+            rowStride / pixelStride, height, Bitmap.Config.ARGB_8888
         )
-        val out = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(
-            Rect(0, 0, imageProxy.width, imageProxy.height),
-            80, out
-        )
-        val jpegBytes = out.toByteArray()
-        val bitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size)
+        buffer.rewind()
+        bitmap.copyPixelsFromBuffer(buffer)
+
+        // Crop to actual width if rowStride has padding
+        val cropped = if (rowStride / pixelStride != width) {
+            Bitmap.createBitmap(bitmap, 0, 0, width, height).also { bitmap.recycle() }
+        } else {
+            bitmap
+        }
 
         // Rotate if needed
         val rotation = imageProxy.imageInfo.rotationDegrees
         if (rotation != 0) {
             val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
-            val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-            bitmap.recycle()
+            val rotated = Bitmap.createBitmap(cropped, 0, 0, cropped.width, cropped.height, matrix, true)
+            cropped.recycle()
             rotated
         } else {
-            bitmap
+            cropped
         }
     } catch (e: Exception) {
+        android.util.Log.e("CameraPreview", "Failed to convert frame: ${e.message}")
         null
     }
 }
