@@ -2,6 +2,7 @@ package com.privateai.camera.ui.camera
 
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
@@ -20,14 +21,22 @@ import java.util.concurrent.Executors
 @Composable
 fun CameraPreview(
     modifier: Modifier = Modifier,
-    onFrameAnalyzed: ((Bitmap) -> Unit)? = null
+    cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
+    onFrameAnalyzed: ((Bitmap) -> Unit)? = null,
+    onCameraBound: ((Camera, PreviewView) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember { PreviewView(context) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
 
-    DisposableEffect(lifecycleOwner) {
+    // Executor cleanup on composable disposal
+    DisposableEffect(Unit) {
+        onDispose { analysisExecutor.shutdown() }
+    }
+
+    // Camera binding — re-runs when cameraSelector changes (front/back toggle)
+    DisposableEffect(lifecycleOwner, cameraSelector) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
         cameraProviderFuture.addListener({
@@ -36,8 +45,6 @@ fun CameraPreview(
             val preview = Preview.Builder()
                 .build()
                 .also { it.surfaceProvider = previewView.surfaceProvider }
-
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
             val useCases = mutableListOf<androidx.camera.core.UseCase>(preview)
 
@@ -59,11 +66,12 @@ fun CameraPreview(
 
             try {
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
+                val camera = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     cameraSelector,
                     *useCases.toTypedArray()
                 )
+                onCameraBound?.invoke(camera, previewView)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -71,7 +79,6 @@ fun CameraPreview(
 
         onDispose {
             cameraProviderFuture.get().unbindAll()
-            analysisExecutor.shutdown()
         }
     }
 
@@ -83,7 +90,6 @@ fun CameraPreview(
 
 private fun imageProxyToBitmap(imageProxy: androidx.camera.core.ImageProxy): Bitmap? {
     return try {
-        // RGBA_8888 format — direct pixel access, no YUV conversion
         val plane = imageProxy.planes[0]
         val buffer = plane.buffer
         val rowStride = plane.rowStride
@@ -91,21 +97,18 @@ private fun imageProxyToBitmap(imageProxy: androidx.camera.core.ImageProxy): Bit
         val width = imageProxy.width
         val height = imageProxy.height
 
-        // Create bitmap from RGBA buffer
         val bitmap = Bitmap.createBitmap(
             rowStride / pixelStride, height, Bitmap.Config.ARGB_8888
         )
         buffer.rewind()
         bitmap.copyPixelsFromBuffer(buffer)
 
-        // Crop to actual width if rowStride has padding
         val cropped = if (rowStride / pixelStride != width) {
             Bitmap.createBitmap(bitmap, 0, 0, width, height).also { bitmap.recycle() }
         } else {
             bitmap
         }
 
-        // Rotate if needed
         val rotation = imageProxy.imageInfo.rotationDegrees
         if (rotation != 0) {
             val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
