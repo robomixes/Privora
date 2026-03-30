@@ -2,6 +2,8 @@ package com.privateai.camera.ui.camera
 
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.view.OrientationEventListener
+import android.view.Surface
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -37,6 +39,7 @@ fun CameraPreview(
 
     // Camera binding — re-runs when cameraSelector changes (front/back toggle)
     DisposableEffect(lifecycleOwner, cameraSelector) {
+        var orientationListener: OrientationEventListener? = null
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
 
         cameraProviderFuture.addListener({
@@ -53,6 +56,22 @@ fun CameraPreview(
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .build()
+
+                // Track device orientation so rotationDegrees is always correct
+                // This ensures detection works regardless of how the phone is held
+                orientationListener = object : OrientationEventListener(context) {
+                    override fun onOrientationChanged(orientation: Int) {
+                        if (orientation == ORIENTATION_UNKNOWN) return
+                        val rotation = when {
+                            orientation in 45..134 -> Surface.ROTATION_270
+                            orientation in 135..224 -> Surface.ROTATION_180
+                            orientation in 225..314 -> Surface.ROTATION_90
+                            else -> Surface.ROTATION_0
+                        }
+                        imageAnalysis.targetRotation = rotation
+                    }
+                }
+                orientationListener.enable()
 
                 imageAnalysis.setAnalyzer(analysisExecutor) { imageProxy ->
                     val bitmap = imageProxyToBitmap(imageProxy)
@@ -78,6 +97,7 @@ fun CameraPreview(
         }, ContextCompat.getMainExecutor(context))
 
         onDispose {
+            orientationListener?.disable()
             cameraProviderFuture.get().unbindAll()
         }
     }
