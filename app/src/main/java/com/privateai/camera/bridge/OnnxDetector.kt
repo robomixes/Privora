@@ -305,11 +305,19 @@ class OnnxDetector(context: Context) {
         val lx2 = cx + w / 2f
         val ly2 = cy + h / 2f
 
+        // Expand box by 10% to better cover object edges
+        val expandX = w * 0.10f
+        val expandY = h * 0.10f
+        val elx1 = lx1 - expandX
+        val ely1 = ly1 - expandY
+        val elx2 = lx2 + expandX
+        val ely2 = ly2 + expandY
+
         // Remove padding and scale back to original image (normalized 0-1)
-        val x1 = max(0f, (lx1 - padLeft) / (inputSize - 2 * padLeft))
-        val y1 = max(0f, (ly1 - padTop) / (inputSize - 2 * padTop))
-        val x2 = min(1f, (lx2 - padLeft) / (inputSize - 2 * padLeft))
-        val y2 = min(1f, (ly2 - padTop) / (inputSize - 2 * padTop))
+        val x1 = max(0f, (elx1 - padLeft) / (inputSize - 2 * padLeft))
+        val y1 = max(0f, (ely1 - padTop) / (inputSize - 2 * padTop))
+        val x2 = min(1f, (elx2 - padLeft) / (inputSize - 2 * padLeft))
+        val y2 = min(1f, (ely2 - padTop) / (inputSize - 2 * padTop))
 
         // Skip tiny or full-frame boxes
         val bw = x2 - x1

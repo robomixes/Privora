@@ -16,12 +16,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -194,23 +198,63 @@ fun CameraPreviewWithDetection() {
             }
         )
 
-        // Frozen frame with blur when object is selected
-        if (isFrozen && frozenBitmap != null) {
+        // Frozen frame with blur + clear selected region
+        if (isFrozen && frozenBitmap != null && selectedDetection != null) {
+            val frozen = frozenBitmap!!
+            val det = selectedDetection!!
+
             // Blurred frozen frame covers the live preview
             Image(
-                bitmap = frozenBitmap!!.asImageBitmap(),
+                bitmap = frozen.asImageBitmap(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
                     .blur(20.dp)
             )
-            // Dark overlay on top of blur for extra dimming
+            // Dark overlay on top of blur
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.3f))
             )
+
+            // Clear (unblurred) crop of selected object on top
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val screenW = maxWidth
+                val screenH = maxHeight
+
+                // Add padding to detection box (15% expansion)
+                val padX = (det.x2 - det.x1) * 0.15f
+                val padY = (det.y2 - det.y1) * 0.15f
+                val ex1 = (det.x1 - padX).coerceAtLeast(0f)
+                val ey1 = (det.y1 - padY).coerceAtLeast(0f)
+                val ex2 = (det.x2 + padX).coerceAtMost(1f)
+                val ey2 = (det.y2 + padY).coerceAtMost(1f)
+
+                // Crop from unblurred frozen bitmap
+                val cropX = (ex1 * frozen.width).toInt().coerceIn(0, frozen.width - 1)
+                val cropY = (ey1 * frozen.height).toInt().coerceIn(0, frozen.height - 1)
+                val cropW = ((ex2 - ex1) * frozen.width).toInt().coerceIn(1, frozen.width - cropX)
+                val cropH = ((ey2 - ey1) * frozen.height).toInt().coerceIn(1, frozen.height - cropY)
+
+                val cropped = remember(det, frozen) {
+                    Bitmap.createBitmap(frozen, cropX, cropY, cropW, cropH)
+                }
+
+                Image(
+                    bitmap = cropped.asImageBitmap(),
+                    contentDescription = "Selected: ${det.className}",
+                    contentScale = ContentScale.FillBounds,
+                    modifier = Modifier
+                        .offset(
+                            x = screenW * ex1,
+                            y = screenH * ey1
+                        )
+                        .width(screenW * (ex2 - ex1))
+                        .height(screenH * (ey2 - ey1))
+                )
+            }
         }
 
         // Detection overlay — only show selected detection when frozen
