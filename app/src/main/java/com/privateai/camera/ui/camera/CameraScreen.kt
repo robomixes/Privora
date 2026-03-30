@@ -11,6 +11,7 @@ import androidx.camera.core.CameraControl
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -45,8 +46,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -127,6 +131,8 @@ fun CameraPreviewWithDetection() {
     var meteringPointFactory by remember { mutableStateOf<PreviewView?>(null) }
     var selectedDetection by remember { mutableStateOf<Detection?>(null) }
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
+    var isFrozen by remember { mutableStateOf(false) }
+    var frozenBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     // Retain latest frame for image search cropping
     var latestFrameBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -138,6 +144,7 @@ fun CameraPreviewWithDetection() {
         onDispose {
             detector.release()
             latestFrameBitmap?.recycle()
+            frozenBitmap?.recycle()
         }
     }
 
@@ -146,6 +153,9 @@ fun CameraPreviewWithDetection() {
         detections = emptyList()
         selectedDetection = null
         focusPoint = null
+        isFrozen = false
+        frozenBitmap?.recycle()
+        frozenBitmap = null
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -154,6 +164,12 @@ fun CameraPreviewWithDetection() {
             modifier = Modifier.fillMaxSize(),
             cameraSelector = cameraSelector,
             onFrameAnalyzed = { bitmap ->
+                // Skip processing when frozen (object selected)
+                if (isFrozen) {
+                    bitmap.recycle()
+                    return@CameraPreview
+                }
+
                 frameCount++
                 if (frameCount % 3 != 0L) {
                     bitmap.recycle()
@@ -178,14 +194,42 @@ fun CameraPreviewWithDetection() {
             }
         )
 
-        // Detection overlay with tap support
+        // Frozen frame with blur when object is selected
+        if (isFrozen && frozenBitmap != null) {
+            // Blurred frozen frame covers the live preview
+            Image(
+                bitmap = frozenBitmap!!.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(20.dp)
+            )
+            // Dark overlay on top of blur for extra dimming
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f))
+            )
+        }
+
+        // Detection overlay — only show selected detection when frozen
         DetectionOverlay(
-            detections = detections,
+            detections = if (isFrozen && selectedDetection != null) {
+                listOf(selectedDetection!!)
+            } else {
+                detections
+            },
             selectedDetection = selectedDetection,
             isFrontCamera = useFrontCamera,
             onDetectionTapped = { detection, tapOffset ->
                 selectedDetection = detection
                 focusPoint = tapOffset
+                isFrozen = true
+
+                // Keep frozen frame (latest frame is already retained)
+                frozenBitmap?.recycle()
+                frozenBitmap = latestFrameBitmap?.copy(Bitmap.Config.ARGB_8888, false)
 
                 // Trigger autofocus at tap point
                 val factory = meteringPointFactory?.meteringPointFactory ?: return@DetectionOverlay
@@ -196,12 +240,13 @@ fun CameraPreviewWithDetection() {
                         .setAutoCancelDuration(3, TimeUnit.SECONDS)
                         .build()
                     control.startFocusAndMetering(action)
-                } catch (_: Exception) {
-                    // Some cameras don't support focus metering (e.g. fixed-focus front cameras)
-                }
+                } catch (_: Exception) { }
             },
             onBackgroundTapped = {
                 selectedDetection = null
+                isFrozen = false
+                frozenBitmap?.recycle()
+                frozenBitmap = null
             },
             modifier = Modifier.fillMaxSize()
         )
