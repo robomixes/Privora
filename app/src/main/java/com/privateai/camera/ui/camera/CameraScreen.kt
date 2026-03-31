@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.Search
@@ -66,7 +67,7 @@ import com.privateai.camera.util.launchImageSearch
 import java.util.concurrent.TimeUnit
 
 @Composable
-fun CameraScreen() {
+fun CameraScreen(onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -82,7 +83,7 @@ fun CameraScreen() {
     }
 
     if (hasCameraPermission) {
-        CameraPreviewWithDetection()
+        CameraPreviewWithDetection(onBack = onBack)
     } else {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -113,7 +114,7 @@ fun CameraScreen() {
 }
 
 @Composable
-fun CameraPreviewWithDetection() {
+fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     var detections by remember { mutableStateOf<List<Detection>>(emptyList()) }
     var inferenceTimeMs by remember { mutableLongStateOf(0L) }
@@ -303,23 +304,38 @@ fun CameraPreviewWithDetection() {
             )
         }
 
-        // Top bar: object count + inference time + camera switch
+        // Top bar: back + object count + inference time + camera switch
         Row(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .padding(top = 48.dp, start = 16.dp, end = 16.dp),
+                .padding(top = 48.dp, start = 8.dp, end = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "${detections.size} objects",
-                color = Color.White,
-                fontSize = 14.sp,
-                modifier = Modifier
-                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (onBack != null) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+                    }
+                }
+                Text(
+                    text = "${detections.size} objects",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

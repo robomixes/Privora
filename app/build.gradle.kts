@@ -84,4 +84,10 @@ dependencies {
 
     // ONNX Runtime (Java API for initial integration, C++ via NDK later)
     implementation(libs.onnxruntime.android)
+
+    // ML Kit
+    implementation(libs.mlkit.document.scanner)
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.barcode.scanning)
+    implementation(libs.kotlinx.coroutines.play.services)
 }

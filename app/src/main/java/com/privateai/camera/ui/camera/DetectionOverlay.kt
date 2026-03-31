@@ -55,7 +55,6 @@ fun DetectionOverlay(
         val canvasHeight = size.height
 
         for (detection in detections) {
-            // Mirror x-coordinates for front camera (preview is mirrored by PreviewView)
             val left = if (isFrontCamera) (1f - detection.x2) * canvasWidth else detection.x1 * canvasWidth
             val right = if (isFrontCamera) (1f - detection.x1) * canvasWidth else detection.x2 * canvasWidth
             val top = detection.y1 * canvasHeight
@@ -70,7 +69,6 @@ fun DetectionOverlay(
             val color = getColorForClass(detection.classId)
             val strokeWidth = if (isSelected) 6f else 3f
 
-            // Draw bounding box
             drawRect(
                 color = color,
                 topLeft = Offset(left, top),
@@ -78,7 +76,6 @@ fun DetectionOverlay(
                 style = Stroke(width = strokeWidth)
             )
 
-            // Draw semi-transparent fill for selected detection
             if (isSelected) {
                 drawRect(
                     color = color.copy(alpha = 0.15f),
@@ -87,7 +84,6 @@ fun DetectionOverlay(
                 )
             }
 
-            // Draw label background
             val label = "${detection.className} ${(detection.confidence * 100).toInt()}%"
             val textResult = textMeasurer.measure(
                 text = label,
@@ -102,7 +98,6 @@ fun DetectionOverlay(
                 size = Size(labelWidth + 8, labelHeight + 4)
             )
 
-            // Draw label text
             drawText(
                 textMeasurer = textMeasurer,
                 text = label,
