@@ -1,9 +1,17 @@
 package com.privateai.camera.ui.vault
 
+import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfDocument
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -25,9 +33,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +49,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -263,6 +273,73 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
         }
     }
 
+    fun shareImages(ids: Set<String>) {
+        val toShare = photos.filter { it.id in ids }
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val uris = ArrayList<android.net.Uri>()
+                toShare.forEach { photo ->
+                    val bytes = vault.loadPhotoBytes(photo) ?: return@forEach
+                    val file = File(context.cacheDir, "vault_share_${photo.id}.jpg")
+                    FileOutputStream(file).use { it.write(bytes) }
+                    uris.add(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
+                }
+                withContext(Dispatchers.Main) {
+                    if (uris.size == 1) {
+                        context.startActivity(Intent.createChooser(
+                            Intent(Intent.ACTION_SEND).apply {
+                                type = "image/jpeg"
+                                putExtra(Intent.EXTRA_STREAM, uris[0])
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }, "Share photo"
+                        ))
+                    } else {
+                        context.startActivity(Intent.createChooser(
+                            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                                type = "image/jpeg"
+                                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }, "Share ${uris.size} photos"
+                        ))
+                    }
+                    selectedIds = emptySet()
+                    isSelectionMode = false
+                }
+            }
+        }
+    }
+
+    fun saveToDevice(ids: Set<String>) {
+        val toSave = photos.filter { it.id in ids }
+        scope.launch {
+            var saved = 0
+            withContext(Dispatchers.IO) {
+                toSave.forEach { photo ->
+                    try {
+                        val bytes = vault.loadPhotoBytes(photo) ?: return@forEach
+                        val filename = "vault_${photo.id}.jpg"
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            val values = ContentValues().apply {
+                                put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+                                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PrivateAICamera")
+                            }
+                            val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                            uri?.let { context.contentResolver.openOutputStream(it)?.use { out -> out.write(bytes) } }
+                        } else {
+                            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+                            FileOutputStream(File(dir, filename)).use { it.write(bytes) }
+                        }
+                        saved++
+                    } catch (_: Exception) {}
+                }
+            }
+            Toast.makeText(context, "$saved photo(s) saved to gallery", Toast.LENGTH_SHORT).show()
+            selectedIds = emptySet()
+            isSelectionMode = false
+        }
+    }
+
     // Delete dialog
     if (showDeleteDialog) {
         val count = if (isSelectionMode) selectedIds.size else 1
@@ -326,7 +403,9 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                         title = { Text("${selectedIds.size} selected") },
                         navigationIcon = { IconButton(onClick = { selectedIds = emptySet(); isSelectionMode = false }) { Icon(Icons.Default.Close, "Cancel") } },
                         actions = {
-                            IconButton(onClick = { sharePdf(selectedIds) }) { Icon(Icons.Default.PictureAsPdf, "PDF") }
+                            IconButton(onClick = { shareImages(selectedIds) }) { Icon(Icons.Default.Share, "Share Images") }
+                            IconButton(onClick = { sharePdf(selectedIds) }) { Icon(Icons.Default.PictureAsPdf, "Share PDF") }
+                            IconButton(onClick = { saveToDevice(selectedIds) }) { Icon(Icons.Default.SaveAlt, "Save to Device") }
                             IconButton(onClick = { showDeleteDialog = true }) { Icon(Icons.Default.Delete, "Delete") }
                         }
                     )
@@ -349,41 +428,62 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                         Text("No items yet", style = MaterialTheme.typography.bodyLarge)
                     }
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
+                    val grouped = remember(photos) { groupPhotosByDate(photos) }
+
+                    LazyColumn(
                         contentPadding = PaddingValues(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier.padding(padding)
                     ) {
-                        items(photos) { photo ->
-                            val thumb = thumbnails[photo.id]
-                            val isSelected = photo.id in selectedIds
-                            Box(
-                                Modifier
-                                    .aspectRatio(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .then(if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)) else Modifier)
-                                    .combinedClickable(
-                                        onClick = {
-                                            if (isSelectionMode) {
-                                                selectedIds = if (isSelected) selectedIds - photo.id else selectedIds + photo.id
-                                                if (selectedIds.isEmpty()) isSelectionMode = false
-                                            } else openViewer(photo)
-                                        },
-                                        onLongClick = { isSelectionMode = true; selectedIds = setOf(photo.id) }
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (thumb != null) {
-                                    Image(thumb.asImageBitmap(), "Photo", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                                } else {
-                                    Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                if (isSelectionMode && isSelected) {
-                                    Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(24.dp).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.CheckCircle, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        grouped.forEach { (header, groupPhotos) ->
+                            item {
+                                Text(
+                                    text = header,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                            }
+                            item {
+                                @OptIn(ExperimentalLayoutApi::class)
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.padding(horizontal = 4.dp)
+                                ) {
+                                    groupPhotos.forEach { photo ->
+                                        val thumb = thumbnails[photo.id]
+                                        val isSelected = photo.id in selectedIds
+                                        val itemSize = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 24.dp) / 3
+
+                                        Box(
+                                            Modifier
+                                                .size(itemSize)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                .then(if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)) else Modifier)
+                                                .combinedClickable(
+                                                    onClick = {
+                                                        if (isSelectionMode) {
+                                                            selectedIds = if (isSelected) selectedIds - photo.id else selectedIds + photo.id
+                                                            if (selectedIds.isEmpty()) isSelectionMode = false
+                                                        } else openViewer(photo)
+                                                    },
+                                                    onLongClick = { isSelectionMode = true; selectedIds = setOf(photo.id) }
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (thumb != null) {
+                                                Image(thumb.asImageBitmap(), "Photo", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                            } else {
+                                                Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            if (isSelectionMode && isSelected) {
+                                                Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(24.dp).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
+                                                    Icon(Icons.Default.CheckCircle, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -414,6 +514,34 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
             }
         }
     }
+}
+
+private fun groupPhotosByDate(photos: List<VaultPhoto>): List<Pair<String, List<VaultPhoto>>> {
+    val now = Calendar.getInstance()
+    val today = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }
+    val yesterday = (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
+    val weekAgo = (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -7) }
+    val monthAgo = (today.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
+    val dayFormat = SimpleDateFormat("EEEE", Locale.getDefault())
+    val monthYearFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+
+    val groups = linkedMapOf<String, MutableList<VaultPhoto>>()
+
+    for (photo in photos) {
+        val photoTime = Calendar.getInstance().apply { timeInMillis = photo.timestamp }
+        val label = when {
+            photoTime >= today -> "Today"
+            photoTime >= yesterday -> "Yesterday"
+            photoTime >= weekAgo -> dayFormat.format(Date(photo.timestamp))
+            photoTime >= monthAgo -> "This Month"
+            else -> monthYearFormat.format(Date(photo.timestamp))
+        }
+        groups.getOrPut(label) { mutableListOf() }.add(photo)
+    }
+
+    return groups.map { (k, v) -> k to v.toList() }
 }
 
 @Composable
