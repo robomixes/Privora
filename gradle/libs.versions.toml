@@ -32,6 +32,9 @@ androidx-camera-view = { group = "androidx.camera", name = "camera-view", versio
 # ONNX Runtime
 onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
 
+# Biometric
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version = "1.1.0" }
+
 # Coroutines Play Services (for .await() on ML Kit Tasks)
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version = "1.9.0" }
 

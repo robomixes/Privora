@@ -47,12 +47,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.privateai.camera.security.CryptoManager
+import com.privateai.camera.security.VaultRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
 
 @Composable
 fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
@@ -85,8 +85,11 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
     // Use a lock object for thread-safe bitmap access
     val frameLock = remember { Object() }
     var latestFrame by remember { mutableStateOf<Bitmap?>(null) }
+    // Encrypted vault storage
+    val crypto = remember { CryptoManager(context).also { it.initialize() } }
+    val vault = remember { VaultRepository(context, crypto) }
+
     var lastThumbnail by remember { mutableStateOf<Bitmap?>(null) }
-    var lastPhotoPath by remember { mutableStateOf<String?>(null) }
     var photoCount by remember { mutableIntStateOf(0) }
     var isCapturing by remember { mutableStateOf(false) }
     var showFlash by remember { mutableStateOf(false) }
@@ -136,14 +139,9 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
 
             withContext(Dispatchers.IO) {
                 try {
-                    val photosDir = File(context.filesDir, "photos")
-                    photosDir.mkdirs()
-                    val file = File(photosDir, "photo_${System.currentTimeMillis()}.jpg")
-                    FileOutputStream(file).use { out ->
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                    }
+                    // Save encrypted to vault
+                    vault.savePhoto(bitmap)
                     bitmap.recycle()
-                    lastPhotoPath = file.absolutePath
                     photoCount++
                 } catch (e: Exception) {
                     bitmap.recycle()
@@ -242,8 +240,8 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color.Black.copy(alpha = 0.5f))
                     .border(2.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
-                    .clickable(enabled = lastPhotoPath != null) {
-                        lastPhotoPath?.let { path -> onPhotoTap?.invoke(path) }
+                    .clickable {
+                        onPhotoTap?.invoke("")  // Navigate to vault
                     },
                 contentAlignment = Alignment.Center
             ) {

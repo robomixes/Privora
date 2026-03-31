@@ -85,6 +85,9 @@ dependencies {
     // ONNX Runtime (Java API for initial integration, C++ via NDK later)
     implementation(libs.onnxruntime.android)
 
+    // Biometric
+    implementation(libs.androidx.biometric)
+
     // ML Kit
     implementation(libs.mlkit.document.scanner)
     implementation(libs.mlkit.text.recognition)

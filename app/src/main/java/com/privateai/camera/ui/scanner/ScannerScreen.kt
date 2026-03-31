@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
@@ -79,6 +80,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
+import com.privateai.camera.security.CryptoManager
+import com.privateai.camera.security.VaultCategory
+import com.privateai.camera.security.VaultRepository
 import java.io.File
 import java.io.FileOutputStream
 
@@ -102,6 +106,10 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
     var ocrText by remember { mutableStateOf<String?>(null) }
     var isProcessingOcr by remember { mutableStateOf(false) }
     var showOcrResult by remember { mutableStateOf(false) }
+
+    // Encrypted vault
+    val crypto = remember { CryptoManager(context).also { it.initialize() } }
+    val vault = remember { VaultRepository(context, crypto) }
 
     val scannerOptions = remember {
         GmsDocumentScannerOptions.Builder()
@@ -403,7 +411,53 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
                 }
             }
 
-            // Action buttons row 1: Save & Share
+            // Action buttons row 1: Save to Vault & Share
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Save to encrypted vault
+                Button(
+                    onClick = {
+                        val bitmap = displayBitmap ?: return@Button
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    // Save all pages to vault
+                                    for (i in scannedPages.indices) {
+                                        val bmp = if (i == currentPageIndex) {
+                                            bitmap
+                                        } else {
+                                            loadAndEnhanceBitmap(context, scannedPages[i], enhancementMode) ?: continue
+                                        }
+                                        vault.savePhoto(bmp, VaultCategory.SCAN)
+                                        if (i != currentPageIndex) bmp.recycle()
+                                    }
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "${scannedPages.size} page(s) saved to vault", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "Vault save failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("  Save to Vault")
+                }
+                OutlinedButton(onClick = { shareCurrentPage() }, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("  Share")
+                }
+            }
+
+            // Action buttons row 2: Save to gallery & Share PDF
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -414,19 +468,6 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
                     Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("  Save Image")
                 }
-                OutlinedButton(onClick = { shareCurrentPage() }, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("  Share")
-                }
-            }
-
-            // Action buttons row 2: PDF & OCR
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
                 OutlinedButton(
                     onClick = { saveAsPdfAndShare(shareAfterSave = true) },
                     modifier = Modifier.weight(1f)
@@ -434,6 +475,14 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
                     Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("  Share PDF")
                 }
+            }
+
+            // Action buttons row 3: OCR
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
                 OutlinedButton(
                     onClick = { runOcr() },
                     enabled = !isProcessingOcr,
