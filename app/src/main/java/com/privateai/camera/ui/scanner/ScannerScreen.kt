@@ -275,18 +275,14 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
         scope.launch {
             withContext(Dispatchers.IO) {
                 try {
-                    val file = File(context.cacheDir, "share_scan.jpg")
-                    FileOutputStream(file).use { out ->
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                    }
-                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                    val uri = com.privateai.camera.util.saveBitmapToCache(context, bitmap, "share_scan.jpg")
                     withContext(Dispatchers.Main) {
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "image/jpeg"
                             putExtra(Intent.EXTRA_STREAM, uri)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        context.startActivity(Intent.createChooser(intent, "Share scan"))
+                        context.startActivity(Intent.createChooser(intent, "Share scan (EXIF stripped)"))
                     }
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {

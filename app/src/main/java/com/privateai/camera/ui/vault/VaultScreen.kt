@@ -257,16 +257,14 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
         scope.launch {
             withContext(Dispatchers.IO) {
                 val bytes = vault.loadPhotoBytes(photo) ?: return@withContext
-                val file = File(context.cacheDir, "vault_share.jpg")
-                FileOutputStream(file).use { it.write(bytes) }
-                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                val uri = com.privateai.camera.util.saveJpegBytesToCache(context, bytes, "vault_share.jpg")
                 withContext(Dispatchers.Main) {
                     context.startActivity(Intent.createChooser(
                         Intent(Intent.ACTION_SEND).apply {
                             type = "image/jpeg"
                             putExtra(Intent.EXTRA_STREAM, uri)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }, "Share photo"
+                        }, "Share photo (EXIF stripped)"
                     ))
                 }
             }
@@ -280,9 +278,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                 val uris = ArrayList<android.net.Uri>()
                 toShare.forEach { photo ->
                     val bytes = vault.loadPhotoBytes(photo) ?: return@forEach
-                    val file = File(context.cacheDir, "vault_share_${photo.id}.jpg")
-                    FileOutputStream(file).use { it.write(bytes) }
-                    uris.add(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
+                    uris.add(com.privateai.camera.util.saveJpegBytesToCache(context, bytes, "vault_share_${photo.id}.jpg"))
                 }
                 withContext(Dispatchers.Main) {
                     if (uris.size == 1) {
