@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NoteAlt
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Translate
@@ -28,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.remember
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -36,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
@@ -50,6 +53,7 @@ val features = listOf(
     FeatureItem("camera", "Camera", "Photo & Video", Icons.Default.CameraAlt),
     FeatureItem("detect", "Detect", "Object Detection", Icons.Default.Search),
     FeatureItem("scan", "Scan", "Document Scanner", Icons.Default.DocumentScanner),
+    FeatureItem("qrscanner", "QR Scan", "QR & Barcode Scanner", Icons.Default.QrCodeScanner),
     FeatureItem("translate", "Translate", "Local Translation", Icons.Default.Translate),
     FeatureItem("vault", "Vault", "Encrypted Photos", Icons.Default.Lock),
     FeatureItem("notes", "Notes", "Secure Notes", Icons.Default.NoteAlt),
@@ -61,7 +65,10 @@ fun HomeScreen(
     onFeatureClick: (String) -> Unit,
     onSettingsClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val enabledFeatures = remember { com.privateai.camera.ui.settings.FeatureToggleManager.getEnabledFeatures(context) }
+    val visibleFeatures = features.filter { it.route in enabledFeatures }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -86,7 +93,7 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            items(features) { feature ->
+            items(visibleFeatures) { feature ->
                 FeatureCard(
                     feature = feature,
                     onClick = { onFeatureClick(feature.route) }

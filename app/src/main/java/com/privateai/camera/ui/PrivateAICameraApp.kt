@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.privateai.camera.ui.camera.CameraScreen
 import com.privateai.camera.ui.camera.CaptureScreen
+import com.privateai.camera.ui.qrscanner.QrScannerScreen
 import com.privateai.camera.ui.home.HomeScreen
 import com.privateai.camera.ui.notes.NotesScreen
 import com.privateai.camera.ui.onboarding.OnboardingScreen
@@ -54,6 +55,9 @@ fun PrivateAICameraApp() {
             }
             composable("scan") {
                 ScannerScreen(onBack = { navController.popBackStack() })
+            }
+            composable("qrscanner") {
+                QrScannerScreen(onBack = { navController.popBackStack() })
             }
             composable("translate") {
                 TranslateScreen(onBack = { navController.popBackStack() })

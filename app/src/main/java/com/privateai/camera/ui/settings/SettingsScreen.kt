@@ -8,6 +8,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.NoteAlt
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material3.Switch
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -28,7 +34,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -73,6 +82,26 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
+            // Features section
+            SectionHeader("Home Screen Features")
+
+            FeatureToggle(context, "camera", "Camera", "Photo & Video capture", Icons.Default.CameraAlt)
+            FeatureToggle(context, "detect", "Detect", "AI object detection", Icons.Default.Search)
+            FeatureToggle(context, "scan", "Scan", "Document scanner + OCR", Icons.Default.DocumentScanner)
+            FeatureToggle(context, "qrscanner", "QR Scan", "QR & barcode scanner", Icons.Default.Search)
+            FeatureToggle(context, "translate", "Translate", "Local translation", Icons.Default.Translate)
+            FeatureToggle(context, "vault", "Vault", "Encrypted photo storage", Icons.Default.Lock)
+            FeatureToggle(context, "notes", "Notes", "Secure encrypted notes", Icons.Default.NoteAlt)
+
+            Text(
+                "Disabled features are hidden from the home screen",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
             // Security section
             SectionHeader("Security")
 
@@ -205,6 +234,39 @@ private fun SettingsItem(
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+@Composable
+private fun FeatureToggle(
+    context: android.content.Context,
+    route: String,
+    title: String,
+    description: String,
+    icon: ImageVector
+) {
+    var enabled by remember { mutableStateOf(FeatureToggleManager.isFeatureEnabled(context, route)) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                enabled = !enabled
+                FeatureToggleManager.setFeatureEnabled(context, route, enabled)
+            }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(icon, null, Modifier.size(24.dp), tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = enabled, onCheckedChange = {
+            enabled = it
+            FeatureToggleManager.setFeatureEnabled(context, route, it)
+        })
     }
 }
 
