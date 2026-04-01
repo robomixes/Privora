@@ -69,7 +69,7 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
     fun listNotes(): List<SecureNote> {
         val files = notesDir.listFiles() ?: return emptyList()
         return files
-            .filter { it.name.endsWith(".note.enc") }
+            .filter { it.name.endsWith(".note.enc") && !it.name.startsWith("_tobedeleted_") }
             .mapNotNull { file ->
                 val id = file.name.removeSuffix(".note.enc")
                 loadNote(id)
@@ -100,7 +100,7 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
     }
 
     fun noteCount(): Int {
-        return notesDir.listFiles()?.count { it.name.endsWith(".note.enc") } ?: 0
+        return notesDir.listFiles()?.count { it.name.endsWith(".note.enc") && !it.name.startsWith("_tobedeleted_") } ?: 0
     }
 
     fun wipeAll() {

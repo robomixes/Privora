@@ -15,23 +15,6 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-        }
-
-        externalNativeBuild {
-            cmake {
-                cppFlags += "-std=c++17"
-                arguments += "-DANDROID_STL=c++_shared"
-            }
-        }
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
     }
 
     buildTypes {
@@ -81,6 +64,7 @@ dependencies {
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.camera.video)
 
     // ONNX Runtime (Java API for initial integration, C++ via NDK later)
     implementation(libs.onnxruntime.android)
@@ -96,5 +80,6 @@ dependencies {
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.barcode.scanning)
     implementation(libs.mlkit.translate)
+    implementation(libs.mlkit.face.detection)
     implementation(libs.kotlinx.coroutines.play.services)
 }

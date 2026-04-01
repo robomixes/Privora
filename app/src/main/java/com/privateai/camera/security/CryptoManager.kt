@@ -66,6 +66,7 @@ class CryptoManager(private val context: Context) {
      * Returns: [12-byte IV][ciphertext+tag]
      */
     fun encrypt(plaintext: ByteArray): ByteArray {
+        if (cachedDEK == null) initialize()
         val dek = cachedDEK ?: throw IllegalStateException("CryptoManager not initialized")
         val cipher = Cipher.getInstance(AES_GCM)
         cipher.init(Cipher.ENCRYPT_MODE, dek)
@@ -80,6 +81,7 @@ class CryptoManager(private val context: Context) {
      * Input: [12-byte IV][ciphertext+tag]
      */
     fun decrypt(encrypted: ByteArray): ByteArray {
+        if (cachedDEK == null) initialize()
         val dek = cachedDEK ?: throw IllegalStateException("CryptoManager not initialized")
         val iv = encrypted.copyOfRange(0, GCM_IV_SIZE)
         val ciphertext = encrypted.copyOfRange(GCM_IV_SIZE, encrypted.size)
@@ -132,6 +134,26 @@ class CryptoManager(private val context: Context) {
      * Check if crypto is initialized and DEK is in memory.
      */
     fun isUnlocked(): Boolean = cachedDEK != null
+
+    /**
+     * Get raw DEK bytes for backup export. Only callable when unlocked.
+     */
+    fun getDekBytes(): ByteArray {
+        val dek = cachedDEK ?: throw IllegalStateException("CryptoManager not initialized")
+        return dek.encoded.copyOf()
+    }
+
+    /**
+     * Import a DEK from backup and re-wrap with this device's KEK.
+     * Replaces any existing DEK.
+     */
+    fun importDek(dekBytes: ByteArray) {
+        cachedDEK = SecretKeySpec(dekBytes, "AES")
+        val kek = KeyManager.getOrCreateKEK()
+        val wrapped = wrapDEK(kek, cachedDEK!!)
+        File(context.filesDir, DEK_FILE).writeBytes(wrapped)
+        Log.i(TAG, "DEK imported and re-wrapped with device KEK")
+    }
 
     /**
      * Wipe all encryption keys — makes all data permanently unreadable.

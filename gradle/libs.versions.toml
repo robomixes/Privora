@@ -28,6 +28,7 @@ androidx-camera-core = { group = "androidx.camera", name = "camera-core", versio
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+androidx-camera-video = { group = "androidx.camera", name = "camera-video", version.ref = "camerax" }
 
 # ONNX Runtime
 onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
@@ -46,6 +47,7 @@ mlkit-document-scanner = { group = "com.google.android.gms", name = "play-servic
 mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version = "16.0.1" }
 mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version = "17.3.0" }
 mlkit-translate = { group = "com.google.mlkit", name = "translate", version = "17.0.3" }
+mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", version = "16.1.7" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

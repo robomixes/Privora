@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
@@ -40,6 +43,7 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +52,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -74,9 +79,18 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.privateai.camera.security.CryptoManager
+import com.privateai.camera.security.DuressManager
 import com.privateai.camera.security.NoteRepository
+import com.privateai.camera.security.VaultLockManager
 import com.privateai.camera.security.SecureNote
+import com.privateai.camera.ui.onboarding.AuthMode
+import com.privateai.camera.ui.onboarding.getAuthMode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -102,10 +116,15 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val crypto = remember { CryptoManager(context) }
     val noteRepo = remember { NoteRepository(File(context.filesDir, "vault/notes"), crypto) }
 
-    var page by remember { mutableStateOf(NotesPage.LOCKED) }
+    val startUnlocked = remember {
+        VaultLockManager.isUnlockedWithinGrace(context) && crypto.initialize()
+    }
+    var page by remember { mutableStateOf(if (startUnlocked) NotesPage.LIST else NotesPage.LOCKED) }
+    var isDuressActive by remember { mutableStateOf(false) }
     var notes by remember { mutableStateOf<List<SecureNote>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedTag by remember { mutableStateOf<String?>(null) }
@@ -118,15 +137,29 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
 
+    // Auto-lock with shared grace period
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) { page = NotesPage.LOCKED; crypto.lock() }
+            when (event) {
+                Lifecycle.Event.ON_STOP -> { VaultLockManager.markLeft() }
+                Lifecycle.Event.ON_START -> {
+                    if (page != NotesPage.LOCKED && !VaultLockManager.isUnlockedWithinGrace(context)) {
+                        page = NotesPage.LOCKED; crypto.lock(); VaultLockManager.lock()
+                    }
+                }
+                else -> {}
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     fun refreshNotes() {
+        if (isDuressActive) {
+            notes = emptyList()
+            allTags = emptyList()
+            return
+        }
         notes = when {
             searchQuery.isNotBlank() -> noteRepo.searchNotes(searchQuery)
             selectedTag != null -> noteRepo.listNotes().filter { selectedTag in it.tags }
@@ -143,13 +176,13 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
         ) == BiometricManager.BIOMETRIC_SUCCESS
 
         if (!canAuth) {
-            if (crypto.initialize()) { refreshNotes(); page = NotesPage.LIST }
+            if (crypto.initialize()) { VaultLockManager.markUnlocked(); refreshNotes(); page = NotesPage.LIST }
             return
         }
         val prompt = BiometricPrompt(activity, ContextCompat.getMainExecutor(context),
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    if (crypto.initialize()) { refreshNotes(); page = NotesPage.LIST }
+                    if (crypto.initialize()) { VaultLockManager.markUnlocked(); refreshNotes(); page = NotesPage.LIST }
                 }
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {}
             })
@@ -241,7 +274,52 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
         }
     }
 
-    LaunchedEffect(Unit) { if (page == NotesPage.LOCKED) authenticate() }
+    // PIN input state for lock screen
+    var pinInput by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf<String?>(null) }
+
+    fun checkPin(enteredPin: String) {
+        if (DuressManager.isEnabled(context) && DuressManager.isDuressPin(context, enteredPin)) {
+            isDuressActive = true
+            VaultLockManager.markUnlocked()
+            notes = emptyList()
+            allTags = emptyList()
+            page = NotesPage.LIST
+            pinInput = ""
+            pinError = null
+            scope.launch(Dispatchers.IO) {
+                DuressManager.executeDuress(context, crypto)
+            }
+            return
+        }
+
+        val appPin = com.privateai.camera.ui.onboarding.getAppPin(context)
+        if (appPin != null && enteredPin == appPin) {
+            if (crypto.initialize()) {
+                VaultLockManager.markUnlocked()
+                refreshNotes()
+                page = NotesPage.LIST
+                pinInput = ""
+                pinError = null
+            }
+            return
+        }
+
+        pinError = "Incorrect PIN"
+        pinInput = ""
+    }
+
+    val currentAuthMode = remember { getAuthMode(context) }
+
+    LaunchedEffect(Unit) {
+        if (page == NotesPage.LOCKED) {
+            if (currentAuthMode == AuthMode.PHONE_LOCK) {
+                authenticate()
+            }
+        } else {
+            refreshNotes()
+        }
+    }
 
     when (page) {
         NotesPage.LOCKED -> {
@@ -250,10 +328,55 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
                     if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 })
             }) { padding ->
-                Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Column(
+                    Modifier.fillMaxSize().padding(padding).padding(horizontal = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Icon(Icons.Default.Lock, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
                     Text("Notes are locked", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
-                    TextButton(onClick = { authenticate() }, Modifier.padding(top = 24.dp)) { Text("Unlock") }
+
+                    Spacer(Modifier.height(24.dp))
+
+                    if (currentAuthMode == AuthMode.APP_PIN) {
+                        OutlinedTextField(
+                            value = pinInput,
+                            onValueChange = {
+                                if (it.length <= 8 && it.all { c -> c.isDigit() }) {
+                                    pinInput = it
+                                    pinError = null
+                                }
+                            },
+                            label = { Text("Enter PIN") },
+                            modifier = Modifier.width(200.dp),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { if (pinInput.length >= 4) checkPin(pinInput) }),
+                            visualTransformation = PasswordVisualTransformation(),
+                            isError = pinError != null,
+                            supportingText = {
+                                if (pinError != null) Text(pinError!!, color = MaterialTheme.colorScheme.error)
+                            }
+                        )
+
+                        Button(
+                            onClick = { if (pinInput.length >= 4) checkPin(pinInput) },
+                            enabled = pinInput.length >= 4,
+                            modifier = Modifier.width(200.dp)
+                        ) { Text("Unlock") }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        OutlinedButton(
+                            onClick = { authenticate() },
+                            modifier = Modifier.width(200.dp)
+                        ) { Text("Use Biometric") }
+                    } else {
+                        Button(
+                            onClick = { authenticate() },
+                            modifier = Modifier.width(200.dp)
+                        ) { Text("Unlock") }
+                    }
                 }
             }
         }

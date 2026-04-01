@@ -3,13 +3,17 @@ package com.privateai.camera.security
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.util.Log
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
 
+enum class VaultMediaType { PHOTO, VIDEO }
+
 enum class VaultCategory(val label: String, val dirName: String) {
     CAMERA("Camera", "camera"),
+    VIDEO("Videos", "video"),
     SCAN("Scans", "scan"),
     FILES("Files", "files")
 }
@@ -19,7 +23,8 @@ data class VaultPhoto(
     val timestamp: Long,
     val category: VaultCategory,
     val encryptedFile: File,
-    val thumbnailFile: File
+    val thumbnailFile: File,
+    val mediaType: VaultMediaType = VaultMediaType.PHOTO
 )
 
 /**
@@ -41,6 +46,66 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
 
     private fun categoryDir(category: VaultCategory): File {
         return File(vaultDir, category.dirName).also { it.mkdirs() }
+    }
+
+    /**
+     * Save a video file to the vault (encrypted).
+     * CRITICAL ORDER: extract thumbnail BEFORE encrypting (retriever needs raw file).
+     */
+    fun saveVideo(tempVideoFile: File, category: VaultCategory = VaultCategory.VIDEO): VaultPhoto {
+        val id = UUID.randomUUID().toString()
+        val timestamp = System.currentTimeMillis()
+        val dir = categoryDir(category)
+
+        // 1. Extract first frame as thumbnail (must happen before encryption/deletion)
+        val retriever = MediaMetadataRetriever()
+        var thumbBytes: ByteArray
+        try {
+            retriever.setDataSource(tempVideoFile.absolutePath)
+            val frame = retriever.getFrameAtTime(0) ?: retriever.getFrameAtTime(1000000) // fallback to 1s
+            retriever.release()
+
+            if (frame != null) {
+                val scale = THUMB_SIZE.toFloat() / maxOf(frame.width, frame.height)
+                val thumb = Bitmap.createScaledBitmap(
+                    frame,
+                    (frame.width * scale).toInt(),
+                    (frame.height * scale).toInt(),
+                    true
+                )
+                thumbBytes = ByteArrayOutputStream().use { out ->
+                    thumb.compress(Bitmap.CompressFormat.JPEG, 70, out)
+                    out.toByteArray()
+                }
+                thumb.recycle()
+                frame.recycle()
+            } else {
+                // No frame available — use empty placeholder
+                thumbBytes = ByteArray(0)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to extract video thumbnail: ${e.message}")
+            retriever.release()
+            thumbBytes = ByteArray(0)
+        }
+
+        // 2. Encrypt video file
+        val videoEncFile = File(dir, "$id.vid.enc")
+        crypto.encryptFile(tempVideoFile, videoEncFile)
+
+        // 3. Encrypt thumbnail
+        val thumbFile = File(dir, "$id.vid.thumb.enc")
+        if (thumbBytes.isNotEmpty()) {
+            crypto.encryptToFile(thumbBytes, thumbFile)
+        }
+
+        // 4. Delete temp file
+        tempVideoFile.delete()
+
+        val videoSize = videoEncFile.length() / 1024
+        Log.d(TAG, "Video saved: $id ($category, ${videoSize}KB)")
+
+        return VaultPhoto(id, timestamp, category, videoEncFile, thumbFile, VaultMediaType.VIDEO)
     }
 
     /**
@@ -123,6 +188,22 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
     }
 
     /**
+     * Decrypt a video to a temp file for playback. Caller must delete the temp file when done.
+     */
+    fun decryptVideoToTempFile(item: VaultPhoto): File? {
+        return try {
+            val decrypted = crypto.decryptFile(item.encryptedFile)
+            val tempFile = File(context.cacheDir, "playback_${item.id}.mp4")
+            tempFile.writeBytes(decrypted)
+            Log.d(TAG, "Video decrypted to temp: ${tempFile.absolutePath} (${decrypted.size / 1024}KB)")
+            tempFile
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to decrypt video: ${e.message}")
+            null
+        }
+    }
+
+    /**
      * Delete a photo from the vault.
      */
     fun deletePhoto(photo: VaultPhoto) {
@@ -132,7 +213,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
     }
 
     /**
-     * List photos in a specific category, sorted by newest first.
+     * List photos and videos in a specific category, sorted by newest first.
      */
     fun listPhotos(category: VaultCategory): List<VaultPhoto> {
         val dir = categoryDir(category)
@@ -141,21 +222,32 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         Log.d(TAG, "listPhotos($category): files found=${files?.size ?: 0}")
         if (files == null) return emptyList()
 
-        val photoIds = files
-            .filter { it.name.endsWith(".enc") && !it.name.endsWith(".thumb.enc") }
-            .map { it.name.removeSuffix(".enc") }
+        val items = mutableListOf<VaultPhoto>()
 
-        Log.d(TAG, "listPhotos($category): photoIds=${photoIds.size}")
+        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, _tobedeleted_)
+        files.filter {
+            it.name.endsWith(".enc") &&
+                !it.name.endsWith(".thumb.enc") &&
+                !it.name.endsWith(".vid.enc") &&
+                !it.name.startsWith("_tobedeleted_")
+        }.forEach { file ->
+            val id = file.name.removeSuffix(".enc")
+            items.add(VaultPhoto(id, file.lastModified(), category, file, File(dir, "$id.thumb.enc"), VaultMediaType.PHOTO))
+        }
 
-        return photoIds.map { id ->
-            VaultPhoto(
-                id = id,
-                timestamp = File(dir, "$id.enc").lastModified(),
-                category = category,
-                encryptedFile = File(dir, "$id.enc"),
-                thumbnailFile = File(dir, "$id.thumb.enc")
-            )
-        }.sortedByDescending { it.timestamp }
+        // Videos: {id}.vid.enc (excluding .vid.thumb.enc, _tobedeleted_)
+        files.filter {
+            it.name.endsWith(".vid.enc") &&
+                !it.name.endsWith(".vid.thumb.enc") &&
+                !it.name.startsWith("_tobedeleted_")
+        }.forEach { file ->
+            val id = file.name.removeSuffix(".vid.enc")
+            items.add(VaultPhoto(id, file.lastModified(), category, file, File(dir, "$id.vid.thumb.enc"), VaultMediaType.VIDEO))
+        }
+
+        Log.d(TAG, "listPhotos($category): items=${items.size} (photos=${items.count { it.mediaType == VaultMediaType.PHOTO }}, videos=${items.count { it.mediaType == VaultMediaType.VIDEO }})")
+
+        return items.sortedByDescending { it.timestamp }
     }
 
     /**
@@ -203,7 +295,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
     fun listFiles(category: VaultCategory = VaultCategory.FILES): List<File> {
         val dir = categoryDir(category)
         return (dir.listFiles() ?: emptyArray())
-            .filter { it.name.endsWith(".enc") && !it.name.endsWith(".thumb.enc") }
+            .filter { it.name.endsWith(".enc") && !it.name.endsWith(".thumb.enc") && !it.name.startsWith("_tobedeleted_") }
             .sortedByDescending { it.lastModified() }
     }
 

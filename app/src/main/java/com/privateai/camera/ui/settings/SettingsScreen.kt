@@ -19,6 +19,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -48,23 +50,26 @@ import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.VaultCategory
 import com.privateai.camera.security.VaultRepository
 import com.privateai.camera.security.NoteRepository
+import com.privateai.camera.service.DeviceProfiler
+import com.privateai.camera.service.StorageManager
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: (() -> Unit)? = null) {
+fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = null, onDuressClick: (() -> Unit)? = null) {
     val context = LocalContext.current
 
     val crypto = remember { CryptoManager(context).also { it.initialize() } }
     val vault = remember { VaultRepository(context, crypto) }
     val noteRepo = remember { NoteRepository(File(context.filesDir, "vault/notes"), crypto) }
 
-    val vaultSize = remember { formatSize(vault.getVaultSize()) }
+    val storageInfo = remember { StorageManager.getStorageInfo(context) }
+    val deviceProfile = remember { DeviceProfiler.getProfile(context) }
+    val noteCount = remember { noteRepo.noteCount() }
     val photoCount = remember {
         VaultCategory.entries.filter { it != VaultCategory.FILES }
             .sumOf { vault.listPhotos(it).size }
     }
-    val noteCount = remember { noteRepo.noteCount() }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -102,6 +107,34 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
+            // Device section
+            SectionHeader("Device")
+
+            SettingsItem(
+                icon = Icons.Default.Info,
+                title = "Performance Tier: ${deviceProfile.tier}",
+                subtitle = DeviceProfiler.getTierDescription(deviceProfile.tier)
+            )
+
+            SettingsItem(
+                icon = Icons.Default.Info,
+                title = "Device Info",
+                subtitle = "${deviceProfile.cpuCores} CPU cores • ${deviceProfile.ramMb} MB RAM • ${deviceProfile.inferenceMs}ms inference"
+            )
+
+            SettingsItem(
+                icon = Icons.Default.Info,
+                title = "Re-benchmark",
+                subtitle = "Run performance test again",
+                onClick = {
+                    Toast.makeText(context, "Running benchmark...", Toast.LENGTH_SHORT).show()
+                    DeviceProfiler.runBenchmark(context)
+                    Toast.makeText(context, "Benchmark complete", Toast.LENGTH_SHORT).show()
+                }
+            )
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
             // Security section
             SectionHeader("Security")
 
@@ -117,11 +150,25 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
                 subtitle = "Enabled — screenshots and screen recording blocked"
             )
 
-            SettingsItem(
-                icon = Icons.Default.Security,
-                title = "Auto-lock",
-                subtitle = "Vault and Notes lock when app goes to background"
-            )
+            GracePeriodSetting(context)
+
+            if (com.privateai.camera.ui.onboarding.getAuthMode(context) == com.privateai.camera.ui.onboarding.AuthMode.APP_PIN) {
+                if (com.privateai.camera.security.DuressManager.isEnabled(context)) {
+                    SettingsItem(
+                        icon = Icons.Default.Security,
+                        title = "Emergency PIN",
+                        subtitle = "Active",
+                        onClick = { onDuressClick?.invoke() }
+                    )
+                } else {
+                    SettingsItem(
+                        icon = Icons.Default.Security,
+                        title = "Set Emergency PIN",
+                        subtitle = "Create a PIN that shows empty vault when entered",
+                        onClick = { onDuressClick?.invoke() }
+                    )
+                }
+            }
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
@@ -130,17 +177,44 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
 
             SettingsItem(
                 icon = Icons.Default.Storage,
-                title = "Vault Size",
-                subtitle = "$vaultSize • $photoCount photos • $noteCount notes"
+                title = "Vault",
+                subtitle = "${StorageManager.formatSize(storageInfo.vaultSizeBytes)} • $photoCount photos"
             )
+
+            SettingsItem(
+                icon = Icons.Default.Storage,
+                title = "Notes",
+                subtitle = "${StorageManager.formatSize(storageInfo.notesSizeBytes)} • $noteCount notes"
+            )
+
+            SettingsItem(
+                icon = Icons.Default.Storage,
+                title = "Cache",
+                subtitle = StorageManager.formatSize(storageInfo.cacheSizeBytes)
+            )
+
+            SettingsItem(
+                icon = Icons.Default.Storage,
+                title = "Device Storage",
+                subtitle = "${StorageManager.formatSize(storageInfo.deviceFreeBytes)} free of ${StorageManager.formatSize(storageInfo.deviceTotalBytes)} (${"%.0f".format(storageInfo.usagePercent)}% used)"
+            )
+
+            if (storageInfo.deviceFreeBytes < 500 * 1024 * 1024) {
+                Text(
+                    "⚠ Storage is low! Consider clearing cache or deleting old vault items.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
 
             SettingsItem(
                 icon = Icons.Default.Delete,
                 title = "Clear Cache",
                 subtitle = "Remove temporary shared files",
                 onClick = {
-                    context.cacheDir.listFiles()?.forEach { it.delete() }
-                    Toast.makeText(context, "Cache cleared", Toast.LENGTH_SHORT).show()
+                    val freed = StorageManager.clearCache(context)
+                    Toast.makeText(context, "Cleared ${StorageManager.formatSize(freed)}", Toast.LENGTH_SHORT).show()
                 }
             )
 
@@ -155,6 +229,13 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
                 subtitle = "Enabled — GPS, device info, timestamps removed from all shared images"
             )
 
+            PrivacyToggle(
+                context = context,
+                key = "face_blur_on_share",
+                title = "Face Blur on Share",
+                subtitle = "Automatically blur faces before sharing photos"
+            )
+
             SettingsItem(
                 icon = Icons.Default.Security,
                 title = "Network Policy",
@@ -165,6 +246,25 @@ fun SettingsScreen(onBack: (() -> Unit)? = null) {
                 icon = Icons.Default.Storage,
                 title = "Backup Exclusion",
                 subtitle = "Vault data excluded from device backups"
+            )
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            // Backup & Migration section
+            SectionHeader("Backup & Migration")
+
+            SettingsItem(
+                icon = Icons.Default.CloudSync,
+                title = "Export / Import Backup",
+                subtitle = "Transfer photos, videos, and notes to a new phone",
+                onClick = { onBackupClick?.invoke() }
+            )
+
+            Text(
+                "Your data is encrypted with a key unique to this phone. Use backup to transfer data when changing phones.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -234,6 +334,14 @@ private fun SettingsItem(
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (onClick != null) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -267,6 +375,104 @@ private fun FeatureToggle(
             enabled = it
             FeatureToggleManager.setFeatureEnabled(context, route, it)
         })
+    }
+}
+
+@Composable
+private fun PrivacyToggle(
+    context: android.content.Context,
+    key: String,
+    title: String,
+    subtitle: String
+) {
+    val prefs = remember { context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE) }
+    var enabled by remember { mutableStateOf(prefs.getBoolean(key, false)) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { enabled = !enabled; prefs.edit().putBoolean(key, enabled).apply() }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(Icons.Default.Security, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = enabled, onCheckedChange = {
+            enabled = it
+            prefs.edit().putBoolean(key, it).apply()
+        })
+    }
+}
+
+fun isFaceBlurEnabled(context: android.content.Context): Boolean {
+    return context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE)
+        .getBoolean("face_blur_on_share", false)
+}
+
+@Composable
+private fun GracePeriodSetting(context: android.content.Context) {
+    val prefs = remember { context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE) }
+    val options = listOf(0, 10, 30, 60, 120)
+    val labels = listOf("Immediately", "10 seconds", "30 seconds", "1 minute", "2 minutes")
+    var currentValue by remember { mutableStateOf(prefs.getInt("lock_grace_seconds", 30)) }
+    var expanded by remember { mutableStateOf(false) }
+
+    val currentLabel = labels[options.indexOf(currentValue).coerceAtLeast(0)]
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = true }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(Icons.Default.Lock, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f)) {
+            Text("Auto-lock delay", style = MaterialTheme.typography.bodyLarge)
+            Text("Lock vault after: $currentLabel", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+
+    if (expanded) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { expanded = false },
+            title = { Text("Auto-lock delay") },
+            text = {
+                Column {
+                    Text("How long to wait before locking the vault when you leave the app.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 12.dp))
+                    options.forEachIndexed { index, value ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    currentValue = value
+                                    prefs.edit().putInt("lock_grace_seconds", value).apply()
+                                    expanded = false
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.RadioButton(
+                                selected = currentValue == value,
+                                onClick = {
+                                    currentValue = value
+                                    prefs.edit().putInt("lock_grace_seconds", value).apply()
+                                    expanded = false
+                                }
+                            )
+                            Text(labels[index], modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = {}
+        )
     }
 }
 

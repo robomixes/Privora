@@ -473,6 +473,56 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
                 }
             }
 
+            // Action buttons row 2b: Save PDF to vault
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val pdfDocument = android.graphics.pdf.PdfDocument()
+                                    val maxWidth = 1240
+                                    val maxHeight = 1754
+                                    for (i in scannedPages.indices) {
+                                        val bmp = loadAndEnhanceBitmap(context, scannedPages[i], enhancementMode) ?: continue
+                                        val scale = minOf(maxWidth.toFloat() / bmp.width, maxHeight.toFloat() / bmp.height, 1f)
+                                        val scaledW = (bmp.width * scale).toInt()
+                                        val scaledH = (bmp.height * scale).toInt()
+                                        val scaled = if (scale < 1f) Bitmap.createScaledBitmap(bmp, scaledW, scaledH, true).also { bmp.recycle() } else bmp
+                                        val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(scaledW, scaledH, i + 1).create()
+                                        val page = pdfDocument.startPage(pageInfo)
+                                        page.canvas.drawBitmap(scaled, 0f, 0f, null)
+                                        pdfDocument.finishPage(page)
+                                        scaled.recycle()
+                                    }
+                                    val pdfBytes = java.io.ByteArrayOutputStream().use { out ->
+                                        pdfDocument.writeTo(out)
+                                        pdfDocument.close()
+                                        out.toByteArray()
+                                    }
+                                    vault.saveFile(pdfBytes, "scan_${System.currentTimeMillis()}.pdf", VaultCategory.SCAN)
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "PDF saved to vault (${scannedPages.size} pages)", Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("  Save PDF to Vault")
+                }
+            }
+
             // Action buttons row 3: OCR
             Row(
                 modifier = Modifier

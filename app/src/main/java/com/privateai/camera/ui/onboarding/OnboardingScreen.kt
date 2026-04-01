@@ -19,14 +19,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Pin
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +41,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +61,21 @@ private const val PREFS_NAME = "privateai_prefs"
 private const val KEY_ONBOARDING_DONE = "onboarding_done"
 private const val KEY_APP_PIN = "app_pin"
 private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
+private const val KEY_AUTH_MODE = "auth_mode" // "phone_lock" or "app_pin"
+
+enum class AuthMode { PHONE_LOCK, APP_PIN }
+
+fun getAuthMode(context: Context): AuthMode {
+    val mode = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .getString(KEY_AUTH_MODE, "phone_lock") ?: "phone_lock"
+    return if (mode == "app_pin") AuthMode.APP_PIN else AuthMode.PHONE_LOCK
+}
+
+fun setAuthMode(context: Context, mode: AuthMode) {
+    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+        .putString(KEY_AUTH_MODE, if (mode == AuthMode.APP_PIN) "app_pin" else "phone_lock")
+        .apply()
+}
 
 fun isOnboardingComplete(context: Context): Boolean {
     return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -78,10 +100,22 @@ private fun completeOnboarding(context: Context, pin: String, biometric: Boolean
         .apply()
 }
 
+/**
+ * Quick onboarding completion for backup restore flow.
+ * Marks onboarding done without PIN (user can set up later in settings).
+ */
+fun completeOnboardingQuick(context: Context) {
+    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+        .putBoolean(KEY_ONBOARDING_DONE, true)
+        .apply()
+}
+
 @Composable
-fun OnboardingScreen(onComplete: () -> Unit) {
+fun OnboardingScreen(onComplete: () -> Unit, onImportBackup: (() -> Unit)? = null, onCompleteWithSummary: ((String) -> Unit)? = null, importSummary: String? = null) {
     val context = LocalContext.current
-    var step by remember { mutableIntStateOf(0) }
+    // If returning from backup import, skip to auth mode choice
+    var step by remember { mutableIntStateOf(if (importSummary != null) 2 else 0) }
+    var authMode by remember { mutableStateOf(AuthMode.PHONE_LOCK) }
     var pin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
     var enableBiometric by remember { mutableStateOf(false) }
@@ -91,6 +125,9 @@ fun OnboardingScreen(onComplete: () -> Unit) {
             BiometricManager.Authenticators.BIOMETRIC_STRONG
         ) == BiometricManager.BIOMETRIC_SUCCESS
     }
+
+    // Steps: 0=Welcome, 1=Privacy, 2=Auth mode choice, 3=PIN setup (app_pin only), 4=All set
+    val totalSteps = if (authMode == AuthMode.APP_PIN) 5 else 4
 
     Box(
         modifier = Modifier
@@ -106,7 +143,10 @@ fun OnboardingScreen(onComplete: () -> Unit) {
                 title = "Private AI Camera",
                 description = "AI-powered camera that runs entirely on your device.\nNo data is ever sent to any server.",
                 primaryButton = "Get Started",
-                onPrimary = { step = 1 }
+                onPrimary = { step = 1 },
+                secondaryButton = "I have a backup",
+                secondaryIcon = Icons.Default.CloudDownload,
+                onSecondary = { onImportBackup?.invoke() }
             )
 
             // Step 1: Privacy explanation
@@ -124,8 +164,22 @@ fun OnboardingScreen(onComplete: () -> Unit) {
                 onPrimary = { step = 2 }
             )
 
-            // Step 2: Set PIN
-            2 -> PinSetupPage(
+            // Step 2: Choose authentication mode
+            2 -> AuthModeChoicePage(
+                authMode = authMode,
+                onModeChange = { authMode = it },
+                onNext = {
+                    if (authMode == AuthMode.APP_PIN) {
+                        step = 3 // go to PIN setup
+                    } else {
+                        enableBiometric = true // phone lock uses biometric by default
+                        step = 4 // skip PIN, go to done
+                    }
+                }
+            )
+
+            // Step 3: Set app PIN (only for APP_PIN mode)
+            3 -> PinSetupPage(
                 pin = pin,
                 confirmPin = confirmPin,
                 onPinChange = { pin = it },
@@ -136,33 +190,43 @@ fun OnboardingScreen(onComplete: () -> Unit) {
                     } else if (pin != confirmPin) {
                         Toast.makeText(context, "PINs don't match", Toast.LENGTH_SHORT).show()
                     } else {
-                        step = if (hasBiometric) 3 else 4
+                        step = 4
                     }
                 }
             )
 
-            // Step 3: Biometric opt-in (only if device supports it)
-            3 -> OnboardingPage(
-                icon = Icons.Default.Fingerprint,
-                title = "Enable Biometric Unlock",
-                description = "Use your fingerprint or face to unlock the vault and notes quickly.\nYour PIN will always work as a backup.",
-                primaryButton = "Enable Biometric",
-                onPrimary = { enableBiometric = true; step = 4 },
-                secondaryButton = "Skip",
-                onSecondary = { enableBiometric = false; step = 4 }
-            )
-
-            // Step 4: All set
-            4 -> OnboardingPage(
-                icon = Icons.Default.Lock,
-                title = "You're All Set!",
-                description = "Your vault is secured with ${if (enableBiometric) "biometric + PIN" else "PIN"} protection.\nAll photos and notes will be encrypted automatically.",
-                primaryButton = "Start Using App",
-                onPrimary = {
-                    completeOnboarding(context, pin, enableBiometric)
-                    onComplete()
+            // Step 4: All set + benchmark
+            4 -> {
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        com.privateai.camera.service.DeviceProfiler.runBenchmark(context)
+                    }
                 }
-            )
+                val protection = when {
+                    authMode == AuthMode.PHONE_LOCK -> "phone lock (fingerprint/PIN)"
+                    else -> "app PIN"
+                }
+                val duressNote = if (authMode == AuthMode.APP_PIN) "\nYou can set up an Emergency PIN in Settings." else ""
+                OnboardingPage(
+                    icon = Icons.Default.Lock,
+                    title = "You're All Set!",
+                    description = "Your vault is secured with $protection.$duressNote\nAll photos and notes will be encrypted automatically.",
+                    primaryButton = "Start Using App",
+                    onPrimary = {
+                        setAuthMode(context, authMode)
+                        if (authMode == AuthMode.APP_PIN) {
+                            completeOnboarding(context, pin, hasBiometric)
+                        } else {
+                            completeOnboarding(context, "", true)
+                        }
+                        if (importSummary != null && onCompleteWithSummary != null) {
+                            onCompleteWithSummary(importSummary)
+                        } else {
+                            onComplete()
+                        }
+                    }
+                )
+            }
         }
 
         // Step indicator at bottom
@@ -172,7 +236,7 @@ fun OnboardingScreen(onComplete: () -> Unit) {
                 .padding(bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            repeat(5) { index ->
+            repeat(totalSteps) { index ->
                 Box(
                     modifier = Modifier
                         .size(if (index == step) 10.dp else 8.dp)
@@ -196,6 +260,7 @@ private fun OnboardingPage(
     primaryButton: String,
     onPrimary: () -> Unit,
     secondaryButton: String? = null,
+    secondaryIcon: ImageVector? = null,
     onSecondary: (() -> Unit)? = null
 ) {
     Column(
@@ -247,9 +312,95 @@ private fun OnboardingPage(
         }
 
         if (secondaryButton != null && onSecondary != null) {
-            TextButton(onClick = onSecondary) {
-                Text(secondaryButton)
+            OutlinedButton(
+                onClick = onSecondary,
+                modifier = Modifier.fillMaxWidth().height(50.dp)
+            ) {
+                if (secondaryIcon != null) {
+                    Icon(secondaryIcon, null, Modifier.size(20.dp))
+                    Text("  $secondaryButton")
+                } else {
+                    Text(secondaryButton)
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun AuthModeChoicePage(
+    authMode: AuthMode,
+    onModeChange: (AuthMode) -> Unit,
+    onNext: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(
+            Icons.Default.Lock, null,
+            modifier = Modifier.size(80.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+
+        Text(
+            "How to Unlock Vault?",
+            style = MaterialTheme.typography.headlineMedium,
+            textAlign = TextAlign.Center
+        )
+
+        Text(
+            "Choose how you want to protect your encrypted vault and notes.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        // Option 1: Phone lock
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable { onModeChange(AuthMode.PHONE_LOCK) },
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (authMode == AuthMode.PHONE_LOCK) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                RadioButton(selected = authMode == AuthMode.PHONE_LOCK, onClick = { onModeChange(AuthMode.PHONE_LOCK) })
+                Icon(Icons.Default.PhoneAndroid, null, tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f)) {
+                    Text("Use Phone Lock", style = MaterialTheme.typography.titleSmall)
+                    Text("Fingerprint, face, or device PIN", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        // Option 2: App PIN
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable { onModeChange(AuthMode.APP_PIN) },
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (authMode == AuthMode.APP_PIN) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                RadioButton(selected = authMode == AuthMode.APP_PIN, onClick = { onModeChange(AuthMode.APP_PIN) })
+                Icon(Icons.Default.Pin, null, tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f)) {
+                    Text("Create App PIN", style = MaterialTheme.typography.titleSmall)
+                    Text("Separate PIN just for this app. Enables Emergency PIN feature.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Button(
+            onClick = onNext,
+            modifier = Modifier.fillMaxWidth().height(50.dp)
+        ) {
+            Text("Continue")
         }
     }
 }
