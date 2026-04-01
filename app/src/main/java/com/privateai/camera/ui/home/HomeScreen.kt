@@ -89,7 +89,7 @@ fun HomeScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text("Private AI Camera") },
+                title = { Text("Privo") },
                 actions = {
                     if (isVaultUnlocked) {
                         IconButton(onClick = {

@@ -245,23 +245,51 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
     }
 
     fun openViewer(photo: VaultPhoto) {
-        if (photo.mediaType == VaultMediaType.VIDEO) {
-            scope.launch {
-                val tempFile = withContext(Dispatchers.IO) { vault.decryptVideoToTempFile(photo) }
-                if (tempFile != null) {
-                    videoTempFile = tempFile
-                    viewerPhoto = photo
-                    page = VaultPage.VIDEO_PLAYER
-                } else {
-                    Toast.makeText(context, "Failed to decrypt video", Toast.LENGTH_SHORT).show()
+        when (photo.mediaType) {
+            VaultMediaType.VIDEO -> {
+                scope.launch {
+                    val tempFile = withContext(Dispatchers.IO) { vault.decryptVideoToTempFile(photo) }
+                    if (tempFile != null) {
+                        videoTempFile = tempFile
+                        viewerPhoto = photo
+                        page = VaultPage.VIDEO_PLAYER
+                    } else {
+                        Toast.makeText(context, "Failed to decrypt video", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
-        } else {
-            scope.launch {
-                val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(photo) }
-                viewerPhoto = photo
-                viewerBitmap = bmp
-                page = VaultPage.VIEWER
+            VaultMediaType.PDF -> {
+                // Decrypt PDF to temp and open/share
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            val decrypted = crypto.decryptFile(photo.encryptedFile)
+                            val tempPdf = File(context.cacheDir, "${photo.id}.pdf")
+                            tempPdf.writeBytes(decrypted)
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempPdf)
+                            withContext(Dispatchers.Main) {
+                                context.startActivity(Intent.createChooser(
+                                    Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(uri, "application/pdf")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }, "Open PDF"
+                                ))
+                            }
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, "Failed to open PDF: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
+            }
+            else -> {
+                scope.launch {
+                    val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(photo) }
+                    viewerPhoto = photo
+                    viewerBitmap = bmp
+                    page = VaultPage.VIEWER
+                }
             }
         }
     }
@@ -663,7 +691,10 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                                                 ),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            if (thumb != null) {
+                                            if (photo.mediaType == VaultMediaType.PDF) {
+                                                // PDF icon
+                                                Icon(Icons.Default.PictureAsPdf, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(36.dp))
+                                            } else if (thumb != null) {
                                                 Image(thumb.asImageBitmap(), "Photo", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                                             } else {
                                                 Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -9,7 +9,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
 
-enum class VaultMediaType { PHOTO, VIDEO }
+enum class VaultMediaType { PHOTO, VIDEO, PDF }
 
 enum class VaultCategory(val label: String, val dirName: String) {
     CAMERA("Camera", "camera"),
@@ -224,11 +224,12 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
 
         val items = mutableListOf<VaultPhoto>()
 
-        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, _tobedeleted_)
+        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, .pdf.enc, _tobedeleted_)
         files.filter {
             it.name.endsWith(".enc") &&
                 !it.name.endsWith(".thumb.enc") &&
                 !it.name.endsWith(".vid.enc") &&
+                !it.name.endsWith(".pdf.enc") &&
                 !it.name.startsWith("_tobedeleted_")
         }.forEach { file ->
             val id = file.name.removeSuffix(".enc")
@@ -245,7 +246,16 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
             items.add(VaultPhoto(id, file.lastModified(), category, file, File(dir, "$id.vid.thumb.enc"), VaultMediaType.VIDEO))
         }
 
-        Log.d(TAG, "listPhotos($category): items=${items.size} (photos=${items.count { it.mediaType == VaultMediaType.PHOTO }}, videos=${items.count { it.mediaType == VaultMediaType.VIDEO }})")
+        // PDFs: {name}.pdf.enc (_tobedeleted_ excluded)
+        files.filter {
+            it.name.endsWith(".pdf.enc") &&
+                !it.name.startsWith("_tobedeleted_")
+        }.forEach { file ->
+            val id = file.name.removeSuffix(".pdf.enc")
+            items.add(VaultPhoto(id, file.lastModified(), category, file, file, VaultMediaType.PDF))
+        }
+
+        Log.d(TAG, "listPhotos($category): items=${items.size} (photos=${items.count { it.mediaType == VaultMediaType.PHOTO }}, videos=${items.count { it.mediaType == VaultMediaType.VIDEO }}, pdfs=${items.count { it.mediaType == VaultMediaType.PDF }})")
 
         return items.sortedByDescending { it.timestamp }
     }

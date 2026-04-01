@@ -38,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -704,6 +705,41 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                         }
                     }) {
                         Icon(Icons.Default.Share, "Share", tint = Color.White)
+                    }
+
+                    // Face blur toggle (photos only) — opposite of global setting
+                    if (lastCapturedItem?.mediaType != com.privateai.camera.security.VaultMediaType.VIDEO) {
+                        val blurDefault = com.privateai.camera.ui.settings.isFaceBlurEnabled(context)
+                        IconButton(onClick = {
+                            lastCapturedItem?.let { item ->
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        var bitmap = vault.loadFullPhoto(item) ?: return@withContext
+                                        if (!blurDefault) {
+                                            bitmap = com.privateai.camera.util.FaceBlur.blurFaces(bitmap)
+                                        }
+                                        val uri = com.privateai.camera.util.saveBitmapToCache(context, bitmap, "capture_blur_share.jpg")
+                                        bitmap.recycle()
+                                        withContext(Dispatchers.Main) {
+                                            val label = if (blurDefault) "Share (no blur)" else "Share (faces blurred)"
+                                            context.startActivity(Intent.createChooser(
+                                                Intent(Intent.ACTION_SEND).apply {
+                                                    type = "image/jpeg"
+                                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }, label
+                                            ))
+                                        }
+                                    }
+                                }
+                            }
+                        }) {
+                            Icon(
+                                Icons.Default.Face,
+                                if (blurDefault) "Share without blur" else "Blur & Share",
+                                tint = if (blurDefault) Color.White else Color(0xFF4CAF50)
+                            )
+                        }
                     }
 
                     // Delete

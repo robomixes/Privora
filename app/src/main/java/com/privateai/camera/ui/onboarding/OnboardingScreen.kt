@@ -140,7 +140,7 @@ fun OnboardingScreen(onComplete: () -> Unit, onImportBackup: (() -> Unit)? = nul
             // Step 0: Welcome
             0 -> OnboardingPage(
                 icon = Icons.Default.CameraAlt,
-                title = "Private AI Camera",
+                title = "Privo",
                 description = "AI-powered camera that runs entirely on your device.\nNo data is ever sent to any server.",
                 primaryButton = "Get Started",
                 onPrimary = { step = 1 },

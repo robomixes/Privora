@@ -1,4 +1,4 @@
-# Private AI Camera — Project Plan
+# Privo — Project Plan
 
 **Core value proposition**: "AI camera that never sends your data anywhere."
 
@@ -65,17 +65,20 @@
 | 24 | **Feature Toggles** — enable/disable any feature from home screen via settings | DONE |
 | 25 | **Camera Thumbnail** — tap opens photo/video directly with share + delete (no vault navigation) | DONE |
 
-### v1.0 Release Prep (TODO)
+### v1.0 Release Prep
 
-| Item | Effort |
+| Item | Status |
 |------|--------|
-| Privacy Policy (in-app link + web page) | Manual |
-| Play Store Data Safety declaration (ML Kit disclosure) | Manual |
-| Proper adaptive icon (launcher icon) | Small |
-| Release build test (Proguard/R8 verification) | Small |
-| Version bump 0.1.0 → 1.0.0 | Trivial |
-| Release signing keystore | Small |
-| Play Store screenshots + description | Manual |
+| App name: **Privo** | DONE |
+| Version 1.0.0 (versionCode 100) | DONE |
+| Privacy Policy (PRIVACY.md + in-app link) | DONE |
+| Adaptive launcher icon (mipmap + round) | DONE |
+| Proguard rules (ONNX, ML Kit, CameraX, crypto) | DONE |
+| Release build with R8 minification (245MB signed APK) | DONE |
+| Release signing keystore (keystore/release.jks) | DONE |
+| Play Store Data Safety declaration | TODO (manual in Play Console) |
+| Play Store screenshots + description | TODO (manual) |
+| Play Store feature graphic (1024x500) | TODO (manual) |
 
 ---
 

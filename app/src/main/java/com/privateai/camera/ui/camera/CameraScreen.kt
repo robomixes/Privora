@@ -91,7 +91,7 @@ fun CameraScreen(onBack: (() -> Unit)? = null) {
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    "Private AI Camera needs camera access",
+                    "Privo needs camera access",
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )

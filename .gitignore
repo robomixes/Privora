@@ -16,3 +16,9 @@ local.properties
 
 # Generated
 /app/build/
+
+# Release keystore (NEVER commit)
+keystore/
+*.jks
+*.keystore
+keystore.properties

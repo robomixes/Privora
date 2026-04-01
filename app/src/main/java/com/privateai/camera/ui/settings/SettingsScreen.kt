@@ -274,8 +274,19 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
             SettingsItem(
                 icon = Icons.Default.Info,
-                title = "Private AI Camera",
-                subtitle = "Version 0.1.0 • AI camera that never sends your data anywhere"
+                title = "Privo",
+                subtitle = "Version 1.0.0 • AI camera that never sends your data anywhere"
+            )
+
+            SettingsItem(
+                icon = Icons.Default.Security,
+                title = "Privacy Policy",
+                subtitle = "View our privacy policy",
+                onClick = {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse("https://github.com/robomixes/private-ai-camera/blob/main/PRIVACY.md"))
+                    context.startActivity(intent)
+                }
             )
 
             Card(
