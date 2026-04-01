@@ -12,7 +12,7 @@ import com.privateai.camera.ui.theme.PrivateAICameraTheme
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Block screenshots and screen recording on vault screens
+        // Block screenshots and screen recording
         window.setFlags(
             WindowManager.LayoutParams.FLAG_SECURE,
             WindowManager.LayoutParams.FLAG_SECURE
