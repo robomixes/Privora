@@ -25,6 +25,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -137,6 +138,9 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var activeRecording by remember { mutableStateOf<Recording?>(null) }
     var isSavingVideo by remember { mutableStateOf(false) }
+
+    // Face count (lightweight ML Kit face detection)
+    var faceCount by remember { mutableIntStateOf(0) }
     // Long-press-to-record from photo mode (hold shutter = quick video)
     var isHoldRecording by remember { mutableStateOf(false) }
     var longPressJob by remember { mutableStateOf<Job?>(null) }
@@ -242,7 +246,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
 
         val tempFile = File(context.cacheDir, "rec_${System.currentTimeMillis()}.mp4")
         val outputOptions = FileOutputOptions.Builder(tempFile)
-            .setFileSizeLimit(150L * 1024 * 1024) // 150MB cap
+            .setFileSizeLimit(150L * 1024 * 1024)
             .build()
 
         val pendingRecording = vc.output
@@ -299,18 +303,38 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
             modifier = Modifier.fillMaxSize(),
             cameraSelector = cameraSelector,
             isVideoMode = isVideoMode,
-            onFrameAnalyzed = if (!isVideoMode) { bitmap ->
+            onFrameAnalyzed = { bitmap ->
                 frameCount++
                 if (frameCount % 5 != 0) {
                     bitmap.recycle()
                     return@CameraPreview
                 }
-                synchronized(frameLock) {
-                    latestFrame?.recycle()
-                    latestFrame = bitmap
+
+                // Keep latest frame for photo capture (photo mode only)
+                if (!isVideoMode) {
+                    synchronized(frameLock) {
+                        latestFrame?.recycle()
+                        latestFrame = bitmap
+                    }
                 }
-            } else null,
-            onVideoCaptureReady = { vc -> videoCapture = vc } // null if device doesn't support 3 use cases
+
+                // Lightweight face count using ML Kit (both photo and video)
+                try {
+                    val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
+                    com.google.mlkit.vision.face.FaceDetection.getClient().process(image)
+                        .addOnSuccessListener { faces ->
+                            faceCount = faces.size
+                            if (isVideoMode) bitmap.recycle()
+                        }
+                        .addOnFailureListener {
+                            faceCount = 0
+                            if (isVideoMode) bitmap.recycle()
+                        }
+                } catch (_: Exception) {
+                    if (isVideoMode) bitmap.recycle()
+                }
+            },
+            onVideoCaptureReady = { vc -> videoCapture = vc }
         )
 
         // White flash overlay on capture (photo mode)
@@ -401,6 +425,24 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                 )
             }
 
+            // Level indicator + face count (hidden during recording and viewer)
+            if (!isRecording && !showViewer) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    LevelIndicator()
+                    if (faceCount > 0) {
+                        Text(
+                            text = "$faceCount face${if (faceCount > 1) "s" else ""}",
+                            color = Color(0xFF4CAF50),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+
             if (hasFrontCamera && !isRecording) {
                 IconButton(
                     onClick = { useFrontCamera = !useFrontCamera },
@@ -431,7 +473,9 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                     fontSize = 14.sp,
                     fontWeight = if (!isVideoMode) FontWeight.Bold else FontWeight.Normal,
                     modifier = Modifier.clickable {
-                        if (isVideoMode) { isVideoMode = false }
+                        if (isVideoMode) {
+                            isVideoMode = false
+                        }
                     }
                 )
                 Text(

@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,6 +16,7 @@ import androidx.camera.core.FocusMeteringAction
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -116,6 +120,7 @@ fun CameraScreen(onBack: (() -> Unit)? = null) {
 @Composable
 fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
+    val captureScope = androidx.compose.runtime.rememberCoroutineScope()
     var detections by remember { mutableStateOf<List<Detection>>(emptyList()) }
     var inferenceTimeMs by remember { mutableLongStateOf(0L) }
     var frameCount by remember { mutableLongStateOf(0L) }
@@ -144,10 +149,12 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
 
     // Initialize detector
     val detector = remember { OnnxDetector(context) }
+    var isDisposing by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
         onDispose {
-            detector.release()
+            isDisposing = true
+            try { detector.release() } catch (_: Exception) {}
             latestFrameBitmap?.recycle()
             frozenBitmap?.recycle()
         }
@@ -169,8 +176,8 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
             modifier = Modifier.fillMaxSize(),
             cameraSelector = cameraSelector,
             onFrameAnalyzed = { bitmap ->
-                // Skip processing when frozen (object selected)
-                if (isFrozen) {
+                // Skip processing when frozen, disposing, or throttled
+                if (isFrozen || isDisposing) {
                     bitmap.recycle()
                     return@CameraPreview
                 }
@@ -182,7 +189,11 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                 }
 
                 val start = System.currentTimeMillis()
-                val results = detector.detect(bitmap)
+                val catFilter = com.privateai.camera.ui.settings.getSelectedCategories(context)
+                val minConf = com.privateai.camera.ui.settings.getConfidenceThreshold(context)
+                val results = try {
+                    detector.detect(bitmap, catFilter, minConf)
+                } catch (_: Exception) { emptyList() }
                 inferenceTimeMs = System.currentTimeMillis() - start
                 detections = results
 
@@ -422,6 +433,64 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                         }
                     }
                 }
+            }
+        }
+
+        // Capture button — saves current frame with detection boxes to vault
+        if (!isFrozen) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 32.dp, end = 16.dp)
+                    .size(56.dp)
+                    .background(Color.White, CircleShape)
+                    .border(3.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+                    .clickable {
+                        val frame = latestFrameBitmap ?: return@clickable
+                        val dets = detections
+                        captureScope.launch {
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val mutable = frame.copy(Bitmap.Config.ARGB_8888, true)
+                                    val canvas = android.graphics.Canvas(mutable)
+                                    val w = mutable.width.toFloat()
+                                    val h = mutable.height.toFloat()
+                                    val boxPaint = android.graphics.Paint().apply {
+                                        style = android.graphics.Paint.Style.STROKE; strokeWidth = 4f; isAntiAlias = true
+                                    }
+                                    val textPaint = android.graphics.Paint().apply {
+                                        color = android.graphics.Color.WHITE; textSize = (h * 0.025f).coerceIn(24f, 48f); isAntiAlias = true; isFakeBoldText = true
+                                    }
+                                    val bgPaint = android.graphics.Paint().apply { style = android.graphics.Paint.Style.FILL }
+                                    for (det in dets) {
+                                        val left = det.x1 * w; val top = det.y1 * h; val right = det.x2 * w; val bottom = det.y2 * h
+                                        val hue = (det.classId * 37 % 360).toFloat()
+                                        val color = android.graphics.Color.HSVToColor(200, floatArrayOf(hue, 0.8f, 1f))
+                                        boxPaint.color = color; bgPaint.color = color
+                                        canvas.drawRect(android.graphics.RectF(left, top, right, bottom), boxPaint)
+                                        val label = "${det.className} ${(det.confidence * 100).toInt()}%"
+                                        val tw = textPaint.measureText(label)
+                                        canvas.drawRect(left, top - textPaint.textSize - 8f, left + tw + 16f, top, bgPaint)
+                                        canvas.drawText(label, left + 8f, top - 6f, textPaint)
+                                    }
+                                    val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
+                                    val vault = com.privateai.camera.security.VaultRepository(context, crypto)
+                                    vault.savePhoto(mutable, com.privateai.camera.security.VaultCategory.DETECT)
+                                    mutable.recycle()
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, "Detection photo saved to vault", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, "Save failed", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(Modifier.size(44.dp).background(Color.White, CircleShape))
             }
         }
 

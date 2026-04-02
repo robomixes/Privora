@@ -58,16 +58,42 @@ fun CameraPreview(
             val videoCapture = VideoCapture.withOutput(recorder)
 
             if (isVideoMode) {
-                // Video mode: Preview + VideoCapture only (no ImageAnalysis)
+                // Video mode: try Preview + VideoCapture + ImageAnalysis (for face count)
+                val imageAnalysis = if (onFrameAnalyzed != null) {
+                    ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                        .build().also { analysis ->
+                            analysis.setAnalyzer(analysisExecutor) { imageProxy ->
+                                val bitmap = imageProxyToBitmap(imageProxy)
+                                if (bitmap != null) onFrameAnalyzed(bitmap)
+                                imageProxy.close()
+                            }
+                        }
+                } else null
+
                 try {
                     cameraProvider.unbindAll()
+                    val useCases = listOfNotNull(preview, videoCapture, imageAnalysis)
                     val camera = cameraProvider.bindToLifecycle(
-                        lifecycleOwner, cameraSelector, preview, videoCapture
+                        lifecycleOwner, cameraSelector, *useCases.toTypedArray()
                     )
                     onVideoCaptureReady?.invoke(videoCapture)
                     onCameraBound?.invoke(camera, previewView)
+                    Log.d("CameraPreview", "Video mode: bound ${useCases.size} use cases")
                 } catch (e: Exception) {
-                    Log.e("CameraPreview", "Video mode bind failed: ${e.message}")
+                    // Fallback: Preview + VideoCapture only (device can't handle 3)
+                    Log.w("CameraPreview", "Video 3 use cases failed, fallback: ${e.message}")
+                    try {
+                        cameraProvider.unbindAll()
+                        val camera = cameraProvider.bindToLifecycle(
+                            lifecycleOwner, cameraSelector, preview, videoCapture
+                        )
+                        onVideoCaptureReady?.invoke(videoCapture)
+                        onCameraBound?.invoke(camera, previewView)
+                    } catch (e2: Exception) {
+                        Log.e("CameraPreview", "Video fallback failed: ${e2.message}")
+                    }
                 }
             } else {
                 // Photo mode: try Preview + ImageAnalysis + VideoCapture (for hold-to-record)

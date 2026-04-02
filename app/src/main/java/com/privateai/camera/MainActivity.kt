@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
 import com.privateai.camera.security.DuressManager
+import com.privateai.camera.service.CrashHandler
 import com.privateai.camera.ui.PrivateAICameraApp
 import com.privateai.camera.ui.theme.PrivateAICameraTheme
 
@@ -18,6 +19,9 @@ class MainActivity : FragmentActivity() {
             WindowManager.LayoutParams.FLAG_SECURE
         )
         enableEdgeToEdge()
+
+        // Install crash handler (logs locally, never sends anywhere)
+        CrashHandler.install(this)
 
         // Clean up any leftover files from interrupted duress wipe
         Thread { DuressManager.deleteMarkedFiles(this) }.start()

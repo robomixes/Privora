@@ -3,6 +3,7 @@ package com.privateai.camera.ui.vault
 import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfDocument
 import android.os.Build
 import android.os.Environment
@@ -34,21 +35,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Lock
@@ -61,6 +69,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -84,6 +93,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -139,6 +149,9 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
     var viewerPhoto by remember { mutableStateOf<VaultPhoto?>(null) }
     var viewerBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var videoTempFile by remember { mutableStateOf<File?>(null) }
+    var showEditor by remember { mutableStateOf(false) }
+    var editorPhoto by remember { mutableStateOf<VaultPhoto?>(null) }
+    var editorBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     // Duress mode — blocks all data access when active
     var isDuressActive by remember { mutableStateOf(false) }
@@ -175,6 +188,64 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
             thumbnails.values.forEach { it.recycle() }
             viewerBitmap?.recycle()
             videoTempFile?.delete()
+        }
+    }
+
+    // Import files launcher
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            var importedImages = 0
+            var importedPdfs = 0
+            var importedVideos = 0
+            var skippedLarge = 0
+            withContext(Dispatchers.IO) {
+                uris.forEach { uri ->
+                    try {
+                        val mimeType = context.contentResolver.getType(uri)
+
+                        if (mimeType?.startsWith("video/") == true) {
+                            // Check size limit (150MB)
+                            val size = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
+                            if (size > 150L * 1024 * 1024) {
+                                skippedLarge++
+                                return@forEach
+                            }
+                            // Copy to temp file for vault.saveVideo()
+                            val tempFile = java.io.File(context.cacheDir, "import_vid_${System.currentTimeMillis()}.mp4")
+                            context.contentResolver.openInputStream(uri)?.use { input ->
+                                tempFile.outputStream().use { output -> input.copyTo(output) }
+                            }
+                            vault.saveVideo(tempFile)
+                            importedVideos++
+                        } else {
+                            val bytes = context.contentResolver.openInputStream(uri)?.readBytes() ?: return@forEach
+
+                            if (mimeType?.startsWith("image/") == true) {
+                                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@forEach
+                                vault.savePhoto(bitmap, VaultCategory.CAMERA)
+                                bitmap.recycle()
+                                importedImages++
+                            } else if (mimeType == "application/pdf") {
+                                vault.saveFile(bytes, "import_${System.currentTimeMillis()}.pdf", VaultCategory.SCAN)
+                                importedPdfs++
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+            if (!isDuressActive) categoryCounts = vault.countByCategory()
+            val parts = mutableListOf<String>()
+            if (importedImages > 0) parts.add("$importedImages photo(s)")
+            if (importedVideos > 0) parts.add("$importedVideos video(s)")
+            if (importedPdfs > 0) parts.add("$importedPdfs PDF(s)")
+            val msg = if (parts.isNotEmpty()) "Imported ${parts.joinToString(" + ")} to vault" else ""
+            val skipMsg = if (skippedLarge > 0) " ($skippedLarge skipped — over 150MB)" else ""
+            if (msg.isNotEmpty() || skipMsg.isNotEmpty()) {
+                Toast.makeText(context, "$msg$skipMsg", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -451,6 +522,43 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
         }
     }
 
+    // Details dialog
+    var showDetailsDialog by remember { mutableStateOf(false) }
+    if (showDetailsDialog && viewerPhoto != null) {
+        val item = viewerPhoto!!
+        val encSize = if (item.encryptedFile.exists()) item.encryptedFile.length() else 0L
+        val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+            .format(java.util.Date(item.timestamp))
+        val typeLabel = when (item.mediaType) {
+            VaultMediaType.PHOTO -> "Photo (JPEG)"
+            VaultMediaType.VIDEO -> "Video (MP4)"
+            VaultMediaType.PDF -> "PDF Document"
+        }
+
+        AlertDialog(
+            onDismissRequest = { showDetailsDialog = false },
+            title = { Text("File Details") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DetailRow("Type", typeLabel)
+                    DetailRow("Name", item.id)
+                    DetailRow("Date", dateStr)
+                    DetailRow("Encrypted Size", com.privateai.camera.service.StorageManager.formatSize(encSize))
+                    DetailRow("Category", item.category.label)
+                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                    Text("Security", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                    DetailRow("Encryption", "AES-256-GCM")
+                    DetailRow("Key Storage", "Hardware TEE/StrongBox")
+                    DetailRow("EXIF Data", "Stripped on share")
+                    DetailRow("Storage", "App-internal (hidden)")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDetailsDialog = false }) { Text("Close") }
+            }
+        )
+    }
+
     // Delete dialog
     if (showDeleteDialog) {
         val count = if (isSelectionMode) selectedIds.size else 1
@@ -579,13 +687,6 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                             enabled = pinInput.length >= 4,
                             modifier = Modifier.width(200.dp)
                         ) { Text("Unlock") }
-
-                        Spacer(Modifier.height(16.dp))
-
-                        OutlinedButton(
-                            onClick = { authenticate() },
-                            modifier = Modifier.width(200.dp)
-                        ) { Text("Use Biometric") }
                     } else {
                         // Phone lock mode: biometric/device credential only
                         Button(
@@ -610,6 +711,27 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                     CategoryCard("Camera Photos", categoryCounts[VaultCategory.CAMERA] ?: 0, Icons.Default.CameraAlt) { openCategory(VaultCategory.CAMERA) }
                     CategoryCard("Videos", categoryCounts[VaultCategory.VIDEO] ?: 0, Icons.Default.Videocam) { openCategory(VaultCategory.VIDEO) }
                     CategoryCard("Scanned Documents", categoryCounts[VaultCategory.SCAN] ?: 0, Icons.Default.DocumentScanner) { openCategory(VaultCategory.SCAN) }
+                    CategoryCard("Detections", categoryCounts[VaultCategory.DETECT] ?: 0, Icons.Default.CameraAlt) { openCategory(VaultCategory.DETECT) }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Import files button
+                    OutlinedButton(
+                        onClick = {
+                            importLauncher.launch(arrayOf("image/*", "video/*", "application/pdf"))
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Add, null, Modifier.size(20.dp))
+                        Text("  Import Files")
+                    }
+
+                    Text(
+                        "Import photos, videos (max 150MB), and PDFs. Images are EXIF-stripped.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
                 }
             }
         }
@@ -621,6 +743,12 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                         title = { Text("${selectedIds.size} selected") },
                         navigationIcon = { IconButton(onClick = { selectedIds = emptySet(); isSelectionMode = false }) { Icon(Icons.Default.Close, "Cancel") } },
                         actions = {
+                            if (selectedIds.size == 1) {
+                                IconButton(onClick = {
+                                    viewerPhoto = photos.find { it.id in selectedIds }
+                                    showDetailsDialog = true
+                                }) { Icon(Icons.Default.Info, "Details") }
+                            }
                             IconButton(onClick = { shareImages(selectedIds) }) { Icon(Icons.Default.Share, "Share Images") }
                             IconButton(onClick = { sharePdf(selectedIds) }) { Icon(Icons.Default.PictureAsPdf, "Share PDF") }
                             IconButton(onClick = { saveToDevice(selectedIds) }) { Icon(Icons.Default.SaveAlt, "Save to Device") }
@@ -692,8 +820,16 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                                             contentAlignment = Alignment.Center
                                         ) {
                                             if (photo.mediaType == VaultMediaType.PDF) {
-                                                // PDF icon
-                                                Icon(Icons.Default.PictureAsPdf, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(36.dp))
+                                                // PDF icon + filename
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
+                                                    Icon(Icons.Default.PictureAsPdf, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp))
+                                                    Text(
+                                                        text = photo.id.let { if (it.length > 15) it.take(12) + "..." else it },
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1
+                                                    )
+                                                }
                                             } else if (thumb != null) {
                                                 Image(thumb.asImageBitmap(), "Photo", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                                             } else {
@@ -724,10 +860,72 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
         }
 
         VaultPage.VIEWER -> {
+            // Get navigable items (photos + videos, not PDFs)
+            val viewablePhotos = remember(photos) { photos.filter { it.mediaType != VaultMediaType.PDF } }
+            val currentIndex = viewablePhotos.indexOfFirst { it.id == viewerPhoto?.id }
+
+            fun navigateToItem(index: Int) {
+                val item = viewablePhotos.getOrNull(index) ?: return
+                if (item.mediaType == VaultMediaType.VIDEO) {
+                    // Switch to video player
+                    scope.launch {
+                        val tempFile = withContext(Dispatchers.IO) { vault.decryptVideoToTempFile(item) }
+                        if (tempFile != null) {
+                            viewerBitmap?.recycle()
+                            viewerBitmap = null
+                            videoTempFile = tempFile
+                            viewerPhoto = item
+                            page = VaultPage.VIDEO_PLAYER
+                        }
+                    }
+                } else {
+                    scope.launch {
+                        val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(item) }
+                        viewerBitmap?.recycle()
+                        viewerBitmap = bmp
+                        viewerPhoto = item
+                    }
+                }
+            }
+
             Box(Modifier.fillMaxSize().background(Color.Black)) {
                 viewerBitmap?.let { bmp ->
-                    Image(bmp.asImageBitmap(), "Photo", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+                    var dragTotal by remember { mutableStateOf(0f) }
+                    Image(
+                        bmp.asImageBitmap(), "Photo",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(currentIndex) {
+                                detectHorizontalDragGestures(
+                                    onDragStart = { dragTotal = 0f },
+                                    onDragEnd = {
+                                        if (dragTotal > 100 && currentIndex > 0) {
+                                            navigateToItem(currentIndex - 1) // swipe right = prev
+                                        } else if (dragTotal < -100 && currentIndex < viewablePhotos.size - 1) {
+                                            navigateToItem(currentIndex + 1) // swipe left = next
+                                        }
+                                        // First/last item: do nothing on swipe
+                                    },
+                                    onHorizontalDrag = { _, dragAmount -> dragTotal += dragAmount }
+                                )
+                            }
+                    )
                 }
+
+                // Counter
+                if (viewablePhotos.size > 1 && currentIndex >= 0) {
+                    Text(
+                        "${currentIndex + 1} / ${viewablePhotos.size}",
+                        color = Color.White,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 54.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+
                 IconButton(
                     onClick = { viewerBitmap?.recycle(); viewerBitmap = null; page = VaultPage.GALLERY },
                     Modifier.align(Alignment.TopStart).padding(top = 48.dp, start = 16.dp).size(40.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
@@ -777,6 +975,24 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                             tint = if (blurDefault) Color.White else Color(0xFF4CAF50)
                         )
                     }
+                    // Edit (photos only)
+                    if (viewerPhoto?.mediaType == VaultMediaType.PHOTO) {
+                        IconButton(onClick = {
+                            viewerPhoto?.let { photo ->
+                                viewerBitmap?.let { bmp ->
+                                    showEditor = true
+                                    editorPhoto = photo
+                                    editorBitmap = bmp
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Edit, "Edit", tint = Color.White)
+                        }
+                    }
+                    // Details
+                    IconButton(onClick = { showDetailsDialog = true }) {
+                        Icon(Icons.Default.Info, "Details", tint = Color.White)
+                    }
                     IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF6B6B))
                     }
@@ -785,6 +1001,32 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
         }
 
         VaultPage.VIDEO_PLAYER -> {
+            val viewablePhotos = remember(photos) { photos.filter { it.mediaType != VaultMediaType.PDF } }
+            val currentVideoIndex = viewablePhotos.indexOfFirst { it.id == viewerPhoto?.id }
+
+            fun navigateVideo(index: Int) {
+                val item = viewablePhotos.getOrNull(index) ?: return
+                videoTempFile?.delete()
+                videoTempFile = null
+                if (item.mediaType == VaultMediaType.VIDEO) {
+                    scope.launch {
+                        val tempFile = withContext(Dispatchers.IO) { vault.decryptVideoToTempFile(item) }
+                        if (tempFile != null) {
+                            videoTempFile = tempFile
+                            viewerPhoto = item
+                        }
+                    }
+                } else {
+                    // Switch to photo viewer
+                    scope.launch {
+                        val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(item) }
+                        viewerBitmap = bmp
+                        viewerPhoto = item
+                        page = VaultPage.VIEWER
+                    }
+                }
+            }
+
             Box(Modifier.fillMaxSize().background(Color.Black)) {
                 videoTempFile?.let { file ->
                     com.privateai.camera.ui.camera.VideoPlayerWithControls(
@@ -804,7 +1046,41 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                         .size(40.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
                 ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
 
-                // Bottom bar: share + delete
+                // Counter
+                if (viewablePhotos.size > 1 && currentVideoIndex >= 0) {
+                    Text(
+                        "${currentVideoIndex + 1} / ${viewablePhotos.size}",
+                        color = Color.White,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 54.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+
+                // Prev/Next arrows on sides
+                if (currentVideoIndex > 0) {
+                    IconButton(
+                        onClick = { navigateVideo(currentVideoIndex - 1) },
+                        Modifier.align(Alignment.CenterStart).padding(start = 8.dp)
+                            .size(40.dp).background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                    ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Previous", tint = Color.White) }
+                }
+                if (currentVideoIndex < viewablePhotos.size - 1) {
+                    IconButton(
+                        onClick = { navigateVideo(currentVideoIndex + 1) },
+                        Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)
+                            .size(40.dp).background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack, "Next", tint = Color.White,
+                            modifier = Modifier.graphicsLayer(scaleX = -1f)
+                        )
+                    }
+                }
+
+                // Bottom bar: share + save + info + delete
                 Row(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .padding(bottom = 40.dp, start = 24.dp, end = 24.dp)
@@ -865,6 +1141,10 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                     }) {
                         Icon(Icons.Default.SaveAlt, "Save to Device", tint = Color.White)
                     }
+                    // Details
+                    IconButton(onClick = { showDetailsDialog = true }) {
+                        Icon(Icons.Default.Info, "Details", tint = Color.White)
+                    }
                     // Delete
                     IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF6B6B))
@@ -872,6 +1152,27 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                 }
             }
         }
+    }
+
+    // Photo editor overlay
+    if (showEditor && editorPhoto != null && editorBitmap != null) {
+        com.privateai.camera.ui.camera.PhotoEditorScreen(
+            photo = editorPhoto!!,
+            initialBitmap = editorBitmap!!,
+            vault = vault,
+            onDone = {
+                showEditor = false
+                // Reload the photo to reflect edits
+                editorPhoto?.let { photo ->
+                    scope.launch {
+                        val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(photo) }
+                        viewerBitmap = bmp
+                    }
+                }
+                editorPhoto = null
+                editorBitmap = null
+            }
+        )
     }
 }
 
@@ -917,5 +1218,16 @@ private fun CategoryCard(
                 Text("$count items", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodySmall)
     }
 }

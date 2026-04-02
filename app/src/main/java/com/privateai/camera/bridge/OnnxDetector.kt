@@ -65,7 +65,7 @@ class OnnxDetector(context: Context) {
     private var padTop = 0f
     private var scale = 1f
 
-    fun detect(bitmap: Bitmap): List<Detection> {
+    fun detect(bitmap: Bitmap, categoryFilter: Set<Int>? = null, minConfidence: Float = 0f): List<Detection> {
         val session = ortSession
         if (session == null) {
             debugInfo = "ERROR: model not loaded"
@@ -73,7 +73,14 @@ class OnnxDetector(context: Context) {
         }
 
         try {
-            return detectInternal(session, bitmap)
+            var results = detectInternal(session, bitmap)
+            if (categoryFilter != null && categoryFilter.size < 80) {
+                results = results.filter { it.classId in categoryFilter }
+            }
+            if (minConfidence > 0f) {
+                results = results.filter { it.confidence >= minConfidence }
+            }
+            return results
         } catch (e: Exception) {
             debugInfo = "CRASH: ${e.javaClass.simpleName}: ${e.message}"
             Log.e(TAG, "Detection failed", e)

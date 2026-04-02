@@ -15,6 +15,7 @@ enum class VaultCategory(val label: String, val dirName: String) {
     CAMERA("Camera", "camera"),
     VIDEO("Videos", "video"),
     SCAN("Scans", "scan"),
+    DETECT("Detections", "detect"),
     FILES("Files", "files")
 }
 
@@ -201,6 +202,28 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
             Log.e(TAG, "Failed to decrypt video: ${e.message}")
             null
         }
+    }
+
+    /**
+     * Replace a photo's content with a new bitmap. Overwrites encrypted file + thumbnail.
+     */
+    fun replacePhoto(photo: VaultPhoto, newBitmap: Bitmap) {
+        val jpegBytes = ByteArrayOutputStream().use { out ->
+            newBitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+            out.toByteArray()
+        }
+        val scale = THUMB_SIZE.toFloat() / maxOf(newBitmap.width, newBitmap.height)
+        val thumb = Bitmap.createScaledBitmap(
+            newBitmap, (newBitmap.width * scale).toInt(), (newBitmap.height * scale).toInt(), true
+        )
+        val thumbBytes = ByteArrayOutputStream().use { out ->
+            thumb.compress(Bitmap.CompressFormat.JPEG, 70, out)
+            out.toByteArray()
+        }
+        thumb.recycle()
+        crypto.encryptToFile(jpegBytes, photo.encryptedFile)
+        crypto.encryptToFile(thumbBytes, photo.thumbnailFile)
+        Log.d(TAG, "Photo replaced: ${photo.id} (${jpegBytes.size / 1024}KB)")
     }
 
     /**

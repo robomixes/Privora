@@ -364,13 +364,6 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
                             enabled = pinInput.length >= 4,
                             modifier = Modifier.width(200.dp)
                         ) { Text("Unlock") }
-
-                        Spacer(Modifier.height(16.dp))
-
-                        OutlinedButton(
-                            onClick = { authenticate() },
-                            modifier = Modifier.width(200.dp)
-                        ) { Text("Use Biometric") }
                     } else {
                         Button(
                             onClick = { authenticate() },

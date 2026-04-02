@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Switch
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -100,6 +101,56 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
             Text(
                 "Disabled features are hidden from the home screen",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            // AI Detection section
+            SectionHeader("AI Detection")
+
+            var showCategoriesDialog by remember { mutableStateOf(false) }
+            var categoryCount by remember { mutableStateOf(getSelectedCategories(context).size) }
+            var confidencePercent by remember { mutableStateOf(getConfidencePercent(context)) }
+
+            // Confidence threshold
+            SettingsItem(
+                icon = Icons.Default.Search,
+                title = "Minimum Confidence: ${confidencePercent}%",
+                subtitle = "Hide detections below this threshold",
+                onClick = {
+                    confidencePercent = when {
+                        confidencePercent < 25 -> 25
+                        confidencePercent < 35 -> 35
+                        confidencePercent < 45 -> 45
+                        confidencePercent < 55 -> 55
+                        confidencePercent < 65 -> 65
+                        confidencePercent < 75 -> 75
+                        else -> 15
+                    }
+                    saveConfidenceThreshold(context, confidencePercent)
+                }
+            )
+
+            // Categories
+            SettingsItem(
+                icon = Icons.Default.Search,
+                title = "Detection Categories",
+                subtitle = "$categoryCount of 80 categories selected",
+                onClick = { showCategoriesDialog = true }
+            )
+
+            if (showCategoriesDialog) {
+                DetectionCategoriesDialog(context = context, onDismiss = {
+                    showCategoriesDialog = false
+                    categoryCount = getSelectedCategories(context).size
+                })
+            }
+
+            Text(
+                "These settings apply to the Detect feature and capture button.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -277,6 +328,36 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 title = "Privo",
                 subtitle = "Version 1.0.0 • AI camera that never sends your data anywhere"
             )
+
+            val crashLogs = remember { com.privateai.camera.service.CrashHandler.listLogs(context) }
+            if (crashLogs.isNotEmpty()) {
+                SettingsItem(
+                    icon = Icons.Default.Info,
+                    title = "Crash Logs (${crashLogs.size})",
+                    subtitle = "View local crash reports — never sent anywhere",
+                    onClick = {
+                        // Share latest crash log
+                        val latest = crashLogs.first()
+                        val content = com.privateai.camera.service.CrashHandler.readLog(latest.file)
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Privo Crash Report")
+                            putExtra(android.content.Intent.EXTRA_TEXT, content)
+                        }
+                        context.startActivity(android.content.Intent.createChooser(intent, "Share Crash Log"))
+                    }
+                )
+
+                SettingsItem(
+                    icon = Icons.Default.Delete,
+                    title = "Clear Crash Logs",
+                    subtitle = "Delete all local crash reports",
+                    onClick = {
+                        com.privateai.camera.service.CrashHandler.clearLogs(context)
+                        Toast.makeText(context, "Crash logs cleared", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
 
             SettingsItem(
                 icon = Icons.Default.Security,
