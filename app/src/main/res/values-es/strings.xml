@@ -130,7 +130,7 @@
     <!-- Settings: About -->
     <string name="settings_section_about">Acerca de</string>
     <string name="settings_privo">Privo</string>
-    <string name="settings_privo_desc">Versión 2.0.0 \u2022 Cámara con IA que nunca envía tus datos a ningún lugar</string>
+    <string name="settings_privo_desc">Versión 1.0.0 \u2022 Cámara con IA que nunca envía tus datos a ningún lugar</string>
     <string name="settings_crash_logs">Registros de errores (%1$d)</string>
     <string name="settings_crash_logs_desc">Ver reportes de errores locales \u2014 nunca se envían a ningún lugar</string>
     <string name="settings_crash_logs_title">Registros de errores</string>

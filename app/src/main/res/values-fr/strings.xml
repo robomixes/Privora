@@ -132,7 +132,7 @@
     <!-- Settings: About -->
     <string name="settings_section_about">\u00C0 propos</string>
     <string name="settings_privo">Privo</string>
-    <string name="settings_privo_desc">Version 2.0.0 \u2022 Appareil photo IA qui n\'envoie jamais vos données nulle part</string>
+    <string name="settings_privo_desc">Version 1.0.0 \u2022 Appareil photo IA qui n\'envoie jamais vos données nulle part</string>
     <string name="settings_crash_logs">Journaux de plantage (%1$d)</string>
     <string name="settings_crash_logs_desc">Consulter les rapports de plantage locaux \u2014 jamais envoyés nulle part</string>
     <string name="settings_crash_logs_title">Journaux de plantage</string>

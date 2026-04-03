@@ -22,8 +22,8 @@ android {
         applicationId = "com.privateai.camera"
         minSdk = 26
         targetSdk = 35
-        versionCode = 200
-        versionName = "2.0.0"
+        versionCode = 1
+        versionName = "1.0.0"
     }
 
     signingConfigs {

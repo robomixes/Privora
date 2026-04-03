@@ -130,7 +130,7 @@
     <!-- Settings: About -->
     <string name="settings_section_about">حول التطبيق</string>
     <string name="settings_privo">Privo</string>
-    <string name="settings_privo_desc">الإصدار 2.0.0 \u2022 كاميرا ذكاء اصطناعي لا ترسل بياناتك أبداً إلى أي مكان</string>
+    <string name="settings_privo_desc">الإصدار 1.0.0 \u2022 كاميرا ذكاء اصطناعي لا ترسل بياناتك أبداً إلى أي مكان</string>
     <string name="settings_crash_logs">سجلات الأعطال (%1$d)</string>
     <string name="settings_crash_logs_desc">عرض تقارير الأعطال المحلية \u2014 لا تُرسل أبداً إلى أي مكان</string>
     <string name="settings_crash_logs_title">سجلات الأعطال</string>
