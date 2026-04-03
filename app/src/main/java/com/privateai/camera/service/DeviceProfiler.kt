@@ -70,8 +70,8 @@ object DeviceProfiler {
         }
 
         val tier = when {
-            inferenceMs < 100 && ramMb > 4096 -> DeviceTier.HIGH
-            inferenceMs < 250 && ramMb > 3072 -> DeviceTier.MEDIUM
+            inferenceMs < 300 && ramMb > 4096 -> DeviceTier.HIGH
+            inferenceMs < 500 && ramMb > 2048 -> DeviceTier.MEDIUM
             else -> DeviceTier.LOW
         }
 
