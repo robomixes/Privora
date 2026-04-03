@@ -25,6 +25,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -62,9 +63,15 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.privateai.camera.R
 import kotlinx.coroutines.Job
 import androidx.core.content.ContextCompat
 import com.privateai.camera.security.CryptoManager
@@ -137,6 +144,9 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var activeRecording by remember { mutableStateOf<Recording?>(null) }
     var isSavingVideo by remember { mutableStateOf(false) }
+
+    // Face count (lightweight ML Kit face detection)
+    var faceCount by remember { mutableIntStateOf(0) }
     // Long-press-to-record from photo mode (hold shutter = quick video)
     var isHoldRecording by remember { mutableStateOf(false) }
     var longPressJob by remember { mutableStateOf<Job?>(null) }
@@ -184,7 +194,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
     if (!hasCameraPermission) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
-                Text("Grant Camera Permission")
+                Text(stringResource(R.string.grant_camera_permission))
             }
         }
         LaunchedEffect(Unit) { permissionLauncher.launch(Manifest.permission.CAMERA) }
@@ -223,7 +233,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                 } catch (e: Exception) {
                     bitmap.recycle()
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.save_failed, e.message ?: ""), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -242,7 +252,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
 
         val tempFile = File(context.cacheDir, "rec_${System.currentTimeMillis()}.mp4")
         val outputOptions = FileOutputOptions.Builder(tempFile)
-            .setFileSizeLimit(150L * 1024 * 1024) // 150MB cap
+            .setFileSizeLimit(150L * 1024 * 1024)
             .build()
 
         val pendingRecording = vc.output
@@ -272,7 +282,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                                 } catch (e: Exception) {
                                     tempFile.delete()
                                     withContext(Dispatchers.Main) {
-                                        Toast.makeText(context, "Save failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, context.getString(R.string.save_failed, e.message ?: ""), Toast.LENGTH_SHORT).show()
                                         isSavingVideo = false
                                     }
                                 }
@@ -280,7 +290,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                         }
                     } else {
                         tempFile.delete()
-                        Toast.makeText(context, "Recording failed", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.recording_failed), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -299,18 +309,38 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
             modifier = Modifier.fillMaxSize(),
             cameraSelector = cameraSelector,
             isVideoMode = isVideoMode,
-            onFrameAnalyzed = if (!isVideoMode) { bitmap ->
+            onFrameAnalyzed = { bitmap ->
                 frameCount++
                 if (frameCount % 5 != 0) {
                     bitmap.recycle()
                     return@CameraPreview
                 }
-                synchronized(frameLock) {
-                    latestFrame?.recycle()
-                    latestFrame = bitmap
+
+                // Keep latest frame for photo capture (photo mode only)
+                if (!isVideoMode) {
+                    synchronized(frameLock) {
+                        latestFrame?.recycle()
+                        latestFrame = bitmap
+                    }
                 }
-            } else null,
-            onVideoCaptureReady = { vc -> videoCapture = vc } // null if device doesn't support 3 use cases
+
+                // Lightweight face count using ML Kit (both photo and video)
+                try {
+                    val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
+                    com.google.mlkit.vision.face.FaceDetection.getClient().process(image)
+                        .addOnSuccessListener { faces ->
+                            faceCount = faces.size
+                            if (isVideoMode) bitmap.recycle()
+                        }
+                        .addOnFailureListener {
+                            faceCount = 0
+                            if (isVideoMode) bitmap.recycle()
+                        }
+                } catch (_: Exception) {
+                    if (isVideoMode) bitmap.recycle()
+                }
+            },
+            onVideoCaptureReady = { vc -> videoCapture = vc }
         )
 
         // White flash overlay on capture (photo mode)
@@ -355,7 +385,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                 )
                 if (!hasAudioPermission) {
                     Text(
-                        text = "(no audio)",
+                        text = stringResource(R.string.no_audio),
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 12.sp
                     )
@@ -372,7 +402,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                     .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text("Encrypting video...", color = Color.White, fontSize = 14.sp)
+                Text(stringResource(R.string.encrypting_video), color = Color.White, fontSize = 14.sp)
             }
         }
 
@@ -396,9 +426,27 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
+                    contentDescription = stringResource(R.string.cd_back),
                     tint = Color.White
                 )
+            }
+
+            // Level indicator + face count (hidden during recording and viewer)
+            if (!isRecording && !showViewer) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    LevelIndicator()
+                    if (faceCount > 0) {
+                        Text(
+                            text = stringResource(R.string.face_count, faceCount),
+                            color = Color(0xFF4CAF50),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
             }
 
             if (hasFrontCamera && !isRecording) {
@@ -410,7 +458,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                 ) {
                     Icon(
                         Icons.Default.Cameraswitch,
-                        contentDescription = "Switch Camera",
+                        contentDescription = stringResource(R.string.cd_switch_camera),
                         tint = Color.White
                     )
                 }
@@ -426,16 +474,18 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                 horizontalArrangement = Arrangement.spacedBy(32.dp)
             ) {
                 Text(
-                    "PHOTO",
+                    stringResource(R.string.mode_photo),
                     color = if (!isVideoMode) Color.Yellow else Color.White.copy(alpha = 0.6f),
                     fontSize = 14.sp,
                     fontWeight = if (!isVideoMode) FontWeight.Bold else FontWeight.Normal,
                     modifier = Modifier.clickable {
-                        if (isVideoMode) { isVideoMode = false }
+                        if (isVideoMode) {
+                            isVideoMode = false
+                        }
                     }
                 )
                 Text(
-                    "VIDEO",
+                    stringResource(R.string.mode_video),
                     color = if (isVideoMode) Color.Yellow else Color.White.copy(alpha = 0.6f),
                     fontSize = 14.sp,
                     fontWeight = if (isVideoMode) FontWeight.Bold else FontWeight.Normal,
@@ -464,6 +514,10 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
             Box(
                 modifier = Modifier
                     .size(56.dp)
+                    .semantics {
+                        contentDescription = context.getString(R.string.cd_view_last_capture)
+                        role = Role.Button
+                    }
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color.Black.copy(alpha = 0.5f))
                     .border(2.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
@@ -489,16 +543,16 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                     },
                 contentAlignment = Alignment.Center
             ) {
-                if (lastThumbnail != null) {
+                lastThumbnail?.let { thumb ->
                     Image(
-                        bitmap = lastThumbnail!!.asImageBitmap(),
-                        contentDescription = "Last capture",
+                        bitmap = thumb.asImageBitmap(),
+                        contentDescription = stringResource(R.string.cd_last_capture),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(RoundedCornerShape(12.dp))
                     )
-                }
+                } // lastThumbnail
             }
 
             // Shutter / Record button
@@ -507,6 +561,10 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                 Box(
                     modifier = Modifier
                         .size(80.dp)
+                        .semantics {
+                            contentDescription = if (isRecording) context.getString(R.string.cd_stop_recording) else context.getString(R.string.cd_start_recording)
+                            role = Role.Button
+                        }
                         .border(4.dp, Color.White, CircleShape)
                         .padding(6.dp)
                         .clickable(enabled = !isSavingVideo) {
@@ -533,6 +591,10 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                 Box(
                     modifier = Modifier
                         .size(80.dp)
+                        .semantics {
+                            contentDescription = if (isHoldRecording) context.getString(R.string.cd_stop_recording) else context.getString(R.string.cd_take_photo)
+                            role = Role.Button
+                        }
                         .border(
                             4.dp,
                             if (isHoldRecording) Color.Red else Color.White,
@@ -604,7 +666,8 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
             Box(
                 modifier = Modifier
                     .size(56.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .semantics { contentDescription = context.getString(R.string.cd_photos_taken, mediaCount) },
                 contentAlignment = Alignment.Center
             ) {
                 if (mediaCount > 0) {
@@ -628,7 +691,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                 viewerBitmap?.let { bmp ->
                     Image(
                         bitmap = bmp.asImageBitmap(),
-                        contentDescription = "Captured photo",
+                        contentDescription = stringResource(R.string.cd_captured_photo),
                         contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -657,7 +720,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                         .size(40.dp)
                         .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Close", tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_close), tint = Color.White)
                 }
 
                 // Bottom actions: share + delete
@@ -684,7 +747,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                                                     type = "video/mp4"
                                                     putExtra(Intent.EXTRA_STREAM, uri)
                                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }, "Share"
+                                                }, context.getString(R.string.share)
                                             ))
                                         }
                                     } else {
@@ -696,7 +759,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                                                     type = "image/jpeg"
                                                     putExtra(Intent.EXTRA_STREAM, uri)
                                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }, "Share"
+                                                }, context.getString(R.string.share)
                                             ))
                                         }
                                     }
@@ -704,7 +767,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                             }
                         }
                     }) {
-                        Icon(Icons.Default.Share, "Share", tint = Color.White)
+                        Icon(Icons.Default.Share, stringResource(R.string.cd_share), tint = Color.White)
                     }
 
                     // Face blur toggle (photos only) — opposite of global setting
@@ -721,7 +784,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                                         val uri = com.privateai.camera.util.saveBitmapToCache(context, bitmap, "capture_blur_share.jpg")
                                         bitmap.recycle()
                                         withContext(Dispatchers.Main) {
-                                            val label = if (blurDefault) "Share (no blur)" else "Share (faces blurred)"
+                                            val label = if (blurDefault) context.getString(R.string.share_no_blur) else context.getString(R.string.share_faces_blurred)
                                             context.startActivity(Intent.createChooser(
                                                 Intent(Intent.ACTION_SEND).apply {
                                                     type = "image/jpeg"
@@ -736,7 +799,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                         }) {
                             Icon(
                                 Icons.Default.Face,
-                                if (blurDefault) "Share without blur" else "Blur & Share",
+                                stringResource(if (blurDefault) R.string.cd_share_without_blur else R.string.cd_blur_and_share),
                                 tint = if (blurDefault) Color.White else Color(0xFF4CAF50)
                             )
                         }
@@ -757,7 +820,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                         viewerVideoFile?.delete()
                         viewerVideoFile = null
                     }) {
-                        Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF6B6B))
+                        Icon(Icons.Default.Delete, stringResource(R.string.cd_delete), tint = Color(0xFFFF6B6B))
                     }
                 }
             }

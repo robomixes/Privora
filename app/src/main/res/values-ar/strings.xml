@@ -1,0 +1,436 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Privo</string>
+    <string name="widget_name">وصول سريع - Privo</string>
+    <string name="widget_description">وصول سريع إلى الكاميرا والخزنة</string>
+
+    <!-- Common actions -->
+    <string name="action_back">رجوع</string>
+    <string name="action_search">بحث</string>
+    <string name="action_close">إغلاق</string>
+    <string name="action_delete">حذف</string>
+    <string name="action_share">مشاركة</string>
+    <string name="action_cancel">إلغاء</string>
+    <string name="action_add">إضافة</string>
+    <string name="action_save">حفظ</string>
+    <string name="action_create">إنشاء</string>
+    <string name="action_unlock">فتح القفل</string>
+    <string name="action_clear_all">مسح الكل</string>
+    <string name="action_previous">السابق</string>
+    <string name="action_next">التالي</string>
+    <string name="action_previous_day">اليوم السابق</string>
+    <string name="action_next_day">اليوم التالي</string>
+    <string name="action_export_pdf">تصدير PDF</string>
+    <string name="action_move_up">أعلى</string>
+    <string name="action_move_down">أسفل</string>
+
+    <!-- Common labels -->
+    <string name="label_amount">المبلغ</string>
+    <string name="label_description">الوصف</string>
+    <string name="label_category">الفئة</string>
+    <string name="label_name">الاسم</string>
+    <string name="label_icon">الأيقونة</string>
+    <string name="label_color">اللون</string>
+    <string name="label_notes">الملاحظات</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">الإعدادات</string>
+    <string name="settings_search_placeholder">البحث في الإعدادات…</string>
+
+    <!-- Settings: Home Screen Features -->
+    <string name="settings_section_home_features">ميزات الشاشة الرئيسية</string>
+    <string name="feature_camera">الكاميرا</string>
+    <string name="feature_camera_desc">التقاط الصور والفيديو</string>
+    <string name="feature_detect">الكشف</string>
+    <string name="feature_detect_desc">كشف الأجسام بالذكاء الاصطناعي</string>
+    <string name="feature_scan">المسح</string>
+    <string name="feature_scan_desc">ماسح المستندات + التعرف على النصوص</string>
+    <string name="feature_qr_scan">مسح QR</string>
+    <string name="feature_qr_scan_desc">ماسح رموز QR والباركود</string>
+    <string name="feature_translate">الترجمة</string>
+    <string name="feature_translate_desc">ترجمة محلية</string>
+    <string name="feature_vault">الخزنة</string>
+    <string name="feature_vault_desc">تخزين مشفر للصور</string>
+    <string name="feature_notes">الملاحظات</string>
+    <string name="feature_notes_desc">ملاحظات آمنة ومشفرة</string>
+    <string name="feature_insights">التحليلات</string>
+    <string name="feature_insights_desc">المصاريف، الصحة، العادات</string>
+    <string name="feature_tools">الأدوات</string>
+    <string name="feature_tools_desc">محوّل الوحدات</string>
+    <string name="settings_reorder_hint">استخدم الأسهم لإعادة الترتيب. الميزات المعطّلة تُخفى من الشاشة الرئيسية.</string>
+
+    <!-- Settings: AI Detection -->
+    <string name="settings_section_ai_detection">كشف الذكاء الاصطناعي</string>
+    <string name="settings_min_confidence">الحد الأدنى للثقة: %1$d%%</string>
+    <string name="settings_min_confidence_desc">إخفاء النتائج التي تقل عن هذا الحد</string>
+    <string name="settings_detection_categories">فئات الكشف</string>
+    <string name="settings_detection_categories_desc">%1$d من 80 فئة مختارة</string>
+    <string name="settings_ai_detection_hint">تنطبق هذه الإعدادات على ميزة الكشف وزر الالتقاط.</string>
+
+    <!-- Settings: Device -->
+    <string name="settings_section_device">الجهاز</string>
+    <string name="settings_performance_tier">مستوى الأداء: %1$s</string>
+    <string name="settings_device_info">معلومات الجهاز</string>
+    <string name="settings_device_info_desc">%1$d أنوية معالج \u2022 %2$d ميغابايت ذاكرة \u2022 %3$dms استدلال</string>
+    <string name="settings_rebenchmark">إعادة اختبار الأداء</string>
+    <string name="settings_rebenchmark_desc">تشغيل اختبار الأداء مرة أخرى</string>
+    <string name="settings_running_benchmark">جارٍ اختبار الأداء\u2026</string>
+    <string name="settings_benchmark_complete">اكتمل اختبار الأداء</string>
+
+    <!-- Settings: Security -->
+    <string name="settings_section_security">الأمان</string>
+    <string name="settings_encryption">التشفير</string>
+    <string name="settings_encryption_desc">AES-256-GCM \u2022 مفتاح فريد لكل تثبيت \u2022 مدعوم بالعتاد</string>
+    <string name="settings_screenshot_protection">حماية لقطات الشاشة</string>
+    <string name="settings_screenshot_protection_desc">مفعّلة \u2014 لقطات الشاشة وتسجيل الشاشة محظوران</string>
+    <string name="settings_emergency_pin">PIN الطوارئ</string>
+    <string name="settings_emergency_pin_active">مفعّل</string>
+    <string name="settings_set_emergency_pin">تعيين PIN الطوارئ</string>
+    <string name="settings_set_emergency_pin_desc">أنشئ رمز PIN يُظهر خزنة فارغة عند إدخاله</string>
+    <string name="settings_autolock_delay">مهلة القفل التلقائي</string>
+    <string name="settings_lock_vault_after">قفل الخزنة بعد: %1$s</string>
+    <string name="settings_autolock_description">المدة التي ينتظرها التطبيق قبل قفل الخزنة عند مغادرتك للتطبيق.</string>
+    <string name="grace_immediately">فوراً</string>
+    <string name="grace_10_seconds">10 ثوانٍ</string>
+    <string name="grace_30_seconds">30 ثانية</string>
+    <string name="grace_1_minute">دقيقة واحدة</string>
+    <string name="grace_2_minutes">دقيقتان</string>
+
+    <!-- Settings: Storage -->
+    <string name="settings_section_storage">التخزين</string>
+    <string name="settings_vault">الخزنة</string>
+    <string name="settings_vault_desc">%1$s \u2022 %2$d صورة</string>
+    <string name="settings_notes">الملاحظات</string>
+    <string name="settings_notes_desc">%1$s \u2022 %2$d ملاحظة</string>
+    <string name="settings_cache">ذاكرة التخزين المؤقت</string>
+    <string name="settings_device_storage">تخزين الجهاز</string>
+    <string name="settings_device_storage_desc">%1$s متاح من %2$s (%3$s%% مستخدم)</string>
+    <string name="settings_storage_low_warning">\u26A0 مساحة التخزين منخفضة! يُنصح بمسح ذاكرة التخزين المؤقت أو حذف العناصر القديمة من الخزنة.</string>
+    <string name="settings_clear_cache">مسح ذاكرة التخزين المؤقت</string>
+    <string name="settings_clear_cache_desc">إزالة الملفات المؤقتة المشاركة</string>
+    <string name="settings_cleared_size">تم مسح %1$s</string>
+
+    <!-- Settings: Privacy -->
+    <string name="settings_section_privacy">الخصوصية</string>
+    <string name="settings_exif_stripping">إزالة بيانات EXIF</string>
+    <string name="settings_exif_stripping_desc">مفعّلة \u2014 تُزال بيانات GPS ومعلومات الجهاز والطوابع الزمنية من جميع الصور المشاركة</string>
+    <string name="settings_face_blur">طمس الوجوه عند المشاركة</string>
+    <string name="settings_face_blur_desc">طمس الوجوه تلقائياً قبل مشاركة الصور</string>
+    <string name="settings_network_policy">سياسة الشبكة</string>
+    <string name="settings_network_policy_desc">لا تحليلات، لا قياس عن بُعد. تُستخدم الشبكة فقط لتنزيل نماذج ML Kit.</string>
+    <string name="settings_backup_exclusion">استثناء من النسخ الاحتياطي</string>
+    <string name="settings_backup_exclusion_desc">بيانات الخزنة مستثناة من النسخ الاحتياطية للجهاز</string>
+
+    <!-- Settings: Backup & Migration -->
+    <string name="settings_section_backup">النسخ الاحتياطي والنقل</string>
+    <string name="settings_export_import">تصدير / استيراد نسخة احتياطية</string>
+    <string name="settings_export_import_desc">نقل الصور ومقاطع الفيديو والملاحظات إلى هاتف جديد</string>
+    <string name="settings_backup_hint">بياناتك مشفرة بمفتاح فريد لهذا الهاتف. استخدم النسخ الاحتياطي لنقل البيانات عند تغيير الهاتف.</string>
+
+    <!-- Settings: About -->
+    <string name="settings_section_about">حول التطبيق</string>
+    <string name="settings_privo">Privo</string>
+    <string name="settings_privo_desc">الإصدار 1.0.0 \u2022 كاميرا ذكاء اصطناعي لا ترسل بياناتك أبداً إلى أي مكان</string>
+    <string name="settings_crash_logs">سجلات الأعطال (%1$d)</string>
+    <string name="settings_crash_logs_desc">عرض تقارير الأعطال المحلية \u2014 لا تُرسل أبداً إلى أي مكان</string>
+    <string name="settings_crash_logs_title">سجلات الأعطال</string>
+    <string name="settings_crash_logs_cleared">تم مسح سجلات الأعطال</string>
+    <string name="settings_crash_report">تقرير العطل</string>
+    <string name="settings_crash_report_subject">تقرير عطل Privo</string>
+    <string name="settings_log_deleted">تم حذف السجل</string>
+    <string name="settings_privacy_policy">سياسة الخصوصية</string>
+    <string name="settings_privacy_policy_desc">عرض سياسة الخصوصية</string>
+    <string name="settings_privacy_promise">وعد الخصوصية</string>
+    <string name="settings_privacy_promise_text">تتم جميع معالجات الذكاء الاصطناعي على جهازك. الصور والملاحظات مشفرة بتقنية AES-256-GCM بمفتاح فريد لكل تثبيت مخزّن في وحدة الأمان المادية لهاتفك. لا تُرسل أي بيانات إلى أي خادم. لا تحليلات. لا قياس عن بُعد.</string>
+    <string name="settings_ml_kit_note">ملاحظة: يستخدم ماسح المستندات والترجمة حالياً Google ML Kit الذي يعمل عبر خدمات Google Play. سيتم استبدالهما ببدائل خاصة بالكامل في تحديث مستقبلي.</string>
+
+    <!-- Insights screen -->
+    <string name="insights_title">التحليلات</string>
+    <string name="insights_locked">التحليلات مقفلة</string>
+    <string name="insights_unlock_title">فتح التحليلات</string>
+    <string name="insights_unlock_subtitle">قم بالمصادقة للوصول إلى بياناتك</string>
+    <string name="insights_enter_pin">أدخل رمز PIN</string>
+    <string name="insights_incorrect_pin">رمز PIN غير صحيح</string>
+    <string name="insights_no_data">لا توجد بيانات بعد</string>
+    <string name="tab_expenses">المصاريف</string>
+    <string name="tab_health">الصحة</string>
+    <string name="tab_habits">العادات</string>
+
+    <!-- Expenses tab -->
+    <string name="expenses_total">الإجمالي</string>
+    <string name="expenses_count">%1$d مصروف</string>
+    <string name="expenses_by_category">حسب الفئة</string>
+    <string name="expenses_none_this_month">لا مصاريف هذا الشهر</string>
+    <string name="expenses_add_title">إضافة مصروف</string>
+
+    <!-- Health tab -->
+    <string name="health_myself">أنا</string>
+    <string name="health_unknown">غير معروف</string>
+    <string name="health_add_profile">إضافة ملف شخصي</string>
+    <string name="health_entries_this_month">%1$d إدخال هذا الشهر</string>
+    <string name="health_weight">الوزن</string>
+    <string name="health_heart_rate">معدل ضربات القلب</string>
+    <string name="health_no_entries">لا إدخالات هذا الشهر</string>
+    <string name="health_log_title">تسجيل بيانات صحية</string>
+    <string name="health_label_weight">الوزن kg</string>
+    <string name="health_label_temp">الحرارة \u00B0</string>
+    <string name="health_label_heart_bpm">القلب bpm</string>
+    <string name="health_label_steps">الخطوات</string>
+    <string name="health_label_bp_sys">ضغط انقباضي</string>
+    <string name="health_label_bp_dia">ضغط انبساطي</string>
+    <string name="health_label_sleep">النوم: %1$s ساعات</string>
+    <string name="health_label_mood">المزاج</string>
+
+    <!-- Habits tab -->
+    <string name="habits_today">اليوم</string>
+    <string name="habits_none_configured">لا توجد عادات. اضغط + للإضافة.</string>
+    <string name="habits_day_streak">%1$d يوم متتالي 🔥</string>
+    <string name="habits_completed_count">%1$d / %2$d مكتمل</string>
+    <string name="habits_all_done">تم إنجاز الكل! 🎉</string>
+    <string name="habits_add">إضافة عادة</string>
+    <string name="habits_new_title">عادة جديدة</string>
+
+    <!-- Export dialog -->
+    <string name="export_title">تصدير التقرير</string>
+    <string name="export_share_report">مشاركة التقرير</string>
+    <string name="export_share_desc">إرسال PDF عبر البريد الإلكتروني أو الرسائل وغيرها</string>
+    <string name="export_save_to_vault">حفظ في الخزنة</string>
+    <string name="export_save_to_vault_desc">تشفير وتخزين في الخزنة</string>
+    <string name="export_saved_to_vault">تم الحفظ في الخزنة (التقارير)</string>
+    <string name="export_save_failed">فشل الحفظ: %1$s</string>
+    <string name="export_save_to_device">حفظ على الجهاز</string>
+    <string name="export_save_to_device_desc">حفظ PDF في مجلد التنزيلات</string>
+    <string name="export_saved_to_downloads">تم الحفظ في التنزيلات/Privo</string>
+    <string name="export_csv">تصدير CSV</string>
+    <string name="export_csv_desc">حفظ جدول بيانات في مجلد التنزيلات</string>
+    <string name="export_saved_csv_to_downloads">تم حفظ CSV في التنزيلات/Privo</string>
+
+    <!-- Unit Converter screen -->
+    <string name="unit_converter_title">محوّل الوحدات</string>
+    <string name="unit_converter_from">من</string>
+    <string name="unit_converter_to">إلى</string>
+    <string name="unit_converter_swap">تبديل</string>
+    <string name="unit_converter_all_conversions">جميع التحويلات</string>
+
+    <!-- Shared UI strings (Vault, Notes, Editor) -->
+    <string name="back">رجوع</string>
+    <string name="cancel">إلغاء</string>
+    <string name="delete">حذف</string>
+    <string name="share">مشاركة</string>
+    <string name="save">حفظ</string>
+    <string name="create">إنشاء</string>
+    <string name="unlock">فتح القفل</string>
+    <string name="close">إغلاق</string>
+    <string name="search">بحث</string>
+    <string name="clear">مسح</string>
+    <string name="edit">تعديل</string>
+    <string name="rename">إعادة تسمية</string>
+    <string name="move">نقل</string>
+    <string name="details">التفاصيل</string>
+    <string name="previous">السابق</string>
+    <string name="next">التالي</string>
+    <string name="pin">تثبيت</string>
+    <string name="color">اللون</string>
+    <string name="all">الكل</string>
+    <string name="photo">صورة</string>
+    <string name="video">فيديو</string>
+    <string name="enter_pin">أدخل رمز PIN</string>
+    <string name="incorrect_pin">رمز PIN غير صحيح</string>
+    <string name="n_selected">%d محدد</string>
+
+    <!-- Vault screen -->
+    <string name="encrypted_vault">الخزنة المشفرة</string>
+    <string name="vault_is_locked">الخزنة مقفلة</string>
+    <string name="unlock_vault">فتح الخزنة</string>
+    <string name="authenticate_to_access_vault">قم بالمصادقة للوصول إلى الصور المشفرة</string>
+    <string name="search_vault">البحث في الخزنة…</string>
+    <string name="no_results_found">لا توجد نتائج</string>
+    <string name="n_results">%d نتيجة</string>
+    <string name="no_items_yet">لا توجد عناصر بعد</string>
+    <string name="category_camera">الكاميرا</string>
+    <string name="category_videos">مقاطع الفيديو</string>
+    <string name="category_scans">المستندات الممسوحة</string>
+    <string name="category_detections">نتائج الكشف</string>
+    <string name="category_reports">التقارير</string>
+    <string name="category_with_count">%1$s (%2$d)</string>
+    <string name="my_folders">مجلداتي</string>
+    <string name="new_folder">مجلد جديد</string>
+    <string name="no_folders_yet">لا توجد مجلدات بعد</string>
+    <string name="empty_folder">مجلد فارغ</string>
+    <string name="create_folder">إنشاء مجلد</string>
+    <string name="folder_name">اسم المجلد</string>
+    <string name="rename_folder">إعادة تسمية المجلد</string>
+    <string name="new_name">الاسم الجديد</string>
+    <string name="delete_folder_title">حذف المجلد؟</string>
+    <string name="delete_folder_message">سيتم حذف \"%1$s\" وجميع محتوياته نهائياً.</string>
+    <string name="move_to">نقل إلى…</string>
+    <string name="system_label">النظام</string>
+    <string name="moved_n_items">تم نقل %d عنصر</string>
+    <string name="moved_n_items_to_folder">تم نقل %1$d عنصر إلى %2$s</string>
+    <string name="n_items">%d عنصر</string>
+    <string name="n_items_count">%d عنصر</string>
+    <string name="delete_item">حذف %s</string>
+    <string name="permanently_deleted_from_vault">تم الحذف نهائياً من الخزنة.</string>
+    <string name="file_details">تفاصيل الملف</string>
+    <string name="detail_type">النوع</string>
+    <string name="detail_name">الاسم</string>
+    <string name="detail_date">التاريخ</string>
+    <string name="detail_encrypted_size">الحجم المشفر</string>
+    <string name="detail_category">الفئة</string>
+    <string name="security">الأمان</string>
+    <string name="detail_encryption">التشفير</string>
+    <string name="aes_256_gcm">AES-256-GCM</string>
+    <string name="detail_key_storage">تخزين المفتاح</string>
+    <string name="hardware_tee_strongbox">TEE/StrongBox مادي</string>
+    <string name="detail_exif_data">بيانات EXIF</string>
+    <string name="stripped_on_share">تُزال عند المشاركة</string>
+    <string name="detail_storage">التخزين</string>
+    <string name="app_internal_hidden">داخلي للتطبيق (مخفي)</string>
+    <string name="type_photo_jpeg">صورة (JPEG)</string>
+    <string name="type_video_mp4">فيديو (MP4)</string>
+    <string name="type_pdf_document">مستند PDF</string>
+    <string name="failed_to_decrypt_video">فشل فك تشفير الفيديو</string>
+    <string name="open_pdf">فتح PDF</string>
+    <string name="failed_to_open_pdf">فشل فتح PDF: %s</string>
+    <string name="share_pdf">مشاركة PDF</string>
+    <string name="share_photo">مشاركة الصورة</string>
+    <string name="share_video">مشاركة الفيديو</string>
+    <string name="share_n_items">مشاركة %d عنصر</string>
+    <string name="items_saved_to_gallery">تم حفظ %d عنصر في المعرض</string>
+    <string name="video_saved_to_gallery">تم حفظ الفيديو في المعرض</string>
+    <string name="save_failed">فشل الحفظ</string>
+    <string name="save_to_device">حفظ على الجهاز</string>
+    <string name="share_no_blur">مشاركة (بدون طمس)</string>
+    <string name="share_faces_blurred">مشاركة (مع طمس الوجوه)</string>
+    <string name="share_without_blur">مشاركة بدون طمس</string>
+    <string name="blur_and_share">طمس ومشاركة</string>
+    <string name="import_to_folder">استيراد إلى مجلد</string>
+    <string name="new_subfolder">مجلد فرعي جديد</string>
+    <string name="n_photos">%d صورة</string>
+    <string name="n_videos">%d فيديو</string>
+    <string name="n_pdfs">%d PDF</string>
+    <string name="to_folder"> إلى %s</string>
+    <string name="imported_summary">تم استيراد %1$s%2$s</string>
+    <string name="skipped_large"> (تم تخطي %d — أكبر من 150 ميغابايت)</string>
+
+    <!-- Content descriptions (Vault) -->
+    <string name="cd_pdf_document">مستند PDF</string>
+    <string name="cd_video_thumbnail">صورة مصغرة للفيديو</string>
+    <string name="cd_photo_thumbnail">صورة مصغرة</string>
+    <string name="cd_encrypted_item">عنصر مشفر</string>
+
+    <!-- Notes screen -->
+    <string name="secure_notes">الملاحظات الآمنة</string>
+    <string name="notes_are_locked">الملاحظات مقفلة</string>
+    <string name="unlock_notes">فتح الملاحظات</string>
+    <string name="authenticate_to_access_notes">قم بالمصادقة للوصول إلى الملاحظات الآمنة</string>
+    <string name="secure_notes_count">الملاحظات الآمنة (%d)</string>
+    <string name="search_notes">البحث في الملاحظات…</string>
+    <string name="no_notes_yet">لا توجد ملاحظات بعد</string>
+    <string name="tap_plus_to_create">اضغط + للإنشاء</string>
+    <string name="share_notes">مشاركة الملاحظات</string>
+    <string name="delete_n_notes">حذف %d ملاحظة</string>
+    <string name="permanently_deleted">تم الحذف نهائياً.</string>
+    <string name="choose_color">اختر لوناً</string>
+    <string name="new_note">ملاحظة جديدة</string>
+
+    <!-- Note Editor screen -->
+    <string name="edit_note">تعديل الملاحظة</string>
+    <string name="delete_note_title">حذف الملاحظة</string>
+    <string name="delete_note_message">سيتم حذف هذه الملاحظة نهائياً.</string>
+    <string name="title_label">العنوان</string>
+    <string name="tag_placeholder">وسم</string>
+    <string name="add_tag">إضافة وسم</string>
+    <string name="new_tag">وسم جديد</string>
+    <string name="note_label">الملاحظة</string>
+
+    <!-- Home screen -->
+    <string name="app_name_home">Privo</string>
+    <string name="vault_notes_locked">الخزنة والملاحظات مقفلة</string>
+    <string name="cd_lock_vault">قفل الخزنة</string>
+    <string name="cd_settings">الإعدادات</string>
+    <string name="backup_restored">تمت استعادة النسخة الاحتياطية</string>
+    <string name="cd_dismiss">إغلاق</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Privo</string>
+    <string name="onboarding_welcome_description">كاميرا مدعومة بالذكاء الاصطناعي تعمل بالكامل على جهازك.\nلا تُرسل أي بيانات إلى أي خادم أبداً.</string>
+    <string name="onboarding_get_started">ابدأ الآن</string>
+    <string name="onboarding_have_backup">لدي نسخة احتياطية</string>
+    <string name="onboarding_privacy_title">خصوصيتك تهمنا</string>
+    <string name="onboarding_privacy_description">تتم جميع معالجات الذكاء الاصطناعي على الجهاز.\nالصور والملاحظات مشفرة بتقنية AES-256-GCM.\nلا تحليلات. لا قياس عن بُعد. لا سحابة.</string>
+    <string name="onboarding_feature_detection">كشف الأجسام يعمل محلياً</string>
+    <string name="onboarding_feature_scanning">مسح المستندات يتم على الجهاز</string>
+    <string name="onboarding_feature_translation">نماذج الترجمة تُحمّل مرة واحدة، ثم تعمل بدون اتصال</string>
+    <string name="onboarding_feature_vault_encryption">الخزنة مشفرة بمفاتيح مدعومة بالعتاد</string>
+    <string name="onboarding_next">التالي</string>
+    <string name="onboarding_continue">متابعة</string>
+    <string name="auth_mode_title">كيف تريد فتح الخزنة؟</string>
+    <string name="auth_mode_description">اختر طريقة حماية الخزنة المشفرة والملاحظات.</string>
+    <string name="auth_use_phone_lock">استخدام قفل الهاتف</string>
+    <string name="auth_phone_lock_desc">بصمة الإصبع أو الوجه أو رمز PIN للجهاز</string>
+    <string name="auth_create_app_pin">إنشاء رمز PIN للتطبيق</string>
+    <string name="auth_app_pin_desc">رمز PIN منفصل خاص بهذا التطبيق. يتيح ميزة PIN الطوارئ.</string>
+    <string name="pin_min_digits">يجب أن يكون رمز PIN 4 أرقام على الأقل</string>
+    <string name="pins_dont_match_toast">رمزا PIN غير متطابقين</string>
+    <string name="protection_phone_lock">قفل الهاتف (بصمة/PIN)</string>
+    <string name="protection_app_pin">رمز PIN للتطبيق</string>
+    <string name="duress_note">يمكنك إعداد PIN الطوارئ من الإعدادات.</string>
+    <string name="onboarding_all_set_title">كل شيء جاهز!</string>
+    <string name="onboarding_all_set_description">خزنتك محمية بـ%1$s.%2$s\nسيتم تشفير جميع الصور والملاحظات تلقائياً.</string>
+    <string name="onboarding_start_using_app">ابدأ استخدام التطبيق</string>
+    <string name="pin_setup_title">عيّن رمز PIN الخاص بك</string>
+    <string name="pin_setup_description">يحمي رمز PIN هذا خزنتك وملاحظاتك الآمنة.\nاختر 4 أرقام على الأقل.</string>
+    <string name="pin_label">PIN</string>
+    <string name="pin_placeholder">أدخل رمز PIN من 4–8 أرقام</string>
+    <string name="cd_toggle_visibility">تبديل الرؤية</string>
+    <string name="confirm_pin_label">تأكيد رمز PIN</string>
+    <string name="confirm_pin_placeholder">أعد إدخال رمز PIN</string>
+    <string name="pins_dont_match">رمزا PIN غير متطابقين</string>
+    <string name="set_pin_button">تعيين رمز PIN</string>
+
+    <!-- Camera capture -->
+    <string name="grant_camera_permission">منح إذن الكاميرا</string>
+    <string name="save_failed_with_msg">فشل الحفظ: %1$s</string>
+    <string name="recording_failed">فشل التسجيل</string>
+    <string name="no_audio">(بدون صوت)</string>
+    <string name="encrypting_video">جارٍ تشفير الفيديو…</string>
+    <string name="cd_back">رجوع</string>
+    <string name="face_count">%1$d وجه</string>
+    <string name="cd_switch_camera">تبديل الكاميرا</string>
+    <string name="mode_photo">صورة</string>
+    <string name="mode_video">فيديو</string>
+    <string name="cd_view_last_capture">عرض آخر التقاط</string>
+    <string name="cd_last_capture">آخر التقاط</string>
+    <string name="cd_stop_recording">إيقاف التسجيل</string>
+    <string name="cd_start_recording">بدء التسجيل</string>
+    <string name="cd_take_photo">التقاط صورة</string>
+    <string name="cd_photos_taken">تم التقاط %1$d صورة</string>
+    <string name="cd_captured_photo">الصورة الملتقطة</string>
+    <string name="cd_close">إغلاق</string>
+    <string name="cd_share">مشاركة</string>
+    <string name="cd_share_without_blur">مشاركة بدون طمس</string>
+    <string name="cd_blur_and_share">طمس ومشاركة</string>
+    <string name="cd_delete">حذف</string>
+
+    <!-- Camera detection -->
+    <string name="camera_needs_access">يحتاج Privo إلى إذن الكاميرا</string>
+    <string name="camera_privacy_note">تتم جميع المعالجات على جهازك.\nلا تُرسل أي بيانات إلى أي مكان.</string>
+    <string name="object_count">%1$d جسم</string>
+    <string name="inference_time_ms">%1$dms</string>
+    <string name="cd_selected_object">المحدد: %1$s</string>
+    <string name="confidence_percent">الثقة: %1$d%%</string>
+    <string name="web_search">بحث في الويب</string>
+    <string name="search_by_image">البحث بالصورة</string>
+    <string name="cd_save_detection_photo">حفظ صورة الكشف</string>
+    <string name="detection_photo_saved">تم حفظ صورة الكشف في الخزنة</string>
+    <string name="save_failed_generic">فشل الحفظ</string>
+
+    <!-- Health profile dialog -->
+    <string name="health_add_profile_title">إضافة فرد من العائلة</string>
+    <string name="health_profile_name">الاسم</string>
+
+    <!-- Settings: Language -->
+    <string name="settings_language">اللغة</string>
+    <string name="settings_language_system">الإعداد الافتراضي للنظام</string>
+</resources>

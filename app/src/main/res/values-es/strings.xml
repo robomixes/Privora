@@ -1,0 +1,436 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Privo</string>
+    <string name="widget_name">Acceso Rápido Privo</string>
+    <string name="widget_description">Acceso rápido a Cámara y Bóveda</string>
+
+    <!-- Common actions -->
+    <string name="action_back">Atrás</string>
+    <string name="action_search">Buscar</string>
+    <string name="action_close">Cerrar</string>
+    <string name="action_delete">Eliminar</string>
+    <string name="action_share">Compartir</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_add">Agregar</string>
+    <string name="action_save">Guardar</string>
+    <string name="action_create">Crear</string>
+    <string name="action_unlock">Desbloquear</string>
+    <string name="action_clear_all">Borrar todo</string>
+    <string name="action_previous">Anterior</string>
+    <string name="action_next">Siguiente</string>
+    <string name="action_previous_day">Día anterior</string>
+    <string name="action_next_day">Día siguiente</string>
+    <string name="action_export_pdf">Exportar PDF</string>
+    <string name="action_move_up">Subir</string>
+    <string name="action_move_down">Bajar</string>
+
+    <!-- Common labels -->
+    <string name="label_amount">Monto</string>
+    <string name="label_description">Descripción</string>
+    <string name="label_category">Categoría</string>
+    <string name="label_name">Nombre</string>
+    <string name="label_icon">Ícono</string>
+    <string name="label_color">Color</string>
+    <string name="label_notes">Notas</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Configuración</string>
+    <string name="settings_search_placeholder">Buscar configuración…</string>
+
+    <!-- Settings: Home Screen Features -->
+    <string name="settings_section_home_features">Funciones de la pantalla principal</string>
+    <string name="feature_camera">Cámara</string>
+    <string name="feature_camera_desc">Captura de fotos y videos</string>
+    <string name="feature_detect">Detectar</string>
+    <string name="feature_detect_desc">Detección de objetos con IA</string>
+    <string name="feature_scan">Escanear</string>
+    <string name="feature_scan_desc">Escáner de documentos + OCR</string>
+    <string name="feature_qr_scan">Escanear QR</string>
+    <string name="feature_qr_scan_desc">Escáner de QR y códigos de barras</string>
+    <string name="feature_translate">Traducir</string>
+    <string name="feature_translate_desc">Traducción local</string>
+    <string name="feature_vault">Bóveda</string>
+    <string name="feature_vault_desc">Almacenamiento cifrado de fotos</string>
+    <string name="feature_notes">Notas</string>
+    <string name="feature_notes_desc">Notas seguras cifradas</string>
+    <string name="feature_insights">Análisis</string>
+    <string name="feature_insights_desc">Gastos, salud, hábitos</string>
+    <string name="feature_tools">Herramientas</string>
+    <string name="feature_tools_desc">Conversor de unidades</string>
+    <string name="settings_reorder_hint">Usa las flechas para reordenar. Las funciones desactivadas se ocultan de la pantalla principal.</string>
+
+    <!-- Settings: AI Detection -->
+    <string name="settings_section_ai_detection">Detección con IA</string>
+    <string name="settings_min_confidence">Confianza mínima: %1$d%%</string>
+    <string name="settings_min_confidence_desc">Ocultar detecciones por debajo de este umbral</string>
+    <string name="settings_detection_categories">Categorías de detección</string>
+    <string name="settings_detection_categories_desc">%1$d de 80 categorías seleccionadas</string>
+    <string name="settings_ai_detection_hint">Estos ajustes se aplican a la función Detectar y al botón de captura.</string>
+
+    <!-- Settings: Device -->
+    <string name="settings_section_device">Dispositivo</string>
+    <string name="settings_performance_tier">Nivel de rendimiento: %1$s</string>
+    <string name="settings_device_info">Info del dispositivo</string>
+    <string name="settings_device_info_desc">%1$d núcleos CPU \u2022 %2$d MB RAM \u2022 %3$dms inferencia</string>
+    <string name="settings_rebenchmark">Repetir prueba</string>
+    <string name="settings_rebenchmark_desc">Ejecutar la prueba de rendimiento de nuevo</string>
+    <string name="settings_running_benchmark">Ejecutando prueba\u2026</string>
+    <string name="settings_benchmark_complete">Prueba completada</string>
+
+    <!-- Settings: Security -->
+    <string name="settings_section_security">Seguridad</string>
+    <string name="settings_encryption">Cifrado</string>
+    <string name="settings_encryption_desc">AES-256-GCM \u2022 Clave por instalación \u2022 Respaldada por hardware</string>
+    <string name="settings_screenshot_protection">Protección de capturas de pantalla</string>
+    <string name="settings_screenshot_protection_desc">Activada \u2014 capturas de pantalla y grabación de pantalla bloqueadas</string>
+    <string name="settings_emergency_pin">PIN de emergencia</string>
+    <string name="settings_emergency_pin_active">Activo</string>
+    <string name="settings_set_emergency_pin">Configurar PIN de emergencia</string>
+    <string name="settings_set_emergency_pin_desc">Crear un PIN que muestre la bóveda vacía al ingresarlo</string>
+    <string name="settings_autolock_delay">Tiempo de bloqueo automático</string>
+    <string name="settings_lock_vault_after">Bloquear bóveda después de: %1$s</string>
+    <string name="settings_autolock_description">Cuánto esperar antes de bloquear la bóveda al salir de la app.</string>
+    <string name="grace_immediately">Inmediatamente</string>
+    <string name="grace_10_seconds">10 segundos</string>
+    <string name="grace_30_seconds">30 segundos</string>
+    <string name="grace_1_minute">1 minuto</string>
+    <string name="grace_2_minutes">2 minutos</string>
+
+    <!-- Settings: Storage -->
+    <string name="settings_section_storage">Almacenamiento</string>
+    <string name="settings_vault">Bóveda</string>
+    <string name="settings_vault_desc">%1$s \u2022 %2$d fotos</string>
+    <string name="settings_notes">Notas</string>
+    <string name="settings_notes_desc">%1$s \u2022 %2$d notas</string>
+    <string name="settings_cache">Caché</string>
+    <string name="settings_device_storage">Almacenamiento del dispositivo</string>
+    <string name="settings_device_storage_desc">%1$s libres de %2$s (%3$s%% usado)</string>
+    <string name="settings_storage_low_warning">\u26A0 ¡Almacenamiento bajo! Considera limpiar el caché o eliminar elementos antiguos de la bóveda.</string>
+    <string name="settings_clear_cache">Limpiar caché</string>
+    <string name="settings_clear_cache_desc">Eliminar archivos temporales compartidos</string>
+    <string name="settings_cleared_size">Se liberaron %1$s</string>
+
+    <!-- Settings: Privacy -->
+    <string name="settings_section_privacy">Privacidad</string>
+    <string name="settings_exif_stripping">Eliminación de EXIF</string>
+    <string name="settings_exif_stripping_desc">Activada \u2014 GPS, info del dispositivo y marcas de tiempo eliminados de todas las imágenes compartidas</string>
+    <string name="settings_face_blur">Difuminar rostros al compartir</string>
+    <string name="settings_face_blur_desc">Difuminar rostros automáticamente antes de compartir fotos</string>
+    <string name="settings_network_policy">Política de red</string>
+    <string name="settings_network_policy_desc">Sin analíticas, sin telemetría. La red solo se usa para descargas de modelos de ML Kit.</string>
+    <string name="settings_backup_exclusion">Exclusión de respaldos</string>
+    <string name="settings_backup_exclusion_desc">Los datos de la bóveda se excluyen de los respaldos del dispositivo</string>
+
+    <!-- Settings: Backup & Migration -->
+    <string name="settings_section_backup">Respaldo y migración</string>
+    <string name="settings_export_import">Exportar / Importar respaldo</string>
+    <string name="settings_export_import_desc">Transferir fotos, videos y notas a un nuevo teléfono</string>
+    <string name="settings_backup_hint">Tus datos están cifrados con una clave única de este teléfono. Usa el respaldo para transferir datos al cambiar de teléfono.</string>
+
+    <!-- Settings: About -->
+    <string name="settings_section_about">Acerca de</string>
+    <string name="settings_privo">Privo</string>
+    <string name="settings_privo_desc">Versión 1.0.0 \u2022 Cámara con IA que nunca envía tus datos a ningún lugar</string>
+    <string name="settings_crash_logs">Registros de errores (%1$d)</string>
+    <string name="settings_crash_logs_desc">Ver reportes de errores locales \u2014 nunca se envían a ningún lugar</string>
+    <string name="settings_crash_logs_title">Registros de errores</string>
+    <string name="settings_crash_logs_cleared">Registros de errores eliminados</string>
+    <string name="settings_crash_report">Reporte de error</string>
+    <string name="settings_crash_report_subject">Reporte de error de Privo</string>
+    <string name="settings_log_deleted">Registro eliminado</string>
+    <string name="settings_privacy_policy">Política de privacidad</string>
+    <string name="settings_privacy_policy_desc">Ver nuestra política de privacidad</string>
+    <string name="settings_privacy_promise">Promesa de privacidad</string>
+    <string name="settings_privacy_promise_text">Todo el procesamiento de IA se ejecuta en tu dispositivo. Las fotos y notas están cifradas con AES-256-GCM usando una clave por instalación almacenada en el módulo de seguridad de hardware de tu teléfono. No se envían datos a ningún servidor. Sin analíticas. Sin telemetría.</string>
+    <string name="settings_ml_kit_note">Nota: El escáner de documentos y la traducción actualmente usan Google ML Kit que se ejecuta a través de Google Play Services. Estos serán reemplazados por alternativas completamente privadas en una futura actualización.</string>
+
+    <!-- Insights screen -->
+    <string name="insights_title">Análisis</string>
+    <string name="insights_locked">Análisis está bloqueado</string>
+    <string name="insights_unlock_title">Desbloquear Análisis</string>
+    <string name="insights_unlock_subtitle">Autentícate para acceder a tus datos</string>
+    <string name="insights_enter_pin">Ingresa el PIN</string>
+    <string name="insights_incorrect_pin">PIN incorrecto</string>
+    <string name="insights_no_data">Aún no hay datos</string>
+    <string name="tab_expenses">Gastos</string>
+    <string name="tab_health">Salud</string>
+    <string name="tab_habits">Hábitos</string>
+
+    <!-- Expenses tab -->
+    <string name="expenses_total">Total</string>
+    <string name="expenses_count">%1$d gastos</string>
+    <string name="expenses_by_category">Por categoría</string>
+    <string name="expenses_none_this_month">Sin gastos este mes</string>
+    <string name="expenses_add_title">Agregar gasto</string>
+
+    <!-- Health tab -->
+    <string name="health_myself">Yo</string>
+    <string name="health_unknown">Desconocido</string>
+    <string name="health_add_profile">Agregar perfil</string>
+    <string name="health_entries_this_month">%1$d registros este mes</string>
+    <string name="health_weight">Peso</string>
+    <string name="health_heart_rate">Frecuencia cardíaca</string>
+    <string name="health_no_entries">Sin registros este mes</string>
+    <string name="health_log_title">Registrar salud</string>
+    <string name="health_label_weight">Peso kg</string>
+    <string name="health_label_temp">Temp \u00B0</string>
+    <string name="health_label_heart_bpm">Pulso bpm</string>
+    <string name="health_label_steps">Pasos</string>
+    <string name="health_label_bp_sys">PA Sis</string>
+    <string name="health_label_bp_dia">PA Dia</string>
+    <string name="health_label_sleep">Sueño: %1$s hrs</string>
+    <string name="health_label_mood">Ánimo</string>
+
+    <!-- Habits tab -->
+    <string name="habits_today">Hoy</string>
+    <string name="habits_none_configured">No hay hábitos configurados. Toca + para agregar.</string>
+    <string name="habits_day_streak">%1$d días seguidos \uD83D\uDD25</string>
+    <string name="habits_completed_count">%1$d / %2$d completados</string>
+    <string name="habits_all_done">¡Todo listo! \uD83C\uDF89</string>
+    <string name="habits_add">Agregar hábito</string>
+    <string name="habits_new_title">Nuevo hábito</string>
+
+    <!-- Export dialog -->
+    <string name="export_title">Exportar reporte</string>
+    <string name="export_share_report">Compartir reporte</string>
+    <string name="export_share_desc">Enviar PDF por correo, mensajería, etc.</string>
+    <string name="export_save_to_vault">Guardar en la Bóveda</string>
+    <string name="export_save_to_vault_desc">Cifrar y almacenar en la bóveda</string>
+    <string name="export_saved_to_vault">Guardado en la bóveda (Reportes)</string>
+    <string name="export_save_failed">Error al guardar: %1$s</string>
+    <string name="export_save_to_device">Guardar en el dispositivo</string>
+    <string name="export_save_to_device_desc">Guardar PDF en la carpeta Descargas</string>
+    <string name="export_saved_to_downloads">Guardado en Descargas/Privo</string>
+    <string name="export_csv">Exportar CSV</string>
+    <string name="export_csv_desc">Guardar hoja de cálculo en la carpeta Descargas</string>
+    <string name="export_saved_csv_to_downloads">CSV guardado en Descargas/Privo</string>
+
+    <!-- Unit Converter screen -->
+    <string name="unit_converter_title">Conversor de unidades</string>
+    <string name="unit_converter_from">De</string>
+    <string name="unit_converter_to">A</string>
+    <string name="unit_converter_swap">Intercambiar</string>
+    <string name="unit_converter_all_conversions">Todas las conversiones</string>
+
+    <!-- Shared UI strings (Vault, Notes, Editor) -->
+    <string name="back">Atrás</string>
+    <string name="cancel">Cancelar</string>
+    <string name="delete">Eliminar</string>
+    <string name="share">Compartir</string>
+    <string name="save">Guardar</string>
+    <string name="create">Crear</string>
+    <string name="unlock">Desbloquear</string>
+    <string name="close">Cerrar</string>
+    <string name="search">Buscar</string>
+    <string name="clear">Borrar</string>
+    <string name="edit">Editar</string>
+    <string name="rename">Renombrar</string>
+    <string name="move">Mover</string>
+    <string name="details">Detalles</string>
+    <string name="previous">Anterior</string>
+    <string name="next">Siguiente</string>
+    <string name="pin">Fijar</string>
+    <string name="color">Color</string>
+    <string name="all">Todo</string>
+    <string name="photo">Foto</string>
+    <string name="video">Video</string>
+    <string name="enter_pin">Ingresa el PIN</string>
+    <string name="incorrect_pin">PIN incorrecto</string>
+    <string name="n_selected">%d seleccionados</string>
+
+    <!-- Vault screen -->
+    <string name="encrypted_vault">Bóveda cifrada</string>
+    <string name="vault_is_locked">La bóveda está bloqueada</string>
+    <string name="unlock_vault">Desbloquear Bóveda</string>
+    <string name="authenticate_to_access_vault">Autentícate para acceder a las fotos cifradas</string>
+    <string name="search_vault">Buscar en la bóveda…</string>
+    <string name="no_results_found">No se encontraron resultados</string>
+    <string name="n_results">%d resultado(s)</string>
+    <string name="no_items_yet">Aún no hay elementos</string>
+    <string name="category_camera">Cámara</string>
+    <string name="category_videos">Videos</string>
+    <string name="category_scans">Escaneos</string>
+    <string name="category_detections">Detecciones</string>
+    <string name="category_reports">Reportes</string>
+    <string name="category_with_count">%1$s (%2$d)</string>
+    <string name="my_folders">Mis carpetas</string>
+    <string name="new_folder">Nueva carpeta</string>
+    <string name="no_folders_yet">Aún no hay carpetas</string>
+    <string name="empty_folder">Carpeta vacía</string>
+    <string name="create_folder">Crear carpeta</string>
+    <string name="folder_name">Nombre de la carpeta</string>
+    <string name="rename_folder">Renombrar carpeta</string>
+    <string name="new_name">Nuevo nombre</string>
+    <string name="delete_folder_title">¿Eliminar carpeta?</string>
+    <string name="delete_folder_message">\"%1$s\" y todo su contenido se eliminará permanentemente.</string>
+    <string name="move_to">Mover a…</string>
+    <string name="system_label">Sistema</string>
+    <string name="moved_n_items">%d elemento(s) movidos</string>
+    <string name="moved_n_items_to_folder">%1$d elemento(s) movidos a %2$s</string>
+    <string name="n_items">%d elementos</string>
+    <string name="n_items_count">%d elementos</string>
+    <string name="delete_item">Eliminar %s</string>
+    <string name="permanently_deleted_from_vault">Eliminado permanentemente de la bóveda.</string>
+    <string name="file_details">Detalles del archivo</string>
+    <string name="detail_type">Tipo</string>
+    <string name="detail_name">Nombre</string>
+    <string name="detail_date">Fecha</string>
+    <string name="detail_encrypted_size">Tamaño cifrado</string>
+    <string name="detail_category">Categoría</string>
+    <string name="security">Seguridad</string>
+    <string name="detail_encryption">Cifrado</string>
+    <string name="aes_256_gcm">AES-256-GCM</string>
+    <string name="detail_key_storage">Almacenamiento de clave</string>
+    <string name="hardware_tee_strongbox">Hardware TEE/StrongBox</string>
+    <string name="detail_exif_data">Datos EXIF</string>
+    <string name="stripped_on_share">Eliminados al compartir</string>
+    <string name="detail_storage">Almacenamiento</string>
+    <string name="app_internal_hidden">Interno de la app (oculto)</string>
+    <string name="type_photo_jpeg">Foto (JPEG)</string>
+    <string name="type_video_mp4">Video (MP4)</string>
+    <string name="type_pdf_document">Documento PDF</string>
+    <string name="failed_to_decrypt_video">Error al descifrar el video</string>
+    <string name="open_pdf">Abrir PDF</string>
+    <string name="failed_to_open_pdf">Error al abrir PDF: %s</string>
+    <string name="share_pdf">Compartir PDF</string>
+    <string name="share_photo">Compartir foto</string>
+    <string name="share_video">Compartir video</string>
+    <string name="share_n_items">Compartir %d elementos</string>
+    <string name="items_saved_to_gallery">%d elemento(s) guardados en la galería</string>
+    <string name="video_saved_to_gallery">Video guardado en la galería</string>
+    <string name="save_failed">Error al guardar</string>
+    <string name="save_to_device">Guardar en el dispositivo</string>
+    <string name="share_no_blur">Compartir (sin difuminar)</string>
+    <string name="share_faces_blurred">Compartir (rostros difuminados)</string>
+    <string name="share_without_blur">Compartir sin difuminar</string>
+    <string name="blur_and_share">Difuminar y compartir</string>
+    <string name="import_to_folder">Importar a carpeta</string>
+    <string name="new_subfolder">Nueva subcarpeta</string>
+    <string name="n_photos">%d foto(s)</string>
+    <string name="n_videos">%d video(s)</string>
+    <string name="n_pdfs">%d PDF(s)</string>
+    <string name="to_folder"> a %s</string>
+    <string name="imported_summary">Importados %1$s%2$s</string>
+    <string name="skipped_large"> (%d omitidos — más de 150MB)</string>
+
+    <!-- Content descriptions (Vault) -->
+    <string name="cd_pdf_document">Documento PDF</string>
+    <string name="cd_video_thumbnail">Miniatura de video</string>
+    <string name="cd_photo_thumbnail">Miniatura de foto</string>
+    <string name="cd_encrypted_item">Elemento cifrado</string>
+
+    <!-- Notes screen -->
+    <string name="secure_notes">Notas seguras</string>
+    <string name="notes_are_locked">Las notas están bloqueadas</string>
+    <string name="unlock_notes">Desbloquear Notas</string>
+    <string name="authenticate_to_access_notes">Autentícate para acceder a las notas seguras</string>
+    <string name="secure_notes_count">Notas seguras (%d)</string>
+    <string name="search_notes">Buscar notas…</string>
+    <string name="no_notes_yet">Aún no hay notas</string>
+    <string name="tap_plus_to_create">Toca + para crear una</string>
+    <string name="share_notes">Compartir notas</string>
+    <string name="delete_n_notes">Eliminar %d nota(s)</string>
+    <string name="permanently_deleted">Eliminado permanentemente.</string>
+    <string name="choose_color">Elegir color</string>
+    <string name="new_note">Nueva nota</string>
+
+    <!-- Note Editor screen -->
+    <string name="edit_note">Editar nota</string>
+    <string name="delete_note_title">Eliminar nota</string>
+    <string name="delete_note_message">Esta nota se eliminará permanentemente.</string>
+    <string name="title_label">Título</string>
+    <string name="tag_placeholder">Etiqueta</string>
+    <string name="add_tag">Agregar etiqueta</string>
+    <string name="new_tag">Nueva etiqueta</string>
+    <string name="note_label">Nota</string>
+
+    <!-- Home screen -->
+    <string name="app_name_home">Privo</string>
+    <string name="vault_notes_locked">Bóveda y Notas bloqueadas</string>
+    <string name="cd_lock_vault">Bloquear Bóveda</string>
+    <string name="cd_settings">Configuración</string>
+    <string name="backup_restored">Respaldo restaurado</string>
+    <string name="cd_dismiss">Descartar</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Privo</string>
+    <string name="onboarding_welcome_description">Cámara con IA que funciona completamente en tu dispositivo.\nNingún dato se envía a ningún servidor.</string>
+    <string name="onboarding_get_started">Comenzar</string>
+    <string name="onboarding_have_backup">Tengo un respaldo</string>
+    <string name="onboarding_privacy_title">Tu privacidad importa</string>
+    <string name="onboarding_privacy_description">Todo el procesamiento de IA ocurre en el dispositivo.\nLas fotos y notas se cifran con AES-256-GCM.\nSin analíticas. Sin telemetría. Sin nube.</string>
+    <string name="onboarding_feature_detection">La detección de objetos se ejecuta localmente</string>
+    <string name="onboarding_feature_scanning">Los documentos se escanean en el dispositivo</string>
+    <string name="onboarding_feature_translation">Los modelos de traducción se descargan una vez y funcionan sin conexión</string>
+    <string name="onboarding_feature_vault_encryption">Bóveda cifrada con claves respaldadas por hardware</string>
+    <string name="onboarding_next">Siguiente</string>
+    <string name="onboarding_continue">Continuar</string>
+    <string name="auth_mode_title">¿Cómo desbloquear la Bóveda?</string>
+    <string name="auth_mode_description">Elige cómo quieres proteger tu bóveda cifrada y tus notas.</string>
+    <string name="auth_use_phone_lock">Usar bloqueo del teléfono</string>
+    <string name="auth_phone_lock_desc">Huella digital, rostro o PIN del dispositivo</string>
+    <string name="auth_create_app_pin">Crear PIN de la app</string>
+    <string name="auth_app_pin_desc">PIN separado solo para esta app. Habilita la función de PIN de emergencia.</string>
+    <string name="pin_min_digits">El PIN debe tener al menos 4 dígitos</string>
+    <string name="pins_dont_match_toast">Los PINs no coinciden</string>
+    <string name="protection_phone_lock">bloqueo del teléfono (huella/PIN)</string>
+    <string name="protection_app_pin">PIN de la app</string>
+    <string name="duress_note">Puedes configurar un PIN de emergencia en Configuración.</string>
+    <string name="onboarding_all_set_title">¡Todo listo!</string>
+    <string name="onboarding_all_set_description">Tu bóveda está protegida con %1$s.%2$s\nTodas las fotos y notas se cifrarán automáticamente.</string>
+    <string name="onboarding_start_using_app">Comenzar a usar la app</string>
+    <string name="pin_setup_title">Configura tu PIN</string>
+    <string name="pin_setup_description">Este PIN protege tu bóveda y tus notas seguras.\nElige al menos 4 dígitos.</string>
+    <string name="pin_label">PIN</string>
+    <string name="pin_placeholder">Ingresa un PIN de 4–8 dígitos</string>
+    <string name="cd_toggle_visibility">Alternar visibilidad</string>
+    <string name="confirm_pin_label">Confirmar PIN</string>
+    <string name="confirm_pin_placeholder">Reingresa el PIN</string>
+    <string name="pins_dont_match">Los PINs no coinciden</string>
+    <string name="set_pin_button">Establecer PIN</string>
+
+    <!-- Camera capture -->
+    <string name="grant_camera_permission">Otorgar permiso de cámara</string>
+    <string name="save_failed_with_msg">Error al guardar: %1$s</string>
+    <string name="recording_failed">Error en la grabación</string>
+    <string name="no_audio">(sin audio)</string>
+    <string name="encrypting_video">Cifrando video…</string>
+    <string name="cd_back">Atrás</string>
+    <string name="face_count">%1$d rostro(s)</string>
+    <string name="cd_switch_camera">Cambiar cámara</string>
+    <string name="mode_photo">FOTO</string>
+    <string name="mode_video">VIDEO</string>
+    <string name="cd_view_last_capture">Ver última captura</string>
+    <string name="cd_last_capture">Última captura</string>
+    <string name="cd_stop_recording">Detener grabación</string>
+    <string name="cd_start_recording">Iniciar grabación</string>
+    <string name="cd_take_photo">Tomar foto</string>
+    <string name="cd_photos_taken">%1$d fotos tomadas</string>
+    <string name="cd_captured_photo">Foto capturada</string>
+    <string name="cd_close">Cerrar</string>
+    <string name="cd_share">Compartir</string>
+    <string name="cd_share_without_blur">Compartir sin difuminar</string>
+    <string name="cd_blur_and_share">Difuminar y compartir</string>
+    <string name="cd_delete">Eliminar</string>
+
+    <!-- Camera detection -->
+    <string name="camera_needs_access">Privo necesita acceso a la cámara</string>
+    <string name="camera_privacy_note">Todo el procesamiento ocurre en tu dispositivo.\nNo se envían datos a ningún lugar.</string>
+    <string name="object_count">%1$d objetos</string>
+    <string name="inference_time_ms">%1$dms</string>
+    <string name="cd_selected_object">Seleccionado: %1$s</string>
+    <string name="confidence_percent">Confianza: %1$d%%</string>
+    <string name="web_search">Buscar en la web</string>
+    <string name="search_by_image">Buscar por imagen</string>
+    <string name="cd_save_detection_photo">Guardar foto de detección</string>
+    <string name="detection_photo_saved">Foto de detección guardada en la bóveda</string>
+    <string name="save_failed_generic">Error al guardar</string>
+
+    <!-- Health profile dialog -->
+    <string name="health_add_profile_title">Agregar familiar</string>
+    <string name="health_profile_name">Nombre</string>
+
+    <!-- Settings: Language -->
+    <string name="settings_language">Idioma</string>
+    <string name="settings_language_system">Predeterminado del sistema</string>
+</resources>

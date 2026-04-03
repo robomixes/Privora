@@ -36,6 +36,9 @@ onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime
 # ExifInterface
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version = "1.3.7" }
 
+# AppCompat (needed for per-app language switching)
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version = "1.7.0" }
+
 # Biometric
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version = "1.1.0" }
 
@@ -48,6 +51,9 @@ mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition"
 mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version = "17.3.0" }
 mlkit-translate = { group = "com.google.mlkit", name = "translate", version = "17.0.3" }
 mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", version = "16.1.7" }
+
+# Testing
+junit = { group = "junit", name = "junit", version = "4.13.2" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

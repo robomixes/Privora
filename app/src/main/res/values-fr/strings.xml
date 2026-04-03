@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Privo</string>
+    <string name="widget_name">Privo Accès rapide</string>
+    <string name="widget_description">Accès rapide à l\'appareil photo et au Coffre-fort</string>
+
+    <!-- Common actions -->
+    <string name="action_back">Retour</string>
+    <string name="action_search">Rechercher</string>
+    <string name="action_close">Fermer</string>
+    <string name="action_delete">Supprimer</string>
+    <string name="action_share">Partager</string>
+    <string name="action_cancel">Annuler</string>
+    <string name="action_add">Ajouter</string>
+    <string name="action_save">Enregistrer</string>
+    <string name="action_create">Créer</string>
+    <string name="action_unlock">Déverrouiller</string>
+    <string name="action_clear_all">Tout effacer</string>
+    <string name="action_previous">Précédent</string>
+    <string name="action_next">Suivant</string>
+    <string name="action_previous_day">Jour précédent</string>
+    <string name="action_next_day">Jour suivant</string>
+    <string name="action_export_pdf">Exporter en PDF</string>
+    <string name="action_move_up">Monter</string>
+    <string name="action_move_down">Descendre</string>
+
+    <!-- Common labels -->
+    <string name="label_amount">Montant</string>
+    <string name="label_description">Description</string>
+    <string name="label_category">Catégorie</string>
+    <string name="label_name">Nom</string>
+    <string name="label_icon">Icône</string>
+    <string name="label_color">Couleur</string>
+    <string name="label_notes">Notes</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Paramètres</string>
+    <string name="settings_search_placeholder">Rechercher dans les paramètres\u2026</string>
+
+    <!-- Settings: Home Screen Features -->
+    <string name="settings_section_home_features">Fonctionnalités de l\'\u00E9cran d\'accueil</string>
+    <string name="feature_camera">Appareil photo</string>
+    <string name="feature_camera_desc">Capture photo &amp; vidéo</string>
+    <string name="feature_detect">Détection</string>
+    <string name="feature_detect_desc">Détection d\'objets par IA</string>
+    <string name="feature_scan">Scanner</string>
+    <string name="feature_scan_desc">Scanner de documents + OCR</string>
+    <string name="feature_qr_scan">Scanner QR</string>
+    <string name="feature_qr_scan_desc">Scanner QR &amp; codes-barres</string>
+    <string name="feature_translate">Traduction</string>
+    <string name="feature_translate_desc">Traduction locale</string>
+    <string name="feature_vault">Coffre-fort</string>
+    <string name="feature_vault_desc">Stockage photo chiffré</string>
+    <string name="feature_notes">Notes</string>
+    <string name="feature_notes_desc">Notes sécurisées et chiffrées</string>
+    <string name="feature_insights">Analyses</string>
+    <string name="feature_insights_desc">Dépenses, santé, habitudes</string>
+    <string name="feature_tools">Outils</string>
+    <string name="feature_tools_desc">Convertisseur d\'unités</string>
+    <string name="settings_reorder_hint">Utilisez les flèches pour réordonner. Les fonctionnalités désactivées sont masquées de l\'accueil.</string>
+
+    <!-- Settings: AI Detection -->
+    <string name="settings_section_ai_detection">Détection IA</string>
+    <string name="settings_min_confidence">Confiance minimale : %1$d%%</string>
+    <string name="settings_min_confidence_desc">Masquer les détections en dessous de ce seuil</string>
+    <string name="settings_detection_categories">Catégories de détection</string>
+    <string name="settings_detection_categories_desc">%1$d sur 80 catégories sélectionnées</string>
+    <string name="settings_ai_detection_hint">Ces paramètres s\'appliquent \u00E0 la fonction Détection et au bouton de capture.</string>
+
+    <!-- Settings: Device -->
+    <string name="settings_section_device">Appareil</string>
+    <string name="settings_performance_tier">Niveau de performance : %1$s</string>
+    <string name="settings_device_info">Infos appareil</string>
+    <string name="settings_device_info_desc">%1$d c\u0153urs CPU \u2022 %2$d Mo RAM \u2022 %3$dms inférence</string>
+    <string name="settings_rebenchmark">Relancer le benchmark</string>
+    <string name="settings_rebenchmark_desc">Relancer le test de performance</string>
+    <string name="settings_running_benchmark">Benchmark en cours\u2026</string>
+    <string name="settings_benchmark_complete">Benchmark terminé</string>
+    <string name="settings_language">Langue</string>
+    <string name="settings_language_system">Par défaut du système</string>
+
+    <!-- Settings: Security -->
+    <string name="settings_section_security">Sécurité</string>
+    <string name="settings_encryption">Chiffrement</string>
+    <string name="settings_encryption_desc">AES-256-GCM \u2022 Clé unique par installation \u2022 Matériel sécurisé</string>
+    <string name="settings_screenshot_protection">Protection contre les captures d\'\u00E9cran</string>
+    <string name="settings_screenshot_protection_desc">Activée \u2014 captures d\'\u00E9cran et enregistrement d\'\u00E9cran bloqués</string>
+    <string name="settings_emergency_pin">PIN d\'urgence</string>
+    <string name="settings_emergency_pin_active">Actif</string>
+    <string name="settings_set_emergency_pin">Définir un PIN d\'urgence</string>
+    <string name="settings_set_emergency_pin_desc">Créer un PIN qui affiche un coffre-fort vide lorsqu\'il est saisi</string>
+    <string name="settings_autolock_delay">Délai de verrouillage auto</string>
+    <string name="settings_lock_vault_after">Verrouiller le coffre-fort après : %1$s</string>
+    <string name="settings_autolock_description">Délai avant le verrouillage du coffre-fort lorsque vous quittez l\'application.</string>
+    <string name="grace_immediately">Immédiatement</string>
+    <string name="grace_10_seconds">10 secondes</string>
+    <string name="grace_30_seconds">30 secondes</string>
+    <string name="grace_1_minute">1 minute</string>
+    <string name="grace_2_minutes">2 minutes</string>
+
+    <!-- Settings: Storage -->
+    <string name="settings_section_storage">Stockage</string>
+    <string name="settings_vault">Coffre-fort</string>
+    <string name="settings_vault_desc">%1$s \u2022 %2$d photos</string>
+    <string name="settings_notes">Notes</string>
+    <string name="settings_notes_desc">%1$s \u2022 %2$d notes</string>
+    <string name="settings_cache">Cache</string>
+    <string name="settings_device_storage">Stockage de l\'appareil</string>
+    <string name="settings_device_storage_desc">%1$s disponible sur %2$s (%3$s%% utilisé)</string>
+    <string name="settings_storage_low_warning">\u26A0 Stockage faible ! Pensez \u00E0 vider le cache ou \u00E0 supprimer d\'anciens \u00E9léments du coffre-fort.</string>
+    <string name="settings_clear_cache">Vider le cache</string>
+    <string name="settings_clear_cache_desc">Supprimer les fichiers partagés temporaires</string>
+    <string name="settings_cleared_size">%1$s libéré(s)</string>
+
+    <!-- Settings: Privacy -->
+    <string name="settings_section_privacy">Confidentialité</string>
+    <string name="settings_exif_stripping">Suppression EXIF</string>
+    <string name="settings_exif_stripping_desc">Activée \u2014 GPS, infos appareil et horodatages supprimés de toutes les images partagées</string>
+    <string name="settings_face_blur">Floutage des visages au partage</string>
+    <string name="settings_face_blur_desc">Flouter automatiquement les visages avant de partager des photos</string>
+    <string name="settings_network_policy">Politique réseau</string>
+    <string name="settings_network_policy_desc">Aucune analyse, aucune télémétrie. Le réseau est utilisé uniquement pour le téléchargement des modèles ML Kit.</string>
+    <string name="settings_backup_exclusion">Exclusion des sauvegardes</string>
+    <string name="settings_backup_exclusion_desc">Les données du coffre-fort sont exclues des sauvegardes de l\'appareil</string>
+
+    <!-- Settings: Backup &amp; Migration -->
+    <string name="settings_section_backup">Sauvegarde &amp; Migration</string>
+    <string name="settings_export_import">Exporter / Importer une sauvegarde</string>
+    <string name="settings_export_import_desc">Transférer photos, vidéos et notes vers un nouveau téléphone</string>
+    <string name="settings_backup_hint">Vos données sont chiffrées avec une clé unique \u00E0 ce téléphone. Utilisez la sauvegarde pour transférer vos données lors d\'un changement de téléphone.</string>
+
+    <!-- Settings: About -->
+    <string name="settings_section_about">\u00C0 propos</string>
+    <string name="settings_privo">Privo</string>
+    <string name="settings_privo_desc">Version 1.0.0 \u2022 Appareil photo IA qui n\'envoie jamais vos données nulle part</string>
+    <string name="settings_crash_logs">Journaux de plantage (%1$d)</string>
+    <string name="settings_crash_logs_desc">Consulter les rapports de plantage locaux \u2014 jamais envoyés nulle part</string>
+    <string name="settings_crash_logs_title">Journaux de plantage</string>
+    <string name="settings_crash_logs_cleared">Journaux de plantage effacés</string>
+    <string name="settings_crash_report">Rapport de plantage</string>
+    <string name="settings_crash_report_subject">Privo Rapport de plantage</string>
+    <string name="settings_log_deleted">Journal supprimé</string>
+    <string name="settings_privacy_policy">Politique de confidentialité</string>
+    <string name="settings_privacy_policy_desc">Consulter notre politique de confidentialité</string>
+    <string name="settings_privacy_promise">Engagement de confidentialité</string>
+    <string name="settings_privacy_promise_text">Tout le traitement IA s\'exécute sur votre appareil. Les photos et notes sont chiffrées en AES-256-GCM avec une clé unique par installation stockée dans le module de sécurité matériel de votre téléphone. Aucune donnée n\'est envoyée \u00E0 un serveur. Aucune analyse. Aucune télémétrie.</string>
+    <string name="settings_ml_kit_note">Note : Le scanner de documents et la traduction utilisent actuellement Google ML Kit qui fonctionne via Google Play Services. Ceux-ci seront remplacés par des alternatives entièrement privées dans une future mise \u00E0 jour.</string>
+
+    <!-- Insights screen -->
+    <string name="insights_title">Analyses</string>
+    <string name="insights_locked">Les Analyses sont verrouillées</string>
+    <string name="insights_unlock_title">Déverrouiller les Analyses</string>
+    <string name="insights_unlock_subtitle">Authentifiez-vous pour accéder \u00E0 vos données</string>
+    <string name="insights_enter_pin">Saisir le PIN</string>
+    <string name="insights_incorrect_pin">PIN incorrect</string>
+    <string name="insights_no_data">Aucune donnée pour l\'instant</string>
+    <string name="tab_expenses">Dépenses</string>
+    <string name="tab_health">Santé</string>
+    <string name="tab_habits">Habitudes</string>
+
+    <!-- Expenses tab -->
+    <string name="expenses_total">Total</string>
+    <string name="expenses_count">%1$d dépenses</string>
+    <string name="expenses_by_category">Par catégorie</string>
+    <string name="expenses_none_this_month">Aucune dépense ce mois-ci</string>
+    <string name="expenses_add_title">Ajouter une dépense</string>
+
+    <!-- Health tab -->
+    <string name="health_myself">Moi-même</string>
+    <string name="health_unknown">Inconnu</string>
+    <string name="health_add_profile">Ajouter un profil</string>
+    <string name="health_entries_this_month">%1$d entrées ce mois-ci</string>
+    <string name="health_weight">Poids</string>
+    <string name="health_heart_rate">Fréquence cardiaque</string>
+    <string name="health_no_entries">Aucune entrée ce mois-ci</string>
+    <string name="health_log_title">Saisir les données de santé</string>
+    <string name="health_label_weight">Poids kg</string>
+    <string name="health_label_temp">Temp \u00B0</string>
+    <string name="health_label_heart_bpm">C\u0153ur bpm</string>
+    <string name="health_label_steps">Pas</string>
+    <string name="health_label_bp_sys">TA Sys</string>
+    <string name="health_label_bp_dia">TA Dia</string>
+    <string name="health_label_sleep">Sommeil : %1$s h</string>
+    <string name="health_label_mood">Humeur</string>
+
+    <!-- Habits tab -->
+    <string name="habits_today">Aujourd\'hui</string>
+    <string name="habits_none_configured">Aucune habitude configurée. Appuyez sur + pour en ajouter.</string>
+    <string name="habits_day_streak">%1$d jours consécutifs \uD83D\uDD25</string>
+    <string name="habits_completed_count">%1$d / %2$d terminé(s)</string>
+    <string name="habits_all_done">Tout est fait ! \uD83C\uDF89</string>
+    <string name="habits_add">Ajouter une habitude</string>
+    <string name="habits_new_title">Nouvelle habitude</string>
+
+    <!-- Export dialog -->
+    <string name="export_title">Exporter le rapport</string>
+    <string name="export_share_report">Partager le rapport</string>
+    <string name="export_share_desc">Envoyer le PDF par e-mail, messagerie, etc.</string>
+    <string name="export_save_to_vault">Enregistrer dans le Coffre-fort</string>
+    <string name="export_save_to_vault_desc">Chiffrer et stocker dans le coffre-fort</string>
+    <string name="export_saved_to_vault">Enregistré dans le coffre-fort (Rapports)</string>
+    <string name="export_save_failed">\u00C9chec de l\'enregistrement : %1$s</string>
+    <string name="export_save_to_device">Enregistrer sur l\'appareil</string>
+    <string name="export_save_to_device_desc">Enregistrer le PDF dans le dossier Téléchargements</string>
+    <string name="export_saved_to_downloads">Enregistré dans Téléchargements/Privo</string>
+    <string name="export_csv">Exporter en CSV</string>
+    <string name="export_csv_desc">Enregistrer le tableur dans le dossier Téléchargements</string>
+    <string name="export_saved_csv_to_downloads">CSV enregistré dans Téléchargements/Privo</string>
+
+    <!-- Unit Converter screen -->
+    <string name="unit_converter_title">Convertisseur d\'unités</string>
+    <string name="unit_converter_from">De</string>
+    <string name="unit_converter_to">Vers</string>
+    <string name="unit_converter_swap">Inverser</string>
+    <string name="unit_converter_all_conversions">Toutes les conversions</string>
+
+    <!-- Shared UI strings (Vault, Notes, Editor) -->
+    <string name="back">Retour</string>
+    <string name="cancel">Annuler</string>
+    <string name="delete">Supprimer</string>
+    <string name="share">Partager</string>
+    <string name="save">Enregistrer</string>
+    <string name="create">Créer</string>
+    <string name="unlock">Déverrouiller</string>
+    <string name="close">Fermer</string>
+    <string name="search">Rechercher</string>
+    <string name="clear">Effacer</string>
+    <string name="edit">Modifier</string>
+    <string name="rename">Renommer</string>
+    <string name="move">Déplacer</string>
+    <string name="details">Détails</string>
+    <string name="previous">Précédent</string>
+    <string name="next">Suivant</string>
+    <string name="pin">Pin</string>
+    <string name="color">Couleur</string>
+    <string name="all">Tout</string>
+    <string name="photo">Photo</string>
+    <string name="video">Vidéo</string>
+    <string name="enter_pin">Saisir le PIN</string>
+    <string name="incorrect_pin">PIN incorrect</string>
+    <string name="n_selected">%d sélectionné(s)</string>
+
+    <!-- Vault screen -->
+    <string name="encrypted_vault">Coffre-fort chiffré</string>
+    <string name="vault_is_locked">Le coffre-fort est verrouillé</string>
+    <string name="unlock_vault">Déverrouiller le Coffre-fort</string>
+    <string name="authenticate_to_access_vault">Authentifiez-vous pour accéder aux photos chiffrées</string>
+    <string name="search_vault">Rechercher dans le coffre-fort\u2026</string>
+    <string name="no_results_found">Aucun résultat trouvé</string>
+    <string name="n_results">%d résultat(s)</string>
+    <string name="no_items_yet">Aucun élément pour l\'instant</string>
+    <string name="category_camera">Appareil photo</string>
+    <string name="category_videos">Vidéos</string>
+    <string name="category_scans">Scans</string>
+    <string name="category_detections">Détections</string>
+    <string name="category_reports">Rapports</string>
+    <string name="category_with_count">%1$s (%2$d)</string>
+    <string name="my_folders">Mes dossiers</string>
+    <string name="new_folder">Nouveau dossier</string>
+    <string name="no_folders_yet">Aucun dossier pour l\'instant</string>
+    <string name="empty_folder">Dossier vide</string>
+    <string name="create_folder">Créer un dossier</string>
+    <string name="folder_name">Nom du dossier</string>
+    <string name="rename_folder">Renommer le dossier</string>
+    <string name="new_name">Nouveau nom</string>
+    <string name="delete_folder_title">Supprimer le dossier ?</string>
+    <string name="delete_folder_message">\"%1$s\" et tout son contenu seront définitivement supprimés.</string>
+    <string name="move_to">Déplacer vers\u2026</string>
+    <string name="system_label">Système</string>
+    <string name="moved_n_items">%d élément(s) déplacé(s)</string>
+    <string name="moved_n_items_to_folder">%1$d élément(s) déplacé(s) vers %2$s</string>
+    <string name="n_items">%d éléments</string>
+    <string name="n_items_count">%d éléments</string>
+    <string name="delete_item">Supprimer %s</string>
+    <string name="permanently_deleted_from_vault">Supprimé définitivement du coffre-fort.</string>
+    <string name="file_details">Détails du fichier</string>
+    <string name="detail_type">Type</string>
+    <string name="detail_name">Nom</string>
+    <string name="detail_date">Date</string>
+    <string name="detail_encrypted_size">Taille chiffrée</string>
+    <string name="detail_category">Catégorie</string>
+    <string name="security">Sécurité</string>
+    <string name="detail_encryption">Chiffrement</string>
+    <string name="aes_256_gcm">AES-256-GCM</string>
+    <string name="detail_key_storage">Stockage de la clé</string>
+    <string name="hardware_tee_strongbox">TEE/StrongBox matériel</string>
+    <string name="detail_exif_data">Données EXIF</string>
+    <string name="stripped_on_share">Supprimées au partage</string>
+    <string name="detail_storage">Stockage</string>
+    <string name="app_internal_hidden">Interne \u00E0 l\'application (masqué)</string>
+    <string name="type_photo_jpeg">Photo (JPEG)</string>
+    <string name="type_video_mp4">Vidéo (MP4)</string>
+    <string name="type_pdf_document">Document PDF</string>
+    <string name="failed_to_decrypt_video">\u00C9chec du déchiffrement de la vidéo</string>
+    <string name="open_pdf">Ouvrir le PDF</string>
+    <string name="failed_to_open_pdf">\u00C9chec de l\'ouverture du PDF : %s</string>
+    <string name="share_pdf">Partager le PDF</string>
+    <string name="share_photo">Partager la photo</string>
+    <string name="share_video">Partager la vidéo</string>
+    <string name="share_n_items">Partager %d éléments</string>
+    <string name="items_saved_to_gallery">%d élément(s) enregistré(s) dans la galerie</string>
+    <string name="video_saved_to_gallery">Vidéo enregistrée dans la galerie</string>
+    <string name="save_failed">\u00C9chec de l\'enregistrement</string>
+    <string name="save_to_device">Enregistrer sur l\'appareil</string>
+    <string name="share_no_blur">Partager (sans flou)</string>
+    <string name="share_faces_blurred">Partager (visages floutés)</string>
+    <string name="share_without_blur">Partager sans flou</string>
+    <string name="blur_and_share">Flouter &amp; Partager</string>
+    <string name="import_to_folder">Importer dans le dossier</string>
+    <string name="new_subfolder">Nouveau sous-dossier</string>
+    <string name="n_photos">%d photo(s)</string>
+    <string name="n_videos">%d vidéo(s)</string>
+    <string name="n_pdfs">%d PDF</string>
+    <string name="to_folder"> vers %s</string>
+    <string name="imported_summary">Importé %1$s%2$s</string>
+    <string name="skipped_large"> (%d ignoré(s) \u2014 plus de 150 Mo)</string>
+
+    <!-- Content descriptions (Vault) -->
+    <string name="cd_pdf_document">Document PDF</string>
+    <string name="cd_video_thumbnail">Miniature vidéo</string>
+    <string name="cd_photo_thumbnail">Miniature photo</string>
+    <string name="cd_encrypted_item">\u00C9lément chiffré</string>
+
+    <!-- Notes screen -->
+    <string name="secure_notes">Notes sécurisées</string>
+    <string name="notes_are_locked">Les notes sont verrouillées</string>
+    <string name="unlock_notes">Déverrouiller les Notes</string>
+    <string name="authenticate_to_access_notes">Authentifiez-vous pour accéder aux notes sécurisées</string>
+    <string name="secure_notes_count">Notes sécurisées (%d)</string>
+    <string name="search_notes">Rechercher dans les notes\u2026</string>
+    <string name="no_notes_yet">Aucune note pour l\'instant</string>
+    <string name="tap_plus_to_create">Appuyez sur + pour en créer une</string>
+    <string name="share_notes">Partager les notes</string>
+    <string name="delete_n_notes">Supprimer %d note(s)</string>
+    <string name="permanently_deleted">Supprimé définitivement.</string>
+    <string name="choose_color">Choisir une couleur</string>
+    <string name="new_note">Nouvelle note</string>
+
+    <!-- Note Editor screen -->
+    <string name="edit_note">Modifier la note</string>
+    <string name="delete_note_title">Supprimer la note</string>
+    <string name="delete_note_message">Cette note sera définitivement supprimée.</string>
+    <string name="title_label">Titre</string>
+    <string name="tag_placeholder">\u00C9tiquette</string>
+    <string name="add_tag">Ajouter une étiquette</string>
+    <string name="new_tag">Nouvelle étiquette</string>
+    <string name="note_label">Note</string>
+
+    <!-- Home screen -->
+    <string name="app_name_home">Privo</string>
+    <string name="vault_notes_locked">Coffre-fort &amp; Notes verrouillés</string>
+    <string name="cd_lock_vault">Verrouiller le Coffre-fort</string>
+    <string name="cd_settings">Paramètres</string>
+    <string name="backup_restored">Sauvegarde restaurée</string>
+    <string name="cd_dismiss">Ignorer</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Privo</string>
+    <string name="onboarding_welcome_description">Appareil photo alimenté par l\'IA qui fonctionne entièrement sur votre appareil.\nAucune donnée n\'est jamais envoyée \u00E0 un serveur.</string>
+    <string name="onboarding_get_started">Commencer</string>
+    <string name="onboarding_have_backup">J\'ai une sauvegarde</string>
+    <string name="onboarding_privacy_title">Votre vie privée compte</string>
+    <string name="onboarding_privacy_description">Tout le traitement IA se fait sur l\'appareil.\nPhotos et notes sont chiffrées en AES-256-GCM.\nAucune analyse. Aucune télémétrie. Aucun cloud.</string>
+    <string name="onboarding_feature_detection">La détection d\'objets fonctionne localement</string>
+    <string name="onboarding_feature_scanning">Les documents sont scannés sur l\'appareil</string>
+    <string name="onboarding_feature_translation">Modèles de traduction téléchargés une fois, puis hors ligne</string>
+    <string name="onboarding_feature_vault_encryption">Coffre-fort chiffré avec des clés matérielles</string>
+    <string name="onboarding_next">Suivant</string>
+    <string name="onboarding_continue">Continuer</string>
+    <string name="auth_mode_title">Comment déverrouiller le Coffre-fort ?</string>
+    <string name="auth_mode_description">Choisissez comment protéger votre coffre-fort chiffré et vos notes.</string>
+    <string name="auth_use_phone_lock">Utiliser le verrouillage du téléphone</string>
+    <string name="auth_phone_lock_desc">Empreinte digitale, visage ou PIN de l\'appareil</string>
+    <string name="auth_create_app_pin">Créer un PIN pour l\'appli</string>
+    <string name="auth_app_pin_desc">PIN séparé juste pour cette appli. Active la fonction PIN d\'urgence.</string>
+    <string name="pin_min_digits">Le PIN doit contenir au moins 4 chiffres</string>
+    <string name="pins_dont_match_toast">Les PIN ne correspondent pas</string>
+    <string name="protection_phone_lock">verrouillage du téléphone (empreinte/PIN)</string>
+    <string name="protection_app_pin">PIN de l\'appli</string>
+    <string name="duress_note">Vous pouvez configurer un PIN d\'urgence dans les Paramètres.</string>
+    <string name="onboarding_all_set_title">Vous êtes prêt !</string>
+    <string name="onboarding_all_set_description">Votre coffre-fort est sécurisé par %1$s.%2$s\nToutes les photos et notes seront chiffrées automatiquement.</string>
+    <string name="onboarding_start_using_app">Commencer \u00E0 utiliser l\'appli</string>
+    <string name="pin_setup_title">Définir votre PIN</string>
+    <string name="pin_setup_description">Ce PIN protège votre coffre-fort et vos notes sécurisées.\nChoisissez au moins 4 chiffres.</string>
+    <string name="pin_label">PIN</string>
+    <string name="pin_placeholder">Saisir un PIN de 4 \u00E0 8 chiffres</string>
+    <string name="cd_toggle_visibility">Basculer la visibilité</string>
+    <string name="confirm_pin_label">Confirmer le PIN</string>
+    <string name="confirm_pin_placeholder">Ressaisir le PIN</string>
+    <string name="pins_dont_match">Les PIN ne correspondent pas</string>
+    <string name="set_pin_button">Définir le PIN</string>
+
+    <!-- Camera capture -->
+    <string name="grant_camera_permission">Autoriser l\'accès \u00E0 l\'appareil photo</string>
+    <string name="save_failed_with_msg">\u00C9chec de l\'enregistrement : %1$s</string>
+    <string name="recording_failed">\u00C9chec de l\'enregistrement vidéo</string>
+    <string name="no_audio">(sans audio)</string>
+    <string name="encrypting_video">Chiffrement de la vidéo\u2026</string>
+    <string name="cd_back">Retour</string>
+    <string name="face_count">%1$d visage(s)</string>
+    <string name="cd_switch_camera">Changer de caméra</string>
+    <string name="mode_photo">PHOTO</string>
+    <string name="mode_video">VID\u00C9O</string>
+    <string name="cd_view_last_capture">Voir la dernière capture</string>
+    <string name="cd_last_capture">Dernière capture</string>
+    <string name="cd_stop_recording">Arrêter l\'enregistrement</string>
+    <string name="cd_start_recording">Démarrer l\'enregistrement</string>
+    <string name="cd_take_photo">Prendre une photo</string>
+    <string name="cd_photos_taken">%1$d photos prises</string>
+    <string name="cd_captured_photo">Photo capturée</string>
+    <string name="cd_close">Fermer</string>
+    <string name="cd_share">Partager</string>
+    <string name="cd_share_without_blur">Partager sans flou</string>
+    <string name="cd_blur_and_share">Flouter &amp; Partager</string>
+    <string name="cd_delete">Supprimer</string>
+
+    <!-- Camera detection -->
+    <string name="camera_needs_access">Privo a besoin d\'accéder \u00E0 l\'appareil photo</string>
+    <string name="camera_privacy_note">Tout le traitement se fait sur votre appareil.\nAucune donnée n\'est envoyée nulle part.</string>
+    <string name="object_count">%1$d objets</string>
+    <string name="inference_time_ms">%1$dms</string>
+    <string name="cd_selected_object">Sélectionné : %1$s</string>
+    <string name="confidence_percent">Confiance : %1$d%%</string>
+    <string name="web_search">Recherche Web</string>
+    <string name="search_by_image">Recherche par image</string>
+    <string name="cd_save_detection_photo">Enregistrer la photo de détection</string>
+    <string name="detection_photo_saved">Photo de détection enregistrée dans le coffre-fort</string>
+    <string name="save_failed_generic">\u00C9chec de l\'enregistrement</string>
+
+    <!-- Health profile dialog -->
+    <string name="health_add_profile_title">Ajouter un membre de la famille</string>
+    <string name="health_profile_name">Nom</string>
+</resources>

@@ -33,7 +33,7 @@ object DeviceProfiler {
     fun getProfile(context: Context): DeviceProfile {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return DeviceProfile(
-            tier = DeviceTier.valueOf(prefs.getString(KEY_TIER, DeviceTier.MEDIUM.name)!!),
+            tier = DeviceTier.valueOf(prefs.getString(KEY_TIER, null) ?: DeviceTier.MEDIUM.name),
             inferenceMs = prefs.getLong(KEY_INFERENCE_MS, 200),
             ramMb = prefs.getLong(KEY_RAM_MB, 4096),
             cpuCores = Runtime.getRuntime().availableProcessors()

@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,6 +16,7 @@ import androidx.camera.core.FocusMeteringAction
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,9 +61,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.privateai.camera.R
 import com.privateai.camera.bridge.Detection
 import com.privateai.camera.bridge.OnnxDetector
 import com.privateai.camera.util.cropDetectionRegion
@@ -91,18 +101,18 @@ fun CameraScreen(onBack: (() -> Unit)? = null) {
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    "Privo needs camera access",
+                    stringResource(R.string.camera_needs_access),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 Text(
-                    "All processing happens on your device.\nNo data is sent anywhere.",
+                    stringResource(R.string.camera_privacy_note),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 24.dp)
                 )
                 Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
-                    Text("Grant Camera Permission")
+                    Text(stringResource(R.string.grant_camera_permission))
                 }
             }
         }
@@ -116,6 +126,7 @@ fun CameraScreen(onBack: (() -> Unit)? = null) {
 @Composable
 fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
+    val captureScope = androidx.compose.runtime.rememberCoroutineScope()
     var detections by remember { mutableStateOf<List<Detection>>(emptyList()) }
     var inferenceTimeMs by remember { mutableLongStateOf(0L) }
     var frameCount by remember { mutableLongStateOf(0L) }
@@ -144,10 +155,12 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
 
     // Initialize detector
     val detector = remember { OnnxDetector(context) }
+    var isDisposing by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
         onDispose {
-            detector.release()
+            isDisposing = true
+            try { detector.release() } catch (_: Exception) {}
             latestFrameBitmap?.recycle()
             frozenBitmap?.recycle()
         }
@@ -169,8 +182,8 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
             modifier = Modifier.fillMaxSize(),
             cameraSelector = cameraSelector,
             onFrameAnalyzed = { bitmap ->
-                // Skip processing when frozen (object selected)
-                if (isFrozen) {
+                // Skip processing when frozen, disposing, or throttled
+                if (isFrozen || isDisposing) {
                     bitmap.recycle()
                     return@CameraPreview
                 }
@@ -182,7 +195,11 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                 }
 
                 val start = System.currentTimeMillis()
-                val results = detector.detect(bitmap)
+                val catFilter = com.privateai.camera.ui.settings.getSelectedCategories(context)
+                val minConf = com.privateai.camera.ui.settings.getConfidenceThreshold(context)
+                val results = try {
+                    detector.detect(bitmap, catFilter, minConf)
+                } catch (_: Exception) { emptyList() }
                 inferenceTimeMs = System.currentTimeMillis() - start
                 detections = results
 
@@ -200,9 +217,9 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
         )
 
         // Frozen frame with blur + clear selected region
-        if (isFrozen && frozenBitmap != null && selectedDetection != null) {
-            val frozen = frozenBitmap!!
-            val det = selectedDetection!!
+        val frozen = frozenBitmap
+        val det = selectedDetection
+        if (isFrozen && frozen != null && det != null) {
 
             // Blurred frozen frame covers the live preview
             Image(
@@ -245,7 +262,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
 
                 Image(
                     bitmap = cropped.asImageBitmap(),
-                    contentDescription = "Selected: ${det.className}",
+                    contentDescription = stringResource(R.string.cd_selected_object, det.className),
                     contentScale = ContentScale.FillBounds,
                     modifier = Modifier
                         .offset(
@@ -261,7 +278,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
         // Detection overlay — only show selected detection when frozen
         DetectionOverlay(
             detections = if (isFrozen && selectedDetection != null) {
-                listOf(selectedDetection!!)
+                listOfNotNull(selectedDetection)
             } else {
                 detections
             },
@@ -324,11 +341,11 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                             .size(40.dp)
                             .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_back), tint = Color.White)
                     }
                 }
                 Text(
-                    text = "${detections.size} objects",
+                    text = stringResource(R.string.object_count, detections.size),
                     color = Color.White,
                     fontSize = 14.sp,
                     modifier = Modifier
@@ -342,7 +359,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${inferenceTimeMs}ms",
+                    text = stringResource(R.string.inference_time_ms, inferenceTimeMs),
                     color = Color.White,
                     fontSize = 14.sp,
                     modifier = Modifier
@@ -361,7 +378,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                     ) {
                         Icon(
                             Icons.Default.Cameraswitch,
-                            contentDescription = "Switch Camera",
+                            contentDescription = stringResource(R.string.cd_switch_camera),
                             tint = Color.White
                         )
                     }
@@ -386,7 +403,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                         style = MaterialTheme.typography.headlineSmall
                     )
                     Text(
-                        text = "Confidence: ${(det.confidence * 100).toInt()}%",
+                        text = stringResource(R.string.confidence_percent, (det.confidence * 100).toInt()),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
@@ -407,7 +424,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                             context.startActivity(intent)
                         }) {
                             Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Web Search", modifier = Modifier.padding(start = 4.dp))
+                            Text(stringResource(R.string.web_search), modifier = Modifier.padding(start = 4.dp))
                         }
 
                         // Image search
@@ -418,10 +435,72 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                             cropped.recycle()
                         }) {
                             Icon(Icons.Default.ImageSearch, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Search by Image", modifier = Modifier.padding(start = 4.dp))
+                            Text(stringResource(R.string.search_by_image), modifier = Modifier.padding(start = 4.dp))
                         }
                     }
                 }
+            }
+        }
+
+        // Capture button — saves current frame with detection boxes to vault
+        if (!isFrozen) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 32.dp, end = 16.dp)
+                    .size(56.dp)
+                    .semantics {
+                        contentDescription = context.getString(R.string.cd_save_detection_photo)
+                        role = Role.Button
+                    }
+                    .background(Color.White, CircleShape)
+                    .border(3.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+                    .clickable {
+                        val frame = latestFrameBitmap ?: return@clickable
+                        val dets = detections
+                        captureScope.launch {
+                            withContext(Dispatchers.IO) {
+                                try {
+                                    val mutable = frame.copy(Bitmap.Config.ARGB_8888, true)
+                                    val canvas = android.graphics.Canvas(mutable)
+                                    val w = mutable.width.toFloat()
+                                    val h = mutable.height.toFloat()
+                                    val boxPaint = android.graphics.Paint().apply {
+                                        style = android.graphics.Paint.Style.STROKE; strokeWidth = 4f; isAntiAlias = true
+                                    }
+                                    val textPaint = android.graphics.Paint().apply {
+                                        color = android.graphics.Color.WHITE; textSize = (h * 0.025f).coerceIn(24f, 48f); isAntiAlias = true; isFakeBoldText = true
+                                    }
+                                    val bgPaint = android.graphics.Paint().apply { style = android.graphics.Paint.Style.FILL }
+                                    for (det in dets) {
+                                        val left = det.x1 * w; val top = det.y1 * h; val right = det.x2 * w; val bottom = det.y2 * h
+                                        val hue = (det.classId * 37 % 360).toFloat()
+                                        val color = android.graphics.Color.HSVToColor(200, floatArrayOf(hue, 0.8f, 1f))
+                                        boxPaint.color = color; bgPaint.color = color
+                                        canvas.drawRect(android.graphics.RectF(left, top, right, bottom), boxPaint)
+                                        val label = "${det.className} ${(det.confidence * 100).toInt()}%"
+                                        val tw = textPaint.measureText(label)
+                                        canvas.drawRect(left, top - textPaint.textSize - 8f, left + tw + 16f, top, bgPaint)
+                                        canvas.drawText(label, left + 8f, top - 6f, textPaint)
+                                    }
+                                    val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
+                                    val vault = com.privateai.camera.security.VaultRepository(context, crypto)
+                                    vault.savePhoto(mutable, com.privateai.camera.security.VaultCategory.DETECT)
+                                    mutable.recycle()
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, context.getString(R.string.detection_photo_saved), android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    withContext(Dispatchers.Main) {
+                                        android.widget.Toast.makeText(context, context.getString(R.string.save_failed_generic), android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(Modifier.size(44.dp).background(Color.White, CircleShape))
             }
         }
 
@@ -454,7 +533,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                     ) {
                         Icon(
                             Icons.Default.Search,
-                            contentDescription = "Search",
+                            contentDescription = null,
                             tint = Color.White
                         )
                         Text(

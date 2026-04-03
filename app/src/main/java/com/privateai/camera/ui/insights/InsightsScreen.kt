@@ -1,0 +1,194 @@
+package com.privateai.camera.ui.insights
+
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.privateai.camera.R
+import com.privateai.camera.security.CryptoManager
+import com.privateai.camera.security.DuressManager
+import com.privateai.camera.security.InsightsRepository
+import com.privateai.camera.security.VaultLockManager
+import com.privateai.camera.ui.onboarding.AuthMode
+import com.privateai.camera.ui.onboarding.getAuthMode
+import java.io.File
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InsightsScreen(onBack: (() -> Unit)? = null) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val crypto = remember { CryptoManager(context) }
+    val repo = remember { InsightsRepository(File(context.filesDir, "vault/insights"), crypto) }
+
+    val startUnlocked = remember { VaultLockManager.isUnlockedWithinGrace(context) && crypto.initialize() }
+    var isLocked by remember { mutableStateOf(!startUnlocked) }
+    var isDuressActive by remember { mutableStateOf(VaultLockManager.isDuressActive) }
+    var selectedTab by remember { mutableIntStateOf(0) }
+
+    // Auto-lock
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> VaultLockManager.markLeft()
+                Lifecycle.Event.ON_START -> {
+                    if (!isLocked && !VaultLockManager.isUnlockedWithinGrace(context)) {
+                        isLocked = true; crypto.lock(); VaultLockManager.lock()
+                    }
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // PIN state
+    var pinInput by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf<String?>(null) }
+    val currentAuthMode = remember { getAuthMode(context) }
+
+    fun authenticate() {
+        val activity = context as? FragmentActivity ?: return
+        val bm = BiometricManager.from(context)
+        val canAuth = bm.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+        if (!canAuth) { if (crypto.initialize()) { VaultLockManager.markUnlocked(); isLocked = false }; return }
+        val prompt = BiometricPrompt(activity, ContextCompat.getMainExecutor(context),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    if (crypto.initialize()) { VaultLockManager.markUnlocked(); isLocked = false }
+                }
+            })
+        prompt.authenticate(BiometricPrompt.PromptInfo.Builder().setTitle(context.getString(R.string.insights_unlock_title)).setSubtitle(context.getString(R.string.insights_unlock_subtitle))
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL).build())
+    }
+
+    fun checkPin(pin: String) {
+        if (DuressManager.isEnabled(context) && DuressManager.isDuressPin(context, pin)) {
+            isDuressActive = true
+            VaultLockManager.activateDuress()
+            VaultLockManager.markUnlocked(); isLocked = false
+            Thread { DuressManager.executeDuress(context, crypto) }.start()
+            return
+        }
+        val appPin = com.privateai.camera.ui.onboarding.getAppPin(context)
+        if (appPin != null && pin == appPin) {
+            if (crypto.initialize()) { isDuressActive = false; VaultLockManager.clearDuress(); VaultLockManager.markUnlocked(); isLocked = false; pinInput = ""; pinError = null }
+            return
+        }
+        pinError = context.getString(R.string.insights_incorrect_pin); pinInput = ""
+    }
+
+    LaunchedEffect(Unit) {
+        if (isLocked && currentAuthMode == AuthMode.PHONE_LOCK) authenticate()
+    }
+
+    if (isLocked) {
+        Scaffold(topBar = {
+            TopAppBar(title = { Text(stringResource(R.string.insights_title)) }, navigationIcon = {
+                if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) }
+            })
+        }) { padding ->
+            Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Icon(Icons.Default.Lock, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.insights_locked), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
+                Spacer(Modifier.height(24.dp))
+                if (currentAuthMode == AuthMode.APP_PIN) {
+                    OutlinedTextField(
+                        value = pinInput, onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) { pinInput = it; pinError = null } },
+                        label = { Text(stringResource(R.string.insights_enter_pin)) }, modifier = Modifier.width(200.dp), singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { if (pinInput.length >= 4) checkPin(pinInput) }),
+                        visualTransformation = PasswordVisualTransformation(), isError = pinError != null,
+                        supportingText = { pinError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
+                    )
+                    Button(onClick = { if (pinInput.length >= 4) checkPin(pinInput) }, enabled = pinInput.length >= 4, modifier = Modifier.width(200.dp)) { Text(stringResource(R.string.action_unlock)) }
+                } else {
+                    Button(onClick = { authenticate() }, modifier = Modifier.width(200.dp)) { Text(stringResource(R.string.action_unlock)) }
+                }
+            }
+        }
+        return
+    }
+
+    // Unlocked — show tabs
+    val tabs = listOf(stringResource(R.string.tab_expenses) to Icons.Default.AttachMoney, stringResource(R.string.tab_health) to Icons.Default.FitnessCenter, stringResource(R.string.tab_habits) to Icons.Default.CheckCircle)
+
+    Scaffold(topBar = {
+        TopAppBar(title = { Text(stringResource(R.string.insights_title)) }, navigationIcon = {
+            if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) }
+        })
+    }) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            TabRow(selectedTabIndex = selectedTab) {
+                tabs.forEachIndexed { i, (title, icon) ->
+                    Tab(selected = selectedTab == i, onClick = { selectedTab = i },
+                        text = { Text(title) }, icon = { Icon(icon, null, Modifier.size(20.dp)) })
+                }
+            }
+
+            Box(Modifier.fillMaxSize()) {
+                if (isDuressActive) {
+                    // Duress: show empty
+                    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Text(stringResource(R.string.insights_no_data), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    when (selectedTab) {
+                        0 -> ExpensesTab(repo)
+                        1 -> HealthTab(repo)
+                        2 -> HabitsTab(repo)
+                    }
+                }
+            }
+        }
+    }
+}

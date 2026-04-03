@@ -11,6 +11,14 @@ object VaultLockManager {
     private var lastUnlockTime: Long = 0L
     private var isCurrentlyUnlocked: Boolean = false
 
+    /** True when the current session was unlocked with an emergency/duress PIN. */
+    var isDuressActive: Boolean = false
+        private set
+
+    fun activateDuress() {
+        isDuressActive = true
+    }
+
     /**
      * Mark vault as unlocked now.
      */
@@ -29,11 +37,19 @@ object VaultLockManager {
     }
 
     /**
+     * Clear duress state (e.g. when normal PIN is entered after emergency PIN).
+     */
+    fun clearDuress() {
+        isDuressActive = false
+    }
+
+    /**
      * Force lock (e.g. grace period expired).
      */
     fun lock() {
         isCurrentlyUnlocked = false
         lastUnlockTime = 0L
+        isDuressActive = false
     }
 
     /**

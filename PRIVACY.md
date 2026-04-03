@@ -67,4 +67,4 @@ We may update this policy. Changes will be reflected in the "Last updated" date 
 ## Contact
 
 For questions about this privacy policy, open an issue at:
-https://github.com/robomixes/private-ai-camera/issues
+https://github.com/robomixes/privo/issues

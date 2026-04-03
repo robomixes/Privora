@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -51,24 +53,33 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import com.privateai.camera.security.VaultLockManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.privateai.camera.R
 
 data class FeatureItem(
     val route: String,
-    val label: String,
-    val description: String,
-    val icon: ImageVector
+    @StringRes val labelRes: Int,
+    @StringRes val descriptionRes: Int,
+    val icon: ImageVector,
+    val iconColor: Color = Color(0xFF6750A4),
+    val bgColor: Color = Color(0xFFE8DEF8)
 )
 
 val features = listOf(
-    FeatureItem("camera", "Camera", "Photo & Video", Icons.Default.CameraAlt),
-    FeatureItem("detect", "Detect", "Object Detection", Icons.Default.Search),
-    FeatureItem("scan", "Scan", "Document Scanner", Icons.Default.DocumentScanner),
-    FeatureItem("qrscanner", "QR Scan", "QR & Barcode Scanner", Icons.Default.QrCodeScanner),
-    FeatureItem("translate", "Translate", "Local Translation", Icons.Default.Translate),
-    FeatureItem("vault", "Vault", "Encrypted Photos", Icons.Default.Lock),
-    FeatureItem("notes", "Notes", "Secure Notes", Icons.Default.NoteAlt),
+    FeatureItem("camera", R.string.feature_camera, R.string.feature_camera_desc, Icons.Default.CameraAlt, Color(0xFF1565C0), Color(0xFFBBDEFB)),
+    FeatureItem("detect", R.string.feature_detect, R.string.feature_detect_desc, Icons.Default.Search, Color(0xFF2E7D32), Color(0xFFC8E6C9)),
+    FeatureItem("scan", R.string.feature_scan, R.string.feature_scan_desc, Icons.Default.DocumentScanner, Color(0xFFE65100), Color(0xFFFFE0B2)),
+    FeatureItem("qrscanner", R.string.feature_qr_scan, R.string.feature_qr_scan_desc, Icons.Default.QrCodeScanner, Color(0xFF6A1B9A), Color(0xFFE1BEE7)),
+    FeatureItem("translate", R.string.feature_translate, R.string.feature_translate_desc, Icons.Default.Translate, Color(0xFF00838F), Color(0xFFB2EBF2)),
+    FeatureItem("vault", R.string.feature_vault, R.string.feature_vault_desc, Icons.Default.Lock, Color(0xFFC62828), Color(0xFFFFCDD2)),
+    FeatureItem("notes", R.string.feature_notes, R.string.feature_notes_desc, Icons.Default.NoteAlt, Color(0xFF4E342E), Color(0xFFD7CCC8)),
+    FeatureItem("insights", R.string.feature_insights, R.string.feature_insights_desc, Icons.Default.BarChart, Color(0xFF00695C), Color(0xFFB2DFDB)),
+    FeatureItem("tools", R.string.feature_tools, R.string.feature_tools_desc, Icons.Default.Build, Color(0xFF37474F), Color(0xFFCFD8DC)),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,8 +91,9 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val enabledFeatures = remember { com.privateai.camera.ui.settings.FeatureToggleManager.getEnabledFeatures(context) }
-    val visibleFeatures = features.filter { it.route in enabledFeatures }
+    val orderedRoutes = remember { com.privateai.camera.ui.settings.FeatureToggleManager.getOrderedEnabledFeatures(context) }
+    val featureMap = remember { features.associateBy { it.route } }
+    val visibleFeatures = orderedRoutes.mapNotNull { featureMap[it] }
     var isVaultUnlocked by remember { mutableStateOf(VaultLockManager.isUnlockedWithinGrace(context)) }
     var showImportBanner by remember { mutableStateOf(importSummary != null) }
 
@@ -89,26 +101,26 @@ fun HomeScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text("Privo") },
+                title = { Text(stringResource(R.string.app_name_home)) },
                 actions = {
                     if (isVaultUnlocked) {
                         IconButton(onClick = {
                             VaultLockManager.lock()
                             isVaultUnlocked = false
-                            Toast.makeText(context, "Vault & Notes locked", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.vault_notes_locked), Toast.LENGTH_SHORT).show()
                         }, modifier = Modifier
                             .border(2.dp, Color(0xFF4CAF50), CircleShape)
                             .padding(2.dp)
                         ) {
                             Icon(
                                 Icons.Default.LockOpen,
-                                contentDescription = "Lock Vault",
+                                contentDescription = stringResource(R.string.cd_lock_vault),
                                 tint = Color(0xFF4CAF50)
                             )
                         }
                     }
                     IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.cd_settings), tint = MaterialTheme.colorScheme.primary)
                     }
                 },
                 scrollBehavior = scrollBehavior
@@ -144,7 +156,7 @@ fun HomeScreen(
                         )
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "Backup Restored",
+                                stringResource(R.string.backup_restored),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -157,7 +169,7 @@ fun HomeScreen(
                         IconButton(onClick = { showImportBanner = false }) {
                             Icon(
                                 Icons.Default.Close,
-                                contentDescription = "Dismiss",
+                                contentDescription = stringResource(R.string.cd_dismiss),
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
@@ -188,13 +200,16 @@ fun FeatureCard(
     feature: FeatureItem,
     onClick: () -> Unit
 ) {
+    val label = stringResource(feature.labelRes)
+    val description = stringResource(feature.descriptionRes)
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .height(140.dp)
+            .semantics { contentDescription = "$label: $description" }
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = feature.bgColor
         )
     ) {
         Column(
@@ -206,18 +221,18 @@ fun FeatureCard(
         ) {
             Icon(
                 feature.icon,
-                contentDescription = feature.label,
+                contentDescription = null,
                 modifier = Modifier.size(36.dp),
-                tint = MaterialTheme.colorScheme.primary
+                tint = feature.iconColor
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                feature.label,
+                label,
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center
             )
             Text(
-                feature.description,
+                description,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center

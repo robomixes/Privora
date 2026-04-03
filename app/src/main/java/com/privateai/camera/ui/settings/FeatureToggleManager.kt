@@ -3,14 +3,14 @@ package com.privateai.camera.ui.settings
 import android.content.Context
 
 private const val PREFS_NAME = "feature_toggles"
+private const val KEY_ORDER = "feature_order"
 
 /**
- * Manages which features are visible on the home screen.
- * All features are enabled by default.
+ * Manages which features are visible on the home screen and their order.
  */
 object FeatureToggleManager {
 
-    private val ALL_FEATURES = listOf("camera", "detect", "scan", "qrscanner", "translate", "vault", "notes")
+    private val DEFAULT_ORDER = listOf("camera", "detect", "scan", "qrscanner", "translate", "vault", "notes", "insights", "tools")
 
     fun isFeatureEnabled(context: Context, route: String): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -25,6 +25,38 @@ object FeatureToggleManager {
 
     fun getEnabledFeatures(context: Context): Set<String> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return ALL_FEATURES.filter { prefs.getBoolean(it, true) }.toSet()
+        return DEFAULT_ORDER.filter { prefs.getBoolean(it, true) }.toSet()
+    }
+
+    /**
+     * Get ordered list of all features (enabled and disabled).
+     */
+    fun getOrderedFeatures(context: Context): List<String> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val stored = prefs.getString(KEY_ORDER, null)
+        if (stored != null) {
+            val order = stored.split(",").filter { it.isNotBlank() }
+            // Add any new features not in stored order
+            val missing = DEFAULT_ORDER.filter { it !in order }
+            return order + missing
+        }
+        return DEFAULT_ORDER
+    }
+
+    /**
+     * Save feature order.
+     */
+    fun saveOrder(context: Context, order: List<String>) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_ORDER, order.joinToString(","))
+            .apply()
+    }
+
+    /**
+     * Get ordered list of enabled features (for home screen).
+     */
+    fun getOrderedEnabledFeatures(context: Context): List<String> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return getOrderedFeatures(context).filter { prefs.getBoolean(it, true) }
     }
 }

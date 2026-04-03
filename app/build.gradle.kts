@@ -22,7 +22,7 @@ android {
         applicationId = "com.privateai.camera"
         minSdk = 26
         targetSdk = 35
-        versionCode = 100
+        versionCode = 1
         versionName = "1.0.0"
     }
 
@@ -61,6 +61,12 @@ android {
     buildFeatures {
         compose = true
     }
+
+    bundle {
+        language { enableSplit = true }
+        density { enableSplit = true }
+        abi { enableSplit = true }
+    }
 }
 
 dependencies {
@@ -93,8 +99,14 @@ dependencies {
     // ExifInterface
     implementation(libs.androidx.exifinterface)
 
+    // AppCompat (per-app language switching)
+    implementation(libs.androidx.appcompat)
+
     // Biometric
     implementation(libs.androidx.biometric)
+
+    // Testing
+    testImplementation(libs.junit)
 
     // ML Kit
     implementation(libs.mlkit.document.scanner)
