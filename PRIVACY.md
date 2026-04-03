@@ -1,10 +1,10 @@
-# Privacy Policy — Privo
+# Privacy Policy — Privora
 
 **Last updated**: April 2026
 
 ## Summary
 
-Privo is designed to protect your privacy. All AI processing runs on your device. Your photos, videos, and notes are encrypted and never leave your phone. We collect no data, no analytics, and no telemetry.
+Privora is designed to protect your privacy. All AI processing runs on your device. Your photos, videos, and notes are encrypted and never leave your phone. We collect no data, no analytics, and no telemetry.
 
 ## Data Collection
 

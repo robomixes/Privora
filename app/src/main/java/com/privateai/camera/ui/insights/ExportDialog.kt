@@ -135,7 +135,7 @@ fun ExportDialog(
                                 val values = ContentValues().apply {
                                     put(MediaStore.Downloads.DISPLAY_NAME, "$fileName.pdf")
                                     put(MediaStore.Downloads.MIME_TYPE, "application/pdf")
-                                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Privo")
+                                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Privora")
                                 }
                                 val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
                                 uri?.let { context.contentResolver.openOutputStream(it)?.use { out -> out.write(pdfBytes) } }
@@ -167,7 +167,7 @@ fun ExportDialog(
                                 val values = ContentValues().apply {
                                     put(MediaStore.Downloads.DISPLAY_NAME, "$fileName.csv")
                                     put(MediaStore.Downloads.MIME_TYPE, "text/csv")
-                                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Privo")
+                                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Privora")
                                 }
                                 val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
                                 uri?.let { context.contentResolver.openOutputStream(it)?.use { out -> out.write(csvBytes) } }
