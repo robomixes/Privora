@@ -121,7 +121,7 @@ fun BackupScreen(onBack: (() -> Unit)? = null, onImportComplete: ((String) -> Un
             onDismissRequest = { errorMessage = null },
             icon = { Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error) },
             title = { Text("Import Failed") },
-            text = { Text(errorMessage!!) },
+            text = { Text(errorMessage ?: "") },
             confirmButton = {
                 TextButton(onClick = { errorMessage = null }) { Text("OK") }
             }
@@ -421,7 +421,7 @@ fun BackupScreen(onBack: (() -> Unit)? = null, onImportComplete: ((String) -> Un
                                         try {
                                             val tempFile = withContext(Dispatchers.IO) {
                                                 val temp = File(context.cacheDir, "import_backup.paicbackup")
-                                                context.contentResolver.openInputStream(selectedBackupUri!!)?.use { input ->
+                                                context.contentResolver.openInputStream(selectedBackupUri ?: return@withContext temp)?.use { input ->
                                                     temp.outputStream().use { output -> input.copyTo(output) }
                                                 }
                                                 temp

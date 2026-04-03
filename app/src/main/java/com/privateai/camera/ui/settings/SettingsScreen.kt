@@ -24,10 +24,14 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -91,16 +95,67 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             // Features section
             SectionHeader("Home Screen Features")
 
-            FeatureToggle(context, "camera", "Camera", "Photo & Video capture", Icons.Default.CameraAlt)
-            FeatureToggle(context, "detect", "Detect", "AI object detection", Icons.Default.Search)
-            FeatureToggle(context, "scan", "Scan", "Document scanner + OCR", Icons.Default.DocumentScanner)
-            FeatureToggle(context, "qrscanner", "QR Scan", "QR & barcode scanner", Icons.Default.Search)
-            FeatureToggle(context, "translate", "Translate", "Local translation", Icons.Default.Translate)
-            FeatureToggle(context, "vault", "Vault", "Encrypted photo storage", Icons.Default.Lock)
-            FeatureToggle(context, "notes", "Notes", "Secure encrypted notes", Icons.Default.NoteAlt)
+            val featureInfo = mapOf(
+                "camera" to Triple("Camera", "Photo & Video capture", Icons.Default.CameraAlt),
+                "detect" to Triple("Detect", "AI object detection", Icons.Default.Search),
+                "scan" to Triple("Scan", "Document scanner + OCR", Icons.Default.DocumentScanner),
+                "qrscanner" to Triple("QR Scan", "QR & barcode scanner", Icons.Default.Search),
+                "translate" to Triple("Translate", "Local translation", Icons.Default.Translate),
+                "vault" to Triple("Vault", "Encrypted photo storage", Icons.Default.Lock),
+                "notes" to Triple("Notes", "Secure encrypted notes", Icons.Default.NoteAlt),
+                "insights" to Triple("Insights", "Expenses, health, habits", Icons.Default.Info),
+                "tools" to Triple("Tools", "Unit converter", Icons.Default.Info)
+            )
+            var featureOrder by remember { mutableStateOf(FeatureToggleManager.getOrderedFeatures(context)) }
+
+            featureOrder.forEachIndexed { index, route ->
+                val (title, desc, icon) = featureInfo[route] ?: return@forEachIndexed
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Move up/down
+                    Column(modifier = Modifier.padding(end = 4.dp)) {
+                        IconButton(onClick = {
+                            if (index > 0) {
+                                featureOrder = featureOrder.toMutableList().apply {
+                                    val item = removeAt(index); add(index - 1, item)
+                                }
+                                FeatureToggleManager.saveOrder(context, featureOrder)
+                            }
+                        }, modifier = Modifier.size(24.dp), enabled = index > 0) {
+                            Icon(Icons.Default.KeyboardArrowUp, "Up", Modifier.size(18.dp), tint = if (index > 0) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        }
+                        IconButton(onClick = {
+                            if (index < featureOrder.size - 1) {
+                                featureOrder = featureOrder.toMutableList().apply {
+                                    val item = removeAt(index); add(index + 1, item)
+                                }
+                                FeatureToggleManager.saveOrder(context, featureOrder)
+                            }
+                        }, modifier = Modifier.size(24.dp), enabled = index < featureOrder.size - 1) {
+                            Icon(Icons.Default.KeyboardArrowDown, "Down", Modifier.size(18.dp), tint = if (index < featureOrder.size - 1) MaterialTheme.colorScheme.primary else Color.Transparent)
+                        }
+                    }
+                    // Feature toggle
+                    var enabled by remember { mutableStateOf(FeatureToggleManager.isFeatureEnabled(context, route)) }
+                    Row(
+                        modifier = Modifier.weight(1f).clickable { enabled = !enabled; FeatureToggleManager.setFeatureEnabled(context, route, enabled) }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(icon, null, Modifier.size(24.dp), tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.weight(1f)) {
+                            Text(title, style = MaterialTheme.typography.bodyLarge)
+                            Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = enabled, onCheckedChange = { enabled = it; FeatureToggleManager.setFeatureEnabled(context, route, it) })
+                    }
+                }
+            }
 
             Text(
-                "Disabled features are hidden from the home screen",
+                "Use arrows to reorder. Disabled features are hidden from home.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -329,32 +384,80 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 subtitle = "Version 1.0.0 • AI camera that never sends your data anywhere"
             )
 
-            val crashLogs = remember { com.privateai.camera.service.CrashHandler.listLogs(context) }
+            var crashLogs by remember { mutableStateOf(com.privateai.camera.service.CrashHandler.listLogs(context)) }
+            var showCrashList by remember { mutableStateOf(false) }
+            var viewingCrashLog by remember { mutableStateOf<com.privateai.camera.service.CrashLog?>(null) }
+
             if (crashLogs.isNotEmpty()) {
                 SettingsItem(
                     icon = Icons.Default.Info,
                     title = "Crash Logs (${crashLogs.size})",
                     subtitle = "View local crash reports — never sent anywhere",
-                    onClick = {
-                        // Share latest crash log
-                        val latest = crashLogs.first()
-                        val content = com.privateai.camera.service.CrashHandler.readLog(latest.file)
-                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Privo Crash Report")
-                            putExtra(android.content.Intent.EXTRA_TEXT, content)
-                        }
-                        context.startActivity(android.content.Intent.createChooser(intent, "Share Crash Log"))
-                    }
+                    onClick = { showCrashList = true }
                 )
+            }
 
-                SettingsItem(
-                    icon = Icons.Default.Delete,
-                    title = "Clear Crash Logs",
-                    subtitle = "Delete all local crash reports",
-                    onClick = {
-                        com.privateai.camera.service.CrashHandler.clearLogs(context)
-                        Toast.makeText(context, "Crash logs cleared", Toast.LENGTH_SHORT).show()
+            // Crash log list dialog
+            if (showCrashList) {
+                val dateFmt = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()) }
+                AlertDialog(
+                    onDismissRequest = { showCrashList = false },
+                    title = { Text("Crash Logs") },
+                    text = {
+                        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            crashLogs.forEach { log ->
+                                Card(Modifier.fillMaxWidth().clickable { viewingCrashLog = log; showCrashList = false }) {
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(dateFmt.format(java.util.Date(log.timestamp)), style = MaterialTheme.typography.bodyMedium)
+                                        Text(log.preview.take(100), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            com.privateai.camera.service.CrashHandler.clearLogs(context)
+                            crashLogs = emptyList()
+                            showCrashList = false
+                            Toast.makeText(context, "Crash logs cleared", Toast.LENGTH_SHORT).show()
+                        }) { Text("Clear All", color = MaterialTheme.colorScheme.error) }
+                    },
+                    dismissButton = { TextButton(onClick = { showCrashList = false }) { Text("Close") } }
+                )
+            }
+
+            // View single crash log dialog
+            viewingCrashLog?.let { log ->
+                val content = remember(log) { com.privateai.camera.service.CrashHandler.readLog(log.file) }
+                AlertDialog(
+                    onDismissRequest = { viewingCrashLog = null },
+                    title = { Text("Crash Report") },
+                    text = {
+                        Column(Modifier.verticalScroll(rememberScrollState())) {
+                            Text(content, style = MaterialTheme.typography.bodySmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_SUBJECT, "Privo Crash Report")
+                                putExtra(android.content.Intent.EXTRA_TEXT, content)
+                            }
+                            context.startActivity(android.content.Intent.createChooser(intent, "Share"))
+                        }) { Text("Share") }
+                    },
+                    dismissButton = {
+                        Row {
+                            TextButton(onClick = {
+                                com.privateai.camera.service.CrashHandler.deleteLog(log.file)
+                                crashLogs = com.privateai.camera.service.CrashHandler.listLogs(context)
+                                viewingCrashLog = null
+                                Toast.makeText(context, "Log deleted", Toast.LENGTH_SHORT).show()
+                            }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                            TextButton(onClick = { viewingCrashLog = null }) { Text("Close") }
+                        }
                     }
                 )
             }

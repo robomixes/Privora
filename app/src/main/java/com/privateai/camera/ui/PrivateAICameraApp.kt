@@ -19,6 +19,8 @@ import com.privateai.camera.ui.onboarding.OnboardingScreen
 import com.privateai.camera.ui.onboarding.completeOnboardingQuick
 import com.privateai.camera.ui.onboarding.isOnboardingComplete
 import com.privateai.camera.ui.scanner.ScannerScreen
+import com.privateai.camera.ui.insights.InsightsScreen
+import com.privateai.camera.ui.tools.UnitConverterScreen
 import com.privateai.camera.ui.settings.BackupScreen
 import com.privateai.camera.ui.settings.DuressSetupScreen
 import com.privateai.camera.ui.settings.SettingsScreen
@@ -95,6 +97,12 @@ fun PrivateAICameraApp() {
             }
             composable("notes") {
                 NotesScreen(onBack = { navController.popBackStack() })
+            }
+            composable("insights") {
+                InsightsScreen(onBack = { navController.popBackStack() })
+            }
+            composable("tools") {
+                UnitConverterScreen(onBack = { navController.popBackStack() })
             }
             composable("settings") {
                 SettingsScreen(

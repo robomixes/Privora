@@ -211,9 +211,9 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
         )
 
         // Frozen frame with blur + clear selected region
-        if (isFrozen && frozenBitmap != null && selectedDetection != null) {
-            val frozen = frozenBitmap!!
-            val det = selectedDetection!!
+        val frozen = frozenBitmap
+        val det = selectedDetection
+        if (isFrozen && frozen != null && det != null) {
 
             // Blurred frozen frame covers the live preview
             Image(
@@ -272,7 +272,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
         // Detection overlay — only show selected detection when frozen
         DetectionOverlay(
             detections = if (isFrozen && selectedDetection != null) {
-                listOf(selectedDetection!!)
+                listOfNotNull(selectedDetection)
             } else {
                 detections
             },

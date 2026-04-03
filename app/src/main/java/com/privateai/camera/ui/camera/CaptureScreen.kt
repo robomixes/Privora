@@ -533,16 +533,16 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                     },
                 contentAlignment = Alignment.Center
             ) {
-                if (lastThumbnail != null) {
+                lastThumbnail?.let { thumb ->
                     Image(
-                        bitmap = lastThumbnail!!.asImageBitmap(),
+                        bitmap = thumb.asImageBitmap(),
                         contentDescription = "Last capture",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(RoundedCornerShape(12.dp))
                     )
-                }
+                } // lastThumbnail
             }
 
             // Shutter / Record button

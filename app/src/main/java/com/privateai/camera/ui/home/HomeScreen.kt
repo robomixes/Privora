@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -58,17 +60,21 @@ data class FeatureItem(
     val route: String,
     val label: String,
     val description: String,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val iconColor: Color = Color(0xFF6750A4),
+    val bgColor: Color = Color(0xFFE8DEF8)
 )
 
 val features = listOf(
-    FeatureItem("camera", "Camera", "Photo & Video", Icons.Default.CameraAlt),
-    FeatureItem("detect", "Detect", "Object Detection", Icons.Default.Search),
-    FeatureItem("scan", "Scan", "Document Scanner", Icons.Default.DocumentScanner),
-    FeatureItem("qrscanner", "QR Scan", "QR & Barcode Scanner", Icons.Default.QrCodeScanner),
-    FeatureItem("translate", "Translate", "Local Translation", Icons.Default.Translate),
-    FeatureItem("vault", "Vault", "Encrypted Photos", Icons.Default.Lock),
-    FeatureItem("notes", "Notes", "Secure Notes", Icons.Default.NoteAlt),
+    FeatureItem("camera", "Camera", "Photo & Video", Icons.Default.CameraAlt, Color(0xFF1565C0), Color(0xFFBBDEFB)),
+    FeatureItem("detect", "Detect", "Object Detection", Icons.Default.Search, Color(0xFF2E7D32), Color(0xFFC8E6C9)),
+    FeatureItem("scan", "Scan", "Document Scanner", Icons.Default.DocumentScanner, Color(0xFFE65100), Color(0xFFFFE0B2)),
+    FeatureItem("qrscanner", "QR Scan", "QR & Barcode", Icons.Default.QrCodeScanner, Color(0xFF6A1B9A), Color(0xFFE1BEE7)),
+    FeatureItem("translate", "Translate", "Local Translation", Icons.Default.Translate, Color(0xFF00838F), Color(0xFFB2EBF2)),
+    FeatureItem("vault", "Vault", "Encrypted Photos", Icons.Default.Lock, Color(0xFFC62828), Color(0xFFFFCDD2)),
+    FeatureItem("notes", "Notes", "Secure Notes", Icons.Default.NoteAlt, Color(0xFF4E342E), Color(0xFFD7CCC8)),
+    FeatureItem("insights", "Insights", "Data Analyzer", Icons.Default.BarChart, Color(0xFF00695C), Color(0xFFB2DFDB)),
+    FeatureItem("tools", "Tools", "Unit Converter", Icons.Default.Build, Color(0xFF37474F), Color(0xFFCFD8DC)),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,8 +86,9 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val enabledFeatures = remember { com.privateai.camera.ui.settings.FeatureToggleManager.getEnabledFeatures(context) }
-    val visibleFeatures = features.filter { it.route in enabledFeatures }
+    val orderedRoutes = remember { com.privateai.camera.ui.settings.FeatureToggleManager.getOrderedEnabledFeatures(context) }
+    val featureMap = remember { features.associateBy { it.route } }
+    val visibleFeatures = orderedRoutes.mapNotNull { featureMap[it] }
     var isVaultUnlocked by remember { mutableStateOf(VaultLockManager.isUnlockedWithinGrace(context)) }
     var showImportBanner by remember { mutableStateOf(importSummary != null) }
 
@@ -194,7 +201,7 @@ fun FeatureCard(
             .height(140.dp)
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = feature.bgColor
         )
     ) {
         Column(
@@ -208,7 +215,7 @@ fun FeatureCard(
                 feature.icon,
                 contentDescription = feature.label,
                 modifier = Modifier.size(36.dp),
-                tint = MaterialTheme.colorScheme.primary
+                tint = feature.iconColor
             )
             Spacer(Modifier.height(12.dp))
             Text(

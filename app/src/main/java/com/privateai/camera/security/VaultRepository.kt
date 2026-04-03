@@ -16,6 +16,7 @@ enum class VaultCategory(val label: String, val dirName: String) {
     VIDEO("Videos", "video"),
     SCAN("Scans", "scan"),
     DETECT("Detections", "detect"),
+    REPORTS("Reports", "reports"),
     FILES("Files", "files")
 }
 
@@ -333,10 +334,89 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
     }
 
     /**
+     * Save a photo to a custom folder.
+     */
+    fun savePhotoToFolder(bitmap: Bitmap, folderDir: File): VaultPhoto {
+        val id = UUID.randomUUID().toString()
+        val timestamp = System.currentTimeMillis()
+        folderDir.mkdirs()
+
+        val jpegBytes = ByteArrayOutputStream().use { out ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+            out.toByteArray()
+        }
+        val scale = THUMB_SIZE.toFloat() / maxOf(bitmap.width, bitmap.height)
+        val thumb = Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true)
+        val thumbBytes = ByteArrayOutputStream().use { out ->
+            thumb.compress(Bitmap.CompressFormat.JPEG, 70, out)
+            out.toByteArray()
+        }
+        thumb.recycle()
+
+        val photoFile = File(folderDir, "$id.enc")
+        val thumbFile = File(folderDir, "$id.thumb.enc")
+        crypto.encryptToFile(jpegBytes, photoFile)
+        crypto.encryptToFile(thumbBytes, thumbFile)
+
+        Log.d(TAG, "Photo saved to folder: $id (${jpegBytes.size / 1024}KB)")
+        return VaultPhoto(id, timestamp, VaultCategory.FILES, photoFile, thumbFile)
+    }
+
+    /**
+     * List items in a custom folder directory.
+     */
+    fun listFolderItems(folderDir: File): List<VaultPhoto> {
+        if (!folderDir.exists()) return emptyList()
+        val files = folderDir.listFiles() ?: return emptyList()
+        val items = mutableListOf<VaultPhoto>()
+
+        files.filter {
+            it.isFile && it.name.endsWith(".enc") &&
+                !it.name.endsWith(".thumb.enc") &&
+                !it.name.endsWith(".vid.enc") &&
+                !it.name.endsWith(".pdf.enc") &&
+                !it.name.startsWith("_tobedeleted_")
+        }.forEach { file ->
+            val id = file.name.removeSuffix(".enc")
+            items.add(VaultPhoto(id, file.lastModified(), VaultCategory.FILES, file, File(folderDir, "$id.thumb.enc")))
+        }
+
+        files.filter {
+            it.name.endsWith(".vid.enc") && !it.name.endsWith(".vid.thumb.enc") && !it.name.startsWith("_tobedeleted_")
+        }.forEach { file ->
+            val id = file.name.removeSuffix(".vid.enc")
+            items.add(VaultPhoto(id, file.lastModified(), VaultCategory.FILES, file, File(folderDir, "$id.vid.thumb.enc"), VaultMediaType.VIDEO))
+        }
+
+        files.filter {
+            it.name.endsWith(".pdf.enc") && !it.name.startsWith("_tobedeleted_")
+        }.forEach { file ->
+            val id = file.name.removeSuffix(".pdf.enc")
+            items.add(VaultPhoto(id, file.lastModified(), VaultCategory.FILES, file, file, VaultMediaType.PDF))
+        }
+
+        return items.sortedByDescending { it.timestamp }
+    }
+
+    /**
+     * Move a photo to a custom folder directory.
+     */
+    fun moveToFolder(photo: VaultPhoto, targetDir: File) {
+        targetDir.mkdirs()
+        val newEncFile = File(targetDir, photo.encryptedFile.name)
+        val newThumbFile = File(targetDir, photo.thumbnailFile.name)
+        photo.encryptedFile.renameTo(newEncFile)
+        if (photo.thumbnailFile.exists() && photo.thumbnailFile != photo.encryptedFile) {
+            photo.thumbnailFile.renameTo(newThumbFile)
+        }
+        Log.d(TAG, "Photo moved to folder: ${photo.id}")
+    }
+
+    /**
      * Get vault size in bytes.
      */
     fun getVaultSize(): Long {
-        return vaultDir.listFiles()?.sumOf { it.length() } ?: 0
+        return vaultDir.walkTopDown().filter { it.isFile }.fold(0L) { acc, file -> acc + file.length() }
     }
 
     /**
