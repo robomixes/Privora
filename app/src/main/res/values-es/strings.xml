@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Privo</string>
-    <string name="widget_name">Acceso Rápido Privo</string>
+    <string name="app_name">Privora</string>
+    <string name="widget_name">Acceso Rápido Privora</string>
     <string name="widget_description">Acceso rápido a Cámara y Bóveda</string>
 
     <!-- Common actions -->
@@ -129,14 +129,14 @@
 
     <!-- Settings: About -->
     <string name="settings_section_about">Acerca de</string>
-    <string name="settings_privo">Privo</string>
+    <string name="settings_privo">Privora</string>
     <string name="settings_privo_desc">Versión 1.0.0 \u2022 Cámara con IA que nunca envía tus datos a ningún lugar</string>
     <string name="settings_crash_logs">Registros de errores (%1$d)</string>
     <string name="settings_crash_logs_desc">Ver reportes de errores locales \u2014 nunca se envían a ningún lugar</string>
     <string name="settings_crash_logs_title">Registros de errores</string>
     <string name="settings_crash_logs_cleared">Registros de errores eliminados</string>
     <string name="settings_crash_report">Reporte de error</string>
-    <string name="settings_crash_report_subject">Reporte de error de Privo</string>
+    <string name="settings_crash_report_subject">Reporte de error de Privora</string>
     <string name="settings_log_deleted">Registro eliminado</string>
     <string name="settings_privacy_policy">Política de privacidad</string>
     <string name="settings_privacy_policy_desc">Ver nuestra política de privacidad</string>
@@ -200,10 +200,10 @@
     <string name="export_save_failed">Error al guardar: %1$s</string>
     <string name="export_save_to_device">Guardar en el dispositivo</string>
     <string name="export_save_to_device_desc">Guardar PDF en la carpeta Descargas</string>
-    <string name="export_saved_to_downloads">Guardado en Descargas/Privo</string>
+    <string name="export_saved_to_downloads">Guardado en Descargas/Privora</string>
     <string name="export_csv">Exportar CSV</string>
     <string name="export_csv_desc">Guardar hoja de cálculo en la carpeta Descargas</string>
-    <string name="export_saved_csv_to_downloads">CSV guardado en Descargas/Privo</string>
+    <string name="export_saved_csv_to_downloads">CSV guardado en Descargas/Privora</string>
 
     <!-- Unit Converter screen -->
     <string name="unit_converter_title">Conversor de unidades</string>
@@ -345,7 +345,7 @@
     <string name="note_label">Nota</string>
 
     <!-- Home screen -->
-    <string name="app_name_home">Privo</string>
+    <string name="app_name_home">Privora</string>
     <string name="vault_notes_locked">Bóveda y Notas bloqueadas</string>
     <string name="cd_lock_vault">Bloquear Bóveda</string>
     <string name="cd_settings">Configuración</string>
@@ -353,7 +353,7 @@
     <string name="cd_dismiss">Descartar</string>
 
     <!-- Onboarding -->
-    <string name="onboarding_welcome_title">Privo</string>
+    <string name="onboarding_welcome_title">Privora</string>
     <string name="onboarding_welcome_description">Cámara con IA que funciona completamente en tu dispositivo.\nNingún dato se envía a ningún servidor.</string>
     <string name="onboarding_get_started">Comenzar</string>
     <string name="onboarding_have_backup">Tengo un respaldo</string>
@@ -414,7 +414,7 @@
     <string name="cd_delete">Eliminar</string>
 
     <!-- Camera detection -->
-    <string name="camera_needs_access">Privo necesita acceso a la cámara</string>
+    <string name="camera_needs_access">Privora necesita acceso a la cámara</string>
     <string name="camera_privacy_note">Todo el procesamiento ocurre en tu dispositivo.\nNo se envían datos a ningún lugar.</string>
     <string name="object_count">%1$d objetos</string>
     <string name="inference_time_ms">%1$dms</string>

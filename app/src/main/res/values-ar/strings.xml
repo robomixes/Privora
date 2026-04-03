@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Privo</string>
-    <string name="widget_name">وصول سريع - Privo</string>
+    <string name="app_name">Privora</string>
+    <string name="widget_name">وصول سريع - Privora</string>
     <string name="widget_description">وصول سريع إلى الكاميرا والخزنة</string>
 
     <!-- Common actions -->
@@ -129,14 +129,14 @@
 
     <!-- Settings: About -->
     <string name="settings_section_about">حول التطبيق</string>
-    <string name="settings_privo">Privo</string>
+    <string name="settings_privo">Privora</string>
     <string name="settings_privo_desc">الإصدار 1.0.0 \u2022 كاميرا ذكاء اصطناعي لا ترسل بياناتك أبداً إلى أي مكان</string>
     <string name="settings_crash_logs">سجلات الأعطال (%1$d)</string>
     <string name="settings_crash_logs_desc">عرض تقارير الأعطال المحلية \u2014 لا تُرسل أبداً إلى أي مكان</string>
     <string name="settings_crash_logs_title">سجلات الأعطال</string>
     <string name="settings_crash_logs_cleared">تم مسح سجلات الأعطال</string>
     <string name="settings_crash_report">تقرير العطل</string>
-    <string name="settings_crash_report_subject">تقرير عطل Privo</string>
+    <string name="settings_crash_report_subject">تقرير عطل Privora</string>
     <string name="settings_log_deleted">تم حذف السجل</string>
     <string name="settings_privacy_policy">سياسة الخصوصية</string>
     <string name="settings_privacy_policy_desc">عرض سياسة الخصوصية</string>
@@ -200,10 +200,10 @@
     <string name="export_save_failed">فشل الحفظ: %1$s</string>
     <string name="export_save_to_device">حفظ على الجهاز</string>
     <string name="export_save_to_device_desc">حفظ PDF في مجلد التنزيلات</string>
-    <string name="export_saved_to_downloads">تم الحفظ في التنزيلات/Privo</string>
+    <string name="export_saved_to_downloads">تم الحفظ في التنزيلات/Privora</string>
     <string name="export_csv">تصدير CSV</string>
     <string name="export_csv_desc">حفظ جدول بيانات في مجلد التنزيلات</string>
-    <string name="export_saved_csv_to_downloads">تم حفظ CSV في التنزيلات/Privo</string>
+    <string name="export_saved_csv_to_downloads">تم حفظ CSV في التنزيلات/Privora</string>
 
     <!-- Unit Converter screen -->
     <string name="unit_converter_title">محوّل الوحدات</string>
@@ -345,7 +345,7 @@
     <string name="note_label">الملاحظة</string>
 
     <!-- Home screen -->
-    <string name="app_name_home">Privo</string>
+    <string name="app_name_home">Privora</string>
     <string name="vault_notes_locked">الخزنة والملاحظات مقفلة</string>
     <string name="cd_lock_vault">قفل الخزنة</string>
     <string name="cd_settings">الإعدادات</string>
@@ -353,7 +353,7 @@
     <string name="cd_dismiss">إغلاق</string>
 
     <!-- Onboarding -->
-    <string name="onboarding_welcome_title">Privo</string>
+    <string name="onboarding_welcome_title">Privora</string>
     <string name="onboarding_welcome_description">كاميرا مدعومة بالذكاء الاصطناعي تعمل بالكامل على جهازك.\nلا تُرسل أي بيانات إلى أي خادم أبداً.</string>
     <string name="onboarding_get_started">ابدأ الآن</string>
     <string name="onboarding_have_backup">لدي نسخة احتياطية</string>
@@ -414,7 +414,7 @@
     <string name="cd_delete">حذف</string>
 
     <!-- Camera detection -->
-    <string name="camera_needs_access">يحتاج Privo إلى إذن الكاميرا</string>
+    <string name="camera_needs_access">يحتاج Privora إلى إذن الكاميرا</string>
     <string name="camera_privacy_note">تتم جميع المعالجات على جهازك.\nلا تُرسل أي بيانات إلى أي مكان.</string>
     <string name="object_count">%1$d جسم</string>
     <string name="inference_time_ms">%1$dms</string>

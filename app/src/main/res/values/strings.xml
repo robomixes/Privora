@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Privo</string>
-    <string name="widget_name">Privo Quick Access</string>
+    <string name="app_name">Privora</string>
+    <string name="widget_name">Privora Quick Access</string>
     <string name="widget_description">Quick access to Camera and Vault</string>
 
     <!-- Common actions -->
@@ -131,14 +131,14 @@
 
     <!-- Settings: About -->
     <string name="settings_section_about">About</string>
-    <string name="settings_privo">Privo</string>
+    <string name="settings_privo">Privora</string>
     <string name="settings_privo_desc">Version 1.0.0 \u2022 AI camera that never sends your data anywhere</string>
     <string name="settings_crash_logs">Crash Logs (%1$d)</string>
     <string name="settings_crash_logs_desc">View local crash reports \u2014 never sent anywhere</string>
     <string name="settings_crash_logs_title">Crash Logs</string>
     <string name="settings_crash_logs_cleared">Crash logs cleared</string>
     <string name="settings_crash_report">Crash Report</string>
-    <string name="settings_crash_report_subject">Privo Crash Report</string>
+    <string name="settings_crash_report_subject">Privora Crash Report</string>
     <string name="settings_log_deleted">Log deleted</string>
     <string name="settings_privacy_policy">Privacy Policy</string>
     <string name="settings_privacy_policy_desc">View our privacy policy</string>
@@ -202,10 +202,10 @@
     <string name="export_save_failed">Save failed: %1$s</string>
     <string name="export_save_to_device">Save to Device</string>
     <string name="export_save_to_device_desc">Save PDF to Downloads folder</string>
-    <string name="export_saved_to_downloads">Saved to Downloads/Privo</string>
+    <string name="export_saved_to_downloads">Saved to Downloads/Privora</string>
     <string name="export_csv">Export CSV</string>
     <string name="export_csv_desc">Save spreadsheet to Downloads folder</string>
-    <string name="export_saved_csv_to_downloads">Saved CSV to Downloads/Privo</string>
+    <string name="export_saved_csv_to_downloads">Saved CSV to Downloads/Privora</string>
 
     <!-- Unit Converter screen -->
     <string name="unit_converter_title">Unit Converter</string>
@@ -347,7 +347,7 @@
     <string name="note_label">Note</string>
 
     <!-- Home screen -->
-    <string name="app_name_home">Privo</string>
+    <string name="app_name_home">Privora</string>
     <string name="vault_notes_locked">Vault &amp; Notes locked</string>
     <string name="cd_lock_vault">Lock Vault</string>
     <string name="cd_settings">Settings</string>
@@ -355,7 +355,7 @@
     <string name="cd_dismiss">Dismiss</string>
 
     <!-- Onboarding -->
-    <string name="onboarding_welcome_title">Privo</string>
+    <string name="onboarding_welcome_title">Privora</string>
     <string name="onboarding_welcome_description">AI-powered camera that runs entirely on your device.\nNo data is ever sent to any server.</string>
     <string name="onboarding_get_started">Get Started</string>
     <string name="onboarding_have_backup">I have a backup</string>
@@ -416,7 +416,7 @@
     <string name="cd_delete">Delete</string>
 
     <!-- Camera detection -->
-    <string name="camera_needs_access">Privo needs camera access</string>
+    <string name="camera_needs_access">Privora needs camera access</string>
     <string name="camera_privacy_note">All processing happens on your device.\nNo data is sent anywhere.</string>
     <string name="object_count">%1$d objects</string>
     <string name="inference_time_ms">%1$dms</string>

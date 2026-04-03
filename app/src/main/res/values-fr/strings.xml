@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Privo</string>
-    <string name="widget_name">Privo Accès rapide</string>
+    <string name="app_name">Privora</string>
+    <string name="widget_name">Privora Accès rapide</string>
     <string name="widget_description">Accès rapide à l\'appareil photo et au Coffre-fort</string>
 
     <!-- Common actions -->
@@ -131,14 +131,14 @@
 
     <!-- Settings: About -->
     <string name="settings_section_about">\u00C0 propos</string>
-    <string name="settings_privo">Privo</string>
+    <string name="settings_privo">Privora</string>
     <string name="settings_privo_desc">Version 1.0.0 \u2022 Appareil photo IA qui n\'envoie jamais vos données nulle part</string>
     <string name="settings_crash_logs">Journaux de plantage (%1$d)</string>
     <string name="settings_crash_logs_desc">Consulter les rapports de plantage locaux \u2014 jamais envoyés nulle part</string>
     <string name="settings_crash_logs_title">Journaux de plantage</string>
     <string name="settings_crash_logs_cleared">Journaux de plantage effacés</string>
     <string name="settings_crash_report">Rapport de plantage</string>
-    <string name="settings_crash_report_subject">Privo Rapport de plantage</string>
+    <string name="settings_crash_report_subject">Privora Rapport de plantage</string>
     <string name="settings_log_deleted">Journal supprimé</string>
     <string name="settings_privacy_policy">Politique de confidentialité</string>
     <string name="settings_privacy_policy_desc">Consulter notre politique de confidentialité</string>
@@ -202,10 +202,10 @@
     <string name="export_save_failed">\u00C9chec de l\'enregistrement : %1$s</string>
     <string name="export_save_to_device">Enregistrer sur l\'appareil</string>
     <string name="export_save_to_device_desc">Enregistrer le PDF dans le dossier Téléchargements</string>
-    <string name="export_saved_to_downloads">Enregistré dans Téléchargements/Privo</string>
+    <string name="export_saved_to_downloads">Enregistré dans Téléchargements/Privora</string>
     <string name="export_csv">Exporter en CSV</string>
     <string name="export_csv_desc">Enregistrer le tableur dans le dossier Téléchargements</string>
-    <string name="export_saved_csv_to_downloads">CSV enregistré dans Téléchargements/Privo</string>
+    <string name="export_saved_csv_to_downloads">CSV enregistré dans Téléchargements/Privora</string>
 
     <!-- Unit Converter screen -->
     <string name="unit_converter_title">Convertisseur d\'unités</string>
@@ -347,7 +347,7 @@
     <string name="note_label">Note</string>
 
     <!-- Home screen -->
-    <string name="app_name_home">Privo</string>
+    <string name="app_name_home">Privora</string>
     <string name="vault_notes_locked">Coffre-fort &amp; Notes verrouillés</string>
     <string name="cd_lock_vault">Verrouiller le Coffre-fort</string>
     <string name="cd_settings">Paramètres</string>
@@ -355,7 +355,7 @@
     <string name="cd_dismiss">Ignorer</string>
 
     <!-- Onboarding -->
-    <string name="onboarding_welcome_title">Privo</string>
+    <string name="onboarding_welcome_title">Privora</string>
     <string name="onboarding_welcome_description">Appareil photo alimenté par l\'IA qui fonctionne entièrement sur votre appareil.\nAucune donnée n\'est jamais envoyée \u00E0 un serveur.</string>
     <string name="onboarding_get_started">Commencer</string>
     <string name="onboarding_have_backup">J\'ai une sauvegarde</string>
@@ -416,7 +416,7 @@
     <string name="cd_delete">Supprimer</string>
 
     <!-- Camera detection -->
-    <string name="camera_needs_access">Privo a besoin d\'accéder \u00E0 l\'appareil photo</string>
+    <string name="camera_needs_access">Privora a besoin d\'accéder \u00E0 l\'appareil photo</string>
     <string name="camera_privacy_note">Tout le traitement se fait sur votre appareil.\nAucune donnée n\'est envoyée nulle part.</string>
     <string name="object_count">%1$d objets</string>
     <string name="inference_time_ms">%1$dms</string>

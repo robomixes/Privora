@@ -498,7 +498,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             } // end showBackup
 
             // About section
-            val showAbout = matchesSearch("About", "Privo", "Version", "Crash Logs", "Privacy Policy", "Privacy Promise")
+            val showAbout = matchesSearch("About", "Privora", "Version", "Crash Logs", "Privacy Policy", "Privacy Promise")
             if (showAbout) {
             SectionHeader(stringResource(R.string.settings_section_about))
 

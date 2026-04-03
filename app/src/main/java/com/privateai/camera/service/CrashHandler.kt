@@ -110,7 +110,7 @@ class CrashHandler private constructor(
         }.toString()
 
         val content = buildString {
-            appendLine("=== Privo Crash Report ===")
+            appendLine("=== Privora Crash Report ===")
             appendLine("Time: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())}")
             appendLine("App: ${context.packageName} v${getAppVersion()}")
             appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")

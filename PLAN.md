@@ -1,4 +1,4 @@
-# Privo — Project Plan
+# Privora — Project Plan
 
 **Core value proposition**: "AI camera that never sends your data anywhere."
 
@@ -69,7 +69,7 @@
 
 | Item | Status |
 |------|--------|
-| App name: **Privo** | DONE |
+| App name: **Privora** | DONE |
 | Version 1.0.0 (versionCode 100) | DONE |
 | Privacy Policy (PRIVACY.md + in-app link) | DONE |
 | Adaptive launcher icon (mipmap + round) | DONE |

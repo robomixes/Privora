@@ -84,7 +84,7 @@ object PdfExporter {
             }
 
             // Footer
-            canvas.drawText("Page $pageNum — Privo", MARGIN, PAGE_H.toFloat() - 15f, lightPaint)
+            canvas.drawText("Page $pageNum — Privora", MARGIN, PAGE_H.toFloat() - 15f, lightPaint)
             document.finishPage(page)
             pageNum++
         }
@@ -159,7 +159,7 @@ object PdfExporter {
             }
 
             // Footer
-            canvas.drawText("Page $pageNum — Privo", MARGIN, PAGE_H.toFloat() - 15f, lightPaint)
+            canvas.drawText("Page $pageNum — Privora", MARGIN, PAGE_H.toFloat() - 15f, lightPaint)
             document.finishPage(page)
             pageNum++
 
