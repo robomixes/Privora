@@ -37,11 +37,19 @@ object VaultLockManager {
     }
 
     /**
+     * Clear duress state (e.g. when normal PIN is entered after emergency PIN).
+     */
+    fun clearDuress() {
+        isDuressActive = false
+    }
+
+    /**
      * Force lock (e.g. grace period expired).
      */
     fun lock() {
         isCurrentlyUnlocked = false
         lastUnlockTime = 0L
+        isDuressActive = false
     }
 
     /**

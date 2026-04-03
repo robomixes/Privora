@@ -1,6 +1,9 @@
 package com.privateai.camera.ui.settings
 
+import android.content.Context
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,6 +15,7 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Switch
@@ -246,7 +250,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             } // end showAiDetection
 
             // Device section
-            val showDevice = matchesSearch("Device", "Performance Tier", "Device Info", "Re-benchmark", "benchmark")
+            val showDevice = matchesSearch("Device", "Performance Tier", "Device Info", "Re-benchmark", "benchmark", "Language")
             if (showDevice) {
             SectionHeader(stringResource(R.string.settings_section_device))
 
@@ -272,6 +276,77 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     Toast.makeText(context, context.getString(R.string.settings_benchmark_complete), Toast.LENGTH_SHORT).show()
                 }
             )
+
+            // Language setting
+            var showLanguageDialog by remember { mutableStateOf(false) }
+            var currentLang by remember {
+                mutableStateOf(
+                    context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                        .getString("language", "system") ?: "system"
+                )
+            }
+
+            val langNames = mapOf(
+                "system" to stringResource(R.string.settings_language_system),
+                "en" to "English",
+                "ar" to "\u0627\u0644\u0639\u0631\u0628\u064A\u0629",
+                "es" to "Espa\u00F1ol",
+                "fr" to "Fran\u00E7ais"
+            )
+
+            SettingsItem(
+                icon = Icons.Default.Language,
+                title = stringResource(R.string.settings_language),
+                subtitle = langNames[currentLang] ?: stringResource(R.string.settings_language_system),
+                onClick = { showLanguageDialog = true }
+            )
+
+            if (showLanguageDialog) {
+                AlertDialog(
+                    onDismissRequest = { showLanguageDialog = false },
+                    title = { Text(stringResource(R.string.settings_language)) },
+                    text = {
+                        Column {
+                            langNames.forEach { (code, name) ->
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            currentLang = code
+                                            context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                                                .edit().putString("language", code).apply()
+                                            if (code == "system") {
+                                                AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+                                            } else {
+                                                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(code))
+                                            }
+                                            showLanguageDialog = false
+                                        }
+                                        .padding(vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    androidx.compose.material3.RadioButton(
+                                        selected = currentLang == code,
+                                        onClick = {
+                                            currentLang = code
+                                            context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                                                .edit().putString("language", code).apply()
+                                            if (code == "system") {
+                                                AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+                                            } else {
+                                                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(code))
+                                            }
+                                            showLanguageDialog = false
+                                        }
+                                    )
+                                    Text(name, modifier = Modifier.padding(start = 8.dp))
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {}
+                )
+            }
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             } // end showDevice

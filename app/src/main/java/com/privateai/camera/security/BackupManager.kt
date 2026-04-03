@@ -56,6 +56,15 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
         val totalSizeBytes: Long
     )
 
+    /** SharedPreferences to include in backup (user preferences, not security keys). */
+    private val prefsToBackup = listOf(
+        "unit_converter",       // last conversion settings
+        "feature_toggles",      // feature order + on/off
+        "app_settings",         // language preference
+        "privacy_settings",     // grace period, etc.
+    )
+    private val prefsDirInZip = "__prefs__/"
+
     /**
      * Count items that would be included in a backup.
      */
@@ -121,6 +130,27 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
             onProgress(index + 1, totalFiles, "Backing up files...")
         }
 
+        // Write SharedPreferences as JSON entries
+        prefsToBackup.forEach { prefName ->
+            val prefs = context.getSharedPreferences(prefName, Context.MODE_PRIVATE)
+            val allEntries = prefs.all
+            if (allEntries.isNotEmpty()) {
+                val json = org.json.JSONObject()
+                allEntries.forEach { (key, value) ->
+                    when (value) {
+                        is String -> json.put(key, value)
+                        is Int -> json.put(key, value)
+                        is Long -> json.put(key, value)
+                        is Float -> json.put(key, value.toDouble())
+                        is Boolean -> json.put(key, value)
+                    }
+                }
+                zos.putNextEntry(ZipEntry("$prefsDirInZip$prefName.json"))
+                zos.write(json.toString().toByteArray(Charsets.UTF_8))
+                zos.closeEntry()
+            }
+        }
+
         zos.close()
 
         Log.i(TAG, "Backup exported: ${backupFile.length() / 1024}KB, $totalFiles files")
@@ -143,10 +173,14 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
         var keyData: ByteArray? = null
         val entries = mutableListOf<Pair<String, ByteArray>>()
 
+        val prefEntries = mutableListOf<Pair<String, ByteArray>>()
+
         var entry = zis.nextEntry
         while (entry != null) {
             if (entry.name == KEY_ENTRY) {
                 keyData = zis.readBytes()
+            } else if (entry.name.startsWith(prefsDirInZip)) {
+                prefEntries.add(entry.name to zis.readBytes())
             } else {
                 entries.add(entry.name to zis.readBytes())
             }
@@ -222,6 +256,28 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
                 imported++
             }
             onProgress(index + 1, totalFiles, "Restoring files...")
+        }
+
+        // 5. Restore SharedPreferences
+        prefEntries.forEach { (name, data) ->
+            try {
+                val prefName = name.removePrefix(prefsDirInZip).removeSuffix(".json")
+                val json = org.json.JSONObject(String(data, Charsets.UTF_8))
+                val editor = context.getSharedPreferences(prefName, Context.MODE_PRIVATE).edit()
+                json.keys().forEach { key ->
+                    when (val v = json.get(key)) {
+                        is String -> editor.putString(key, v)
+                        is Int -> editor.putInt(key, v)
+                        is Long -> editor.putLong(key, v)
+                        is Double -> editor.putFloat(key, v.toFloat())
+                        is Boolean -> editor.putBoolean(key, v)
+                    }
+                }
+                editor.apply()
+                Log.d(TAG, "Restored preferences: $prefName")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to restore prefs: ${name}: ${e.message}")
+            }
         }
 
         Log.i(TAG, "Backup imported: $imported files, $skipped skipped" +

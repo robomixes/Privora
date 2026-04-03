@@ -22,8 +22,8 @@ android {
         applicationId = "com.privateai.camera"
         minSdk = 26
         targetSdk = 35
-        versionCode = 100
-        versionName = "1.0.0"
+        versionCode = 200
+        versionName = "2.0.0"
     }
 
     signingConfigs {
@@ -98,6 +98,9 @@ dependencies {
 
     // ExifInterface
     implementation(libs.androidx.exifinterface)
+
+    // AppCompat (per-app language switching)
+    implementation(libs.androidx.appcompat)
 
     // Biometric
     implementation(libs.androidx.biometric)

@@ -167,17 +167,20 @@ class FolderManager(private val context: Context, private val crypto: CryptoMana
     }
 
     /**
-     * Count items (encrypted files) in a folder (not including subfolders).
+     * Count items (encrypted files) in a folder, including all subfolders recursively.
      */
     fun countItems(folderId: String): Int {
         val dir = getFolderDir(folderId)
-        if (!dir.exists()) return 0
-        return (dir.listFiles() ?: emptyArray()).count {
-            it.isFile && it.name.endsWith(".enc") &&
-                !it.name.endsWith(".thumb.enc") &&
-                !it.name.endsWith(".vid.thumb.enc") &&
-                !it.name.startsWith("_tobedeleted_")
-        }
+        val directCount = if (dir.exists()) {
+            (dir.listFiles() ?: emptyArray()).count {
+                it.isFile && it.name.endsWith(".enc") &&
+                    !it.name.endsWith(".thumb.enc") &&
+                    !it.name.endsWith(".vid.thumb.enc") &&
+                    !it.name.startsWith("_tobedeleted_")
+            }
+        } else 0
+        val subCount = listSubfolders(folderId).sumOf { countItems(it.id) }
+        return directCount + subCount
     }
 
     /**

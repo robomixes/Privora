@@ -812,6 +812,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
         val appPin = com.privateai.camera.ui.onboarding.getAppPin(context)
         if (appPin != null && enteredPin == appPin) {
             if (crypto.initialize()) {
+                isDuressActive = false
+                VaultLockManager.clearDuress()
                 VaultLockManager.markUnlocked()
                 categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders()
                 page = VaultPage.CATEGORIES

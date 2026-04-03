@@ -121,7 +121,7 @@ fun InsightsScreen(onBack: (() -> Unit)? = null) {
         }
         val appPin = com.privateai.camera.ui.onboarding.getAppPin(context)
         if (appPin != null && pin == appPin) {
-            if (crypto.initialize()) { VaultLockManager.markUnlocked(); isLocked = false; pinInput = ""; pinError = null }
+            if (crypto.initialize()) { isDuressActive = false; VaultLockManager.clearDuress(); VaultLockManager.markUnlocked(); isLocked = false; pinInput = ""; pinError = null }
             return
         }
         pinError = context.getString(R.string.insights_incorrect_pin); pinInput = ""
