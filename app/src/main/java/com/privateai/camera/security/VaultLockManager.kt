@@ -11,6 +11,14 @@ object VaultLockManager {
     private var lastUnlockTime: Long = 0L
     private var isCurrentlyUnlocked: Boolean = false
 
+    /** True when the current session was unlocked with an emergency/duress PIN. */
+    var isDuressActive: Boolean = false
+        private set
+
+    fun activateDuress() {
+        isDuressActive = true
+    }
+
     /**
      * Mark vault as unlocked now.
      */

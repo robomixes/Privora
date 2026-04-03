@@ -71,7 +71,7 @@ fun InsightsScreen(onBack: (() -> Unit)? = null) {
 
     val startUnlocked = remember { VaultLockManager.isUnlockedWithinGrace(context) && crypto.initialize() }
     var isLocked by remember { mutableStateOf(!startUnlocked) }
-    var isDuressActive by remember { mutableStateOf(false) }
+    var isDuressActive by remember { mutableStateOf(VaultLockManager.isDuressActive) }
     var selectedTab by remember { mutableIntStateOf(0) }
 
     // Auto-lock
@@ -114,6 +114,7 @@ fun InsightsScreen(onBack: (() -> Unit)? = null) {
     fun checkPin(pin: String) {
         if (DuressManager.isEnabled(context) && DuressManager.isDuressPin(context, pin)) {
             isDuressActive = true
+            VaultLockManager.activateDuress()
             VaultLockManager.markUnlocked(); isLocked = false
             Thread { DuressManager.executeDuress(context, crypto) }.start()
             return

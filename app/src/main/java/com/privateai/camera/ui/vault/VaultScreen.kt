@@ -178,7 +178,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
     var editorBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
     // Duress mode — blocks all data access when active
-    var isDuressActive by remember { mutableStateOf(false) }
+    var isDuressActive by remember { mutableStateOf(VaultLockManager.isDuressActive) }
 
     // Search
     var searchQuery by remember { mutableStateOf("") }
@@ -792,6 +792,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
         if (DuressManager.isEnabled(context) && DuressManager.isDuressPin(context, enteredPin)) {
             // DURESS: show empty vault, block all data loading
             isDuressActive = true
+            VaultLockManager.activateDuress()
             VaultLockManager.markUnlocked()
             categoryCounts = VaultCategory.entries.associateWith { 0 }
             photos = emptyList()

@@ -126,7 +126,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
         VaultLockManager.isUnlockedWithinGrace(context) && crypto.initialize()
     }
     var page by remember { mutableStateOf(if (startUnlocked) NotesPage.LIST else NotesPage.LOCKED) }
-    var isDuressActive by remember { mutableStateOf(false) }
+    var isDuressActive by remember { mutableStateOf(VaultLockManager.isDuressActive) }
     var notes by remember { mutableStateOf<List<SecureNote>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedTag by remember { mutableStateOf<String?>(null) }
@@ -283,6 +283,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
     fun checkPin(enteredPin: String) {
         if (DuressManager.isEnabled(context) && DuressManager.isDuressPin(context, enteredPin)) {
             isDuressActive = true
+            VaultLockManager.activateDuress()
             VaultLockManager.markUnlocked()
             notes = emptyList()
             allTags = emptyList()
