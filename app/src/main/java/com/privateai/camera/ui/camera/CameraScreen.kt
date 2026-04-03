@@ -189,7 +189,8 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                 }
 
                 frameCount++
-                if (frameCount % 3 != 0L) {
+                val frameSkip = com.privateai.camera.service.DeviceProfiler.getDetectionFrameSkip(context)
+                if (frameCount % frameSkip != 0L) {
                     bitmap.recycle()
                     return@CameraPreview
                 }

@@ -101,27 +101,46 @@ object DeviceProfiler {
     }
 
     /**
-     * Check if a feature should be enabled based on device tier.
+     * How many frames to skip between ONNX detections. Lower = faster but heavier.
      */
-    fun isFeatureSupported(context: Context, feature: String): Boolean {
-        val profile = getProfile(context)
+    fun getDetectionFrameSkip(context: Context): Int {
+        return when (getProfile(context).tier) {
+            DeviceTier.HIGH -> 1   // every frame
+            DeviceTier.MEDIUM -> 3 // every 3rd frame
+            DeviceTier.LOW -> 5    // every 5th frame
+        }
+    }
+
+    /**
+     * Whether face count should run in the given camera mode.
+     */
+    fun isFaceCountEnabled(context: Context, isVideoMode: Boolean): Boolean {
+        return when (getProfile(context).tier) {
+            DeviceTier.HIGH -> true
+            DeviceTier.MEDIUM -> !isVideoMode // photo only
+            DeviceTier.LOW -> false
+        }
+    }
+
+    /**
+     * Whether a feature is limited (not disabled) on this device tier.
+     * Used to show warning badges on the home screen.
+     */
+    fun isFeatureLimited(context: Context, feature: String): Boolean {
+        val tier = getProfile(context).tier
+        if (tier == DeviceTier.HIGH) return false
         return when (feature) {
-            "detect" -> true // Always available, but may be slow
-            "scan" -> true
-            "translate" -> profile.tier != DeviceTier.LOW
-            "qrscanner" -> true
-            "camera" -> true
-            "vault" -> true
-            "notes" -> true
-            else -> true
+            "detect" -> tier == DeviceTier.LOW
+            "translate" -> tier == DeviceTier.LOW
+            else -> false
         }
     }
 
     fun getTierDescription(tier: DeviceTier): String {
         return when (tier) {
             DeviceTier.HIGH -> "High Performance — All features at full speed"
-            DeviceTier.MEDIUM -> "Medium — Most features work well"
-            DeviceTier.LOW -> "Low — Some AI features may be slow or disabled"
+            DeviceTier.MEDIUM -> "Medium — Face count disabled in video mode"
+            DeviceTier.LOW -> "Low — Detection throttled, face count disabled, translation may be slow"
         }
     }
 }

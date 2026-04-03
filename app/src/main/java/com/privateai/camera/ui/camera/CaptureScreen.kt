@@ -324,19 +324,24 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                     }
                 }
 
-                // Lightweight face count using ML Kit (both photo and video)
-                try {
-                    val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
-                    com.google.mlkit.vision.face.FaceDetection.getClient().process(image)
-                        .addOnSuccessListener { faces ->
-                            faceCount = faces.size
-                            if (isVideoMode) bitmap.recycle()
-                        }
-                        .addOnFailureListener {
-                            faceCount = 0
-                            if (isVideoMode) bitmap.recycle()
-                        }
-                } catch (_: Exception) {
+                // Lightweight face count using ML Kit (gated by device tier)
+                if (com.privateai.camera.service.DeviceProfiler.isFaceCountEnabled(context, isVideoMode)) {
+                    try {
+                        val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bitmap, 0)
+                        com.google.mlkit.vision.face.FaceDetection.getClient().process(image)
+                            .addOnSuccessListener { faces ->
+                                faceCount = faces.size
+                                if (isVideoMode) bitmap.recycle()
+                            }
+                            .addOnFailureListener {
+                                faceCount = 0
+                                if (isVideoMode) bitmap.recycle()
+                            }
+                    } catch (_: Exception) {
+                        if (isVideoMode) bitmap.recycle()
+                    }
+                } else {
+                    faceCount = 0
                     if (isVideoMode) bitmap.recycle()
                 }
             },

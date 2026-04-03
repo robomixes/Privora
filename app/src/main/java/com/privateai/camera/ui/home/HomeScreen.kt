@@ -2,6 +2,7 @@ package com.privateai.camera.ui.home
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -187,6 +188,7 @@ fun HomeScreen(
                 items(visibleFeatures) { feature ->
                     FeatureCard(
                         feature = feature,
+                        isLimited = com.privateai.camera.service.DeviceProfiler.isFeatureLimited(context, feature.route),
                         onClick = { onFeatureClick(feature.route) }
                     )
                 }
@@ -198,6 +200,7 @@ fun HomeScreen(
 @Composable
 fun FeatureCard(
     feature: FeatureItem,
+    isLimited: Boolean = false,
     onClick: () -> Unit
 ) {
     val label = stringResource(feature.labelRes)
@@ -212,31 +215,40 @@ fun FeatureCard(
             containerColor = feature.bgColor
         )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                feature.icon,
-                contentDescription = null,
-                modifier = Modifier.size(36.dp),
-                tint = feature.iconColor
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                label,
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    feature.icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    tint = feature.iconColor
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    label,
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+            if (isLimited) {
+                Text(
+                    "⚡",
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
     }
 }
