@@ -45,7 +45,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
+import com.privateai.camera.R
 import com.privateai.camera.security.Habit
 import com.privateai.camera.security.HabitLog
 import com.privateai.camera.security.InsightsRepository
@@ -97,21 +99,21 @@ fun HabitsTab(repo: InsightsRepository) {
                     IconButton(onClick = {
                         val c = Calendar.getInstance().apply { time = fmt.parse(selectedDate) ?: return@IconButton; add(Calendar.DAY_OF_YEAR, -1) }
                         navigateDate(fmt.format(c.time))
-                    }) { Icon(Icons.Default.ChevronLeft, "Prev Day") }
+                    }) { Icon(Icons.Default.ChevronLeft, stringResource(R.string.action_previous_day)) }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(if (isToday) "Today" else selectedDate, style = MaterialTheme.typography.titleMedium)
+                        Text(if (isToday) stringResource(R.string.habits_today) else selectedDate, style = MaterialTheme.typography.titleMedium)
                         Text(try { fmt.parse(selectedDate)?.let { dayFmt.format(it) } ?: "" } catch (_: Exception) { "" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     IconButton(onClick = {
                         val c = Calendar.getInstance().apply { time = fmt.parse(selectedDate) ?: return@IconButton; add(Calendar.DAY_OF_YEAR, 1) }
                         navigateDate(fmt.format(c.time))
-                    }) { Icon(Icons.Default.ChevronRight, "Next Day") }
+                    }) { Icon(Icons.Default.ChevronRight, stringResource(R.string.action_next_day)) }
                 }
             }
 
             // Habit checklist for selected date
             if (habits.isEmpty()) {
-                item { Text("No habits configured. Tap + to add.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp)) }
+                item { Text(stringResource(R.string.habits_none_configured), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp)) }
             }
 
             items(habits) { habit ->
@@ -131,10 +133,10 @@ fun HabitsTab(repo: InsightsRepository) {
                         Text(habit.icon, fontSize = 24.sp, modifier = Modifier.padding(horizontal = 8.dp))
                         Column(Modifier.weight(1f)) {
                             Text(habit.name, style = MaterialTheme.typography.bodyLarge)
-                            if (streak > 0 && isToday) Text("$streak day streak 🔥", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9800))
+                            if (streak > 0 && isToday) Text(stringResource(R.string.habits_day_streak, streak), style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9800))
                         }
                         IconButton(onClick = { habits = habits.filter { it.id != habit.id }; repo.saveHabits(habits) }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.Delete, "Delete", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Default.Delete, stringResource(R.string.action_delete), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -147,11 +149,11 @@ fun HabitsTab(repo: InsightsRepository) {
                     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                         Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column {
-                                Text("$completed / ${habits.size} completed", style = MaterialTheme.typography.titleSmall)
-                                if (completed == habits.size) Text("All done! 🎉", color = MaterialTheme.colorScheme.primary)
+                                Text(stringResource(R.string.habits_completed_count, completed, habits.size), style = MaterialTheme.typography.titleSmall)
+                                if (completed == habits.size) Text(stringResource(R.string.habits_all_done), color = MaterialTheme.colorScheme.primary)
                             }
                             IconButton(onClick = { showExportDialog = true }) {
-                                Icon(Icons.Default.PictureAsPdf, "Export PDF", tint = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.Default.PictureAsPdf, stringResource(R.string.action_export_pdf), tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -164,9 +166,9 @@ fun HabitsTab(repo: InsightsRepository) {
                     Column(Modifier.padding(16.dp)) {
                         // Month nav
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { if (calMonth == 0) { calMonth = 11; calYear-- } else calMonth-- }) { Icon(Icons.Default.ChevronLeft, "Prev") }
+                            IconButton(onClick = { if (calMonth == 0) { calMonth = 11; calYear-- } else calMonth-- }) { Icon(Icons.Default.ChevronLeft, stringResource(R.string.action_previous)) }
                             Text("${monthNames[calMonth]} $calYear", style = MaterialTheme.typography.titleSmall)
-                            IconButton(onClick = { if (calMonth == 11) { calMonth = 0; calYear++ } else calMonth++ }) { Icon(Icons.Default.ChevronRight, "Next") }
+                            IconButton(onClick = { if (calMonth == 11) { calMonth = 0; calYear++ } else calMonth++ }) { Icon(Icons.Default.ChevronRight, stringResource(R.string.action_next)) }
                         }
 
                         // Day labels
@@ -219,7 +221,7 @@ fun HabitsTab(repo: InsightsRepository) {
             item { Spacer(Modifier.height(80.dp)) }
         }
 
-        FloatingActionButton(onClick = { showAddDialog = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) { Icon(Icons.Default.Add, "Add Habit") }
+        FloatingActionButton(onClick = { showAddDialog = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) { Icon(Icons.Default.Add, stringResource(R.string.habits_add)) }
 
         if (showExportDialog) {
             // Build table data for habits report
@@ -267,24 +269,24 @@ private fun AddHabitDialog(onDismiss: () -> Unit, onSave: (Habit) -> Unit) {
     var color by remember { mutableStateOf(HABIT_COLORS[0]) }
 
     AlertDialog(
-        onDismissRequest = onDismiss, title = { Text("New Habit") },
+        onDismissRequest = onDismiss, title = { Text(stringResource(R.string.habits_new_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Text("Icon")
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.label_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Text(stringResource(R.string.label_icon))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     HABIT_EMOJIS.take(6).forEach { e -> Box(Modifier.size(40.dp).then(if (emoji == e) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape) else Modifier).clickable { emoji = e }, contentAlignment = Alignment.Center) { Text(e, fontSize = 22.sp) } }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     HABIT_EMOJIS.drop(6).forEach { e -> Box(Modifier.size(40.dp).then(if (emoji == e) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape) else Modifier).clickable { emoji = e }, contentAlignment = Alignment.Center) { Text(e, fontSize = 22.sp) } }
                 }
-                Text("Color")
+                Text(stringResource(R.string.label_color))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     HABIT_COLORS.forEach { c -> Box(Modifier.size(32.dp).background(Color(c), CircleShape).then(if (color == c) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier).clickable { color = c }) }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { if (name.isNotBlank()) onSave(Habit(name = name, icon = emoji, color = color.toInt())) }, enabled = name.isNotBlank()) { Text("Create") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        confirmButton = { TextButton(onClick = { if (name.isNotBlank()) onSave(Habit(name = name, icon = emoji, color = color.toInt())) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.action_create)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }

@@ -54,8 +54,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.privateai.camera.R
 
 private const val PREFS_NAME = "privateai_prefs"
 private const val KEY_ONBOARDING_DONE = "onboarding_done"
@@ -140,11 +142,11 @@ fun OnboardingScreen(onComplete: () -> Unit, onImportBackup: (() -> Unit)? = nul
             // Step 0: Welcome
             0 -> OnboardingPage(
                 icon = Icons.Default.CameraAlt,
-                title = "Privo",
-                description = "AI-powered camera that runs entirely on your device.\nNo data is ever sent to any server.",
-                primaryButton = "Get Started",
+                title = stringResource(R.string.onboarding_welcome_title),
+                description = stringResource(R.string.onboarding_welcome_description),
+                primaryButton = stringResource(R.string.onboarding_get_started),
                 onPrimary = { step = 1 },
-                secondaryButton = "I have a backup",
+                secondaryButton = stringResource(R.string.onboarding_have_backup),
                 secondaryIcon = Icons.Default.CloudDownload,
                 onSecondary = { onImportBackup?.invoke() }
             )
@@ -152,15 +154,15 @@ fun OnboardingScreen(onComplete: () -> Unit, onImportBackup: (() -> Unit)? = nul
             // Step 1: Privacy explanation
             1 -> OnboardingPage(
                 icon = Icons.Default.Shield,
-                title = "Your Privacy Matters",
-                description = "All AI processing happens on-device.\nPhotos and notes are encrypted with AES-256-GCM.\nNo analytics. No telemetry. No cloud.",
+                title = stringResource(R.string.onboarding_privacy_title),
+                description = stringResource(R.string.onboarding_privacy_description),
                 features = listOf(
-                    "Object detection runs locally",
-                    "Documents scanned on-device",
-                    "Translation models downloaded once, then offline",
-                    "Vault encrypted with hardware-backed keys"
+                    stringResource(R.string.onboarding_feature_detection),
+                    stringResource(R.string.onboarding_feature_scanning),
+                    stringResource(R.string.onboarding_feature_translation),
+                    stringResource(R.string.onboarding_feature_vault_encryption)
                 ),
-                primaryButton = "Next",
+                primaryButton = stringResource(R.string.onboarding_next),
                 onPrimary = { step = 2 }
             )
 
@@ -186,9 +188,9 @@ fun OnboardingScreen(onComplete: () -> Unit, onImportBackup: (() -> Unit)? = nul
                 onConfirmPinChange = { confirmPin = it },
                 onNext = {
                     if (pin.length < 4) {
-                        Toast.makeText(context, "PIN must be at least 4 digits", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.pin_min_digits), Toast.LENGTH_SHORT).show()
                     } else if (pin != confirmPin) {
-                        Toast.makeText(context, "PINs don't match", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.pins_dont_match_toast), Toast.LENGTH_SHORT).show()
                     } else {
                         step = 4
                     }
@@ -203,15 +205,15 @@ fun OnboardingScreen(onComplete: () -> Unit, onImportBackup: (() -> Unit)? = nul
                     }
                 }
                 val protection = when {
-                    authMode == AuthMode.PHONE_LOCK -> "phone lock (fingerprint/PIN)"
-                    else -> "app PIN"
+                    authMode == AuthMode.PHONE_LOCK -> stringResource(R.string.protection_phone_lock)
+                    else -> stringResource(R.string.protection_app_pin)
                 }
-                val duressNote = if (authMode == AuthMode.APP_PIN) "\nYou can set up an Emergency PIN in Settings." else ""
+                val duressNote = if (authMode == AuthMode.APP_PIN) "\n" + stringResource(R.string.duress_note) else ""
                 OnboardingPage(
                     icon = Icons.Default.Lock,
-                    title = "You're All Set!",
-                    description = "Your vault is secured with $protection.$duressNote\nAll photos and notes will be encrypted automatically.",
-                    primaryButton = "Start Using App",
+                    title = stringResource(R.string.onboarding_all_set_title),
+                    description = stringResource(R.string.onboarding_all_set_description, protection, duressNote),
+                    primaryButton = stringResource(R.string.onboarding_start_using_app),
                     onPrimary = {
                         setAuthMode(context, authMode)
                         if (authMode == AuthMode.APP_PIN) {
@@ -344,13 +346,13 @@ private fun AuthModeChoicePage(
         )
 
         Text(
-            "How to Unlock Vault?",
+            stringResource(R.string.auth_mode_title),
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center
         )
 
         Text(
-            "Choose how you want to protect your encrypted vault and notes.",
+            stringResource(R.string.auth_mode_description),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -370,8 +372,8 @@ private fun AuthModeChoicePage(
                 RadioButton(selected = authMode == AuthMode.PHONE_LOCK, onClick = { onModeChange(AuthMode.PHONE_LOCK) })
                 Icon(Icons.Default.PhoneAndroid, null, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f)) {
-                    Text("Use Phone Lock", style = MaterialTheme.typography.titleSmall)
-                    Text("Fingerprint, face, or device PIN", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.auth_use_phone_lock), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.auth_phone_lock_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -388,8 +390,8 @@ private fun AuthModeChoicePage(
                 RadioButton(selected = authMode == AuthMode.APP_PIN, onClick = { onModeChange(AuthMode.APP_PIN) })
                 Icon(Icons.Default.Pin, null, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f)) {
-                    Text("Create App PIN", style = MaterialTheme.typography.titleSmall)
-                    Text("Separate PIN just for this app. Enables Emergency PIN feature.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.auth_create_app_pin), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.auth_app_pin_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -400,7 +402,7 @@ private fun AuthModeChoicePage(
             onClick = onNext,
             modifier = Modifier.fillMaxWidth().height(50.dp)
         ) {
-            Text("Continue")
+            Text(stringResource(R.string.onboarding_continue))
         }
     }
 }
@@ -426,13 +428,13 @@ private fun PinSetupPage(
         )
 
         Text(
-            "Set Your PIN",
+            stringResource(R.string.pin_setup_title),
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center
         )
 
         Text(
-            "This PIN protects your vault and secure notes.\nChoose at least 4 digits.",
+            stringResource(R.string.pin_setup_description),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -443,13 +445,13 @@ private fun PinSetupPage(
         OutlinedTextField(
             value = pin,
             onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) onPinChange(it) },
-            label = { Text("PIN") },
-            placeholder = { Text("Enter 4-8 digit PIN") },
+            label = { Text(stringResource(R.string.pin_label)) },
+            placeholder = { Text(stringResource(R.string.pin_placeholder)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             visualTransformation = if (showPin) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { showPin = !showPin }) {
-                    Icon(if (showPin) Icons.Default.VisibilityOff else Icons.Default.Visibility, "Toggle visibility")
+                    Icon(if (showPin) Icons.Default.VisibilityOff else Icons.Default.Visibility, stringResource(R.string.cd_toggle_visibility))
                 }
             },
             singleLine = true,
@@ -459,8 +461,8 @@ private fun PinSetupPage(
         OutlinedTextField(
             value = confirmPin,
             onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) onConfirmPinChange(it) },
-            label = { Text("Confirm PIN") },
-            placeholder = { Text("Re-enter PIN") },
+            label = { Text(stringResource(R.string.confirm_pin_label)) },
+            placeholder = { Text(stringResource(R.string.confirm_pin_placeholder)) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             visualTransformation = if (showPin) VisualTransformation.None else PasswordVisualTransformation(),
             singleLine = true,
@@ -469,7 +471,7 @@ private fun PinSetupPage(
         )
 
         AnimatedVisibility(visible = confirmPin.isNotEmpty() && pin != confirmPin) {
-            Text("PINs don't match", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.pins_dont_match), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
 
         Spacer(Modifier.height(16.dp))
@@ -479,7 +481,7 @@ private fun PinSetupPage(
             enabled = pin.length >= 4 && pin == confirmPin,
             modifier = Modifier.fillMaxWidth().height(50.dp)
         ) {
-            Text("Set PIN")
+            Text(stringResource(R.string.set_pin_button))
         }
     }
 }

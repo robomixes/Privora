@@ -82,6 +82,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.res.stringResource
+import com.privateai.camera.R
 import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.DuressManager
 import com.privateai.camera.security.NoteRepository
@@ -187,7 +189,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {}
             })
         prompt.authenticate(BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Unlock Notes").setSubtitle("Authenticate to access secure notes")
+            .setTitle(context.getString(R.string.unlock_notes)).setSubtitle(context.getString(R.string.authenticate_to_access_notes))
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
             .build())
     }
@@ -228,7 +230,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
             Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_TEXT, text)
-            }, "Share notes"
+            }, context.getString(R.string.share_notes)
         ))
         selectedIds = emptySet()
         isSelectionMode = false
@@ -238,10 +240,10 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete ${selectedIds.size} note(s)") },
-            text = { Text("Permanently deleted.") },
-            confirmButton = { TextButton(onClick = { showDeleteDialog = false; deleteSelected() }) { Text("Delete", color = Color.Red) } },
-            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") } }
+            title = { Text(stringResource(R.string.delete_n_notes, selectedIds.size)) },
+            text = { Text(stringResource(R.string.permanently_deleted)) },
+            confirmButton = { TextButton(onClick = { showDeleteDialog = false; deleteSelected() }) { Text(stringResource(R.string.delete), color = Color.Red) } },
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
@@ -252,7 +254,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
             sheetState = rememberModalBottomSheetState()
         ) {
             Column(Modifier.padding(16.dp)) {
-                Text("Choose color", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 12.dp))
+                Text(stringResource(R.string.choose_color), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 12.dp))
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
@@ -305,7 +307,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
             return
         }
 
-        pinError = "Incorrect PIN"
+        pinError = context.getString(R.string.incorrect_pin)
         pinInput = ""
     }
 
@@ -324,8 +326,8 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
     when (page) {
         NotesPage.LOCKED -> {
             Scaffold(topBar = {
-                TopAppBar(title = { Text("Secure Notes") }, navigationIcon = {
-                    if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                TopAppBar(title = { Text(stringResource(R.string.secure_notes)) }, navigationIcon = {
+                    if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                 })
             }) { padding ->
                 Column(
@@ -334,7 +336,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(Icons.Default.Lock, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
-                    Text("Notes are locked", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
+                    Text(stringResource(R.string.notes_are_locked), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
 
                     Spacer(Modifier.height(24.dp))
 
@@ -347,7 +349,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
                                     pinError = null
                                 }
                             },
-                            label = { Text("Enter PIN") },
+                            label = { Text(stringResource(R.string.enter_pin)) },
                             modifier = Modifier.width(200.dp),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
@@ -363,12 +365,12 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
                             onClick = { if (pinInput.length >= 4) checkPin(pinInput) },
                             enabled = pinInput.length >= 4,
                             modifier = Modifier.width(200.dp)
-                        ) { Text("Unlock") }
+                        ) { Text(stringResource(R.string.unlock)) }
                     } else {
                         Button(
                             onClick = { authenticate() },
                             modifier = Modifier.width(200.dp)
-                        ) { Text("Unlock") }
+                        ) { Text(stringResource(R.string.unlock)) }
                     }
                 }
             }
@@ -379,25 +381,25 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
                 topBar = {
                     if (isSelectionMode) {
                         TopAppBar(
-                            title = { Text("${selectedIds.size} selected") },
-                            navigationIcon = { IconButton(onClick = { selectedIds = emptySet(); isSelectionMode = false }) { Icon(Icons.Default.Close, "Cancel") } },
+                            title = { Text(stringResource(R.string.n_selected, selectedIds.size)) },
+                            navigationIcon = { IconButton(onClick = { selectedIds = emptySet(); isSelectionMode = false }) { Icon(Icons.Default.Close, stringResource(R.string.cancel)) } },
                             actions = {
-                                IconButton(onClick = { pinSelected() }) { Icon(Icons.Default.PushPin, "Pin") }
-                                IconButton(onClick = { showColorPicker = true }) { Icon(Icons.Default.Palette, "Color") }
-                                IconButton(onClick = { shareSelected() }) { Icon(Icons.Default.Share, "Share") }
-                                IconButton(onClick = { showDeleteDialog = true }) { Icon(Icons.Default.Delete, "Delete") }
+                                IconButton(onClick = { pinSelected() }) { Icon(Icons.Default.PushPin, stringResource(R.string.pin)) }
+                                IconButton(onClick = { showColorPicker = true }) { Icon(Icons.Default.Palette, stringResource(R.string.color)) }
+                                IconButton(onClick = { shareSelected() }) { Icon(Icons.Default.Share, stringResource(R.string.share)) }
+                                IconButton(onClick = { showDeleteDialog = true }) { Icon(Icons.Default.Delete, stringResource(R.string.delete)) }
                             }
                         )
                     } else {
-                        TopAppBar(title = { Text("Secure Notes (${notes.size})") }, navigationIcon = {
-                            if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                        TopAppBar(title = { Text(stringResource(R.string.secure_notes_count, notes.size)) }, navigationIcon = {
+                            if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                         })
                     }
                 },
                 floatingActionButton = {
                     if (!isSelectionMode) {
                         FloatingActionButton(onClick = { editingNote = null; page = NotesPage.EDITOR }) {
-                            Icon(Icons.Default.Add, "New Note")
+                            Icon(Icons.Default.Add, stringResource(R.string.new_note))
                         }
                     }
                 }
@@ -407,7 +409,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it; refreshNotes() },
-                            placeholder = { Text("Search notes...") },
+                            placeholder = { Text(stringResource(R.string.search_notes)) },
                             leadingIcon = { Icon(Icons.Default.Search, null) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
@@ -417,7 +419,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
                                 Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                FilterChip(selected = selectedTag == null, onClick = { selectedTag = null; refreshNotes() }, label = { Text("All") })
+                                FilterChip(selected = selectedTag == null, onClick = { selectedTag = null; refreshNotes() }, label = { Text(stringResource(R.string.all)) })
                                 allTags.take(5).forEach { tag ->
                                     FilterChip(
                                         selected = selectedTag == tag,
@@ -432,8 +434,8 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
                     if (notes.isEmpty()) {
                         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                             Icon(Icons.Default.NoteAlt, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("No notes yet", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 12.dp))
-                            Text("Tap + to create one", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.no_notes_yet), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 12.dp))
+                            Text(stringResource(R.string.tap_plus_to_create), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     } else {
                         LazyVerticalStaggeredGrid(

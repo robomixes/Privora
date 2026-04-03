@@ -33,7 +33,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.privateai.camera.R
 import com.privateai.camera.security.SecureNote
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,37 +58,37 @@ fun NoteEditorScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Note") },
-            text = { Text("This note will be permanently deleted.") },
+            title = { Text(stringResource(R.string.delete_note_title)) },
+            text = { Text(stringResource(R.string.delete_note_message)) },
             confirmButton = {
                 TextButton(onClick = { showDeleteDialog = false; onDelete() }) {
-                    Text("Delete", color = Color.Red)
+                    Text(stringResource(R.string.delete), color = Color.Red)
                 }
             },
-            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isNew) "New Note" else "Edit Note") },
+                title = { Text(if (isNew) stringResource(R.string.new_note) else stringResource(R.string.edit_note)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
                     }
                 },
                 actions = {
                     if (!isNew) {
                         IconButton(onClick = { showDeleteDialog = true }) {
-                            Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF6B6B))
+                            Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = Color(0xFFFF6B6B))
                         }
                     }
                     IconButton(
                         onClick = { onSave(title, content, tags) },
                         enabled = title.isNotBlank() || content.isNotBlank()
                     ) {
-                        Icon(Icons.Default.Check, "Save")
+                        Icon(Icons.Default.Check, stringResource(R.string.save))
                     }
                 }
             )
@@ -103,7 +105,7 @@ fun NoteEditorScreen(
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Title") },
+                label = { Text(stringResource(R.string.title_label)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.fillMaxWidth()
@@ -134,7 +136,7 @@ fun NoteEditorScreen(
                     OutlinedTextField(
                         value = newTag,
                         onValueChange = { newTag = it },
-                        placeholder = { Text("Tag") },
+                        placeholder = { Text(stringResource(R.string.tag_placeholder)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         modifier = Modifier.padding(0.dp)
@@ -146,11 +148,11 @@ fun NoteEditorScreen(
                         }
                         showTagInput = false
                     }) {
-                        Icon(Icons.Default.Check, "Add tag")
+                        Icon(Icons.Default.Check, stringResource(R.string.add_tag))
                     }
                 } else {
                     IconButton(onClick = { showTagInput = true }) {
-                        Icon(Icons.Default.Add, "New tag")
+                        Icon(Icons.Default.Add, stringResource(R.string.new_tag))
                     }
                 }
             }
@@ -159,7 +161,7 @@ fun NoteEditorScreen(
             OutlinedTextField(
                 value = content,
                 onValueChange = { content = it },
-                label = { Text("Note") },
+                label = { Text(stringResource(R.string.note_label)) },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 minLines = 10

@@ -47,7 +47,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
+import com.privateai.camera.R
 import com.privateai.camera.security.HealthEntry
 import com.privateai.camera.security.HealthProfile
 import com.privateai.camera.security.InsightsRepository
@@ -85,7 +87,9 @@ fun HealthTab(repo: InsightsRepository) {
     val weightData = entries.reversed().mapNotNull { e -> e.weight?.let { dateFormat.format(Date(e.date)).take(6) to it } }
     val hrData = entries.reversed().mapNotNull { e -> e.heartRate?.let { dateFormat.format(Date(e.date)).take(6) to it.toFloat() } }
 
-    val selectedProfileName = if (selectedProfileId == "self") "Myself" else profiles.find { it.id == selectedProfileId }?.name ?: "Unknown"
+    val myselfLabel = stringResource(R.string.health_myself)
+    val unknownLabel = stringResource(R.string.health_unknown)
+    val selectedProfileName = if (selectedProfileId == "self") myselfLabel else profiles.find { it.id == selectedProfileId }?.name ?: unknownLabel
 
     if (showAddDialog) {
         AddHealthDialog(onDismiss = { showAddDialog = false }, onSave = { entry ->
@@ -105,12 +109,12 @@ fun HealthTab(repo: InsightsRepository) {
             // Profile selector
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = selectedProfileId == "self", onClick = { selectedProfileId = "self" }, label = { Text("👤 Myself") })
+                    FilterChip(selected = selectedProfileId == "self", onClick = { selectedProfileId = "self" }, label = { Text("👤 ${stringResource(R.string.health_myself)}") })
                     profiles.forEach { p ->
                         FilterChip(selected = selectedProfileId == p.id, onClick = { selectedProfileId = p.id }, label = { Text("${p.icon} ${p.name}") })
                     }
                     IconButton(onClick = { showProfileDialog = true }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Add, "Add Profile", Modifier.size(18.dp))
+                        Icon(Icons.Default.Add, stringResource(R.string.health_add_profile), Modifier.size(18.dp))
                     }
                 }
             }
@@ -118,9 +122,9 @@ fun HealthTab(repo: InsightsRepository) {
             // Month navigator
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { if (selMonth == 0) { selMonth = 11; selYear-- } else selMonth-- }) { Icon(Icons.Default.ChevronLeft, "Prev") }
+                    IconButton(onClick = { if (selMonth == 0) { selMonth = 11; selYear-- } else selMonth-- }) { Icon(Icons.Default.ChevronLeft, stringResource(R.string.action_previous)) }
                     Text("${monthNames[selMonth]} $selYear", style = MaterialTheme.typography.titleMedium)
-                    IconButton(onClick = { if (selMonth == 11) { selMonth = 0; selYear++ } else selMonth++ }) { Icon(Icons.Default.ChevronRight, "Next") }
+                    IconButton(onClick = { if (selMonth == 11) { selMonth = 0; selYear++ } else selMonth++ }) { Icon(Icons.Default.ChevronRight, stringResource(R.string.action_next)) }
                 }
             }
 
@@ -136,10 +140,10 @@ fun HealthTab(repo: InsightsRepository) {
                                 latest?.heartRate?.let { Text("${it}bpm", style = MaterialTheme.typography.bodySmall) }
                                 latest?.systolic?.let { Text("${it}/${latest.diastolic}mmHg", style = MaterialTheme.typography.bodySmall) }
                             }
-                            Text("${entries.size} entries this month", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text(stringResource(R.string.health_entries_this_month, entries.size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
                         IconButton(onClick = { showExportDialog = true }) {
-                            Icon(Icons.Default.PictureAsPdf, "Export PDF", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.PictureAsPdf, stringResource(R.string.action_export_pdf), tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -148,25 +152,25 @@ fun HealthTab(repo: InsightsRepository) {
             // Charts
             if (weightData.size >= 2) {
                 item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
-                    Text("Weight", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.health_weight), style = MaterialTheme.typography.titleSmall)
                     LineChart(weightData, Color(0xFF4CAF50), Modifier.fillMaxWidth().height(100.dp))
                 } } }
             }
             if (hrData.size >= 2) {
                 item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
-                    Text("Heart Rate", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.health_heart_rate), style = MaterialTheme.typography.titleSmall)
                     LineChart(hrData, Color(0xFFE91E63), Modifier.fillMaxWidth().height(100.dp))
                 } } }
             }
 
             if (entries.isEmpty()) {
-                item { Text("No entries this month", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp)) }
+                item { Text(stringResource(R.string.health_no_entries), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp)) }
             }
 
             // Entry list
             items(entries) { entry ->
                 val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-                val profileName = if (entry.profileId == "self") "Myself" else profiles.find { it.id == entry.profileId }?.let { "${it.icon} ${it.name}" } ?: "Unknown"
+                val profileName = if (entry.profileId == "self") myselfLabel else profiles.find { it.id == entry.profileId }?.let { "${it.icon} ${it.name}" } ?: unknownLabel
                 Card(Modifier.fillMaxWidth()) {
                     Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -187,7 +191,7 @@ fun HealthTab(repo: InsightsRepository) {
                             entry.notes?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                         IconButton(onClick = { repo.deleteHealthEntry(entry.id); allEntries = repo.listHealthEntries() }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.Delete, "Delete", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Default.Delete, stringResource(R.string.action_delete), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -196,7 +200,7 @@ fun HealthTab(repo: InsightsRepository) {
             item { Spacer(Modifier.height(80.dp)) }
         }
 
-        FloatingActionButton(onClick = { showAddDialog = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) { Icon(Icons.Default.Add, "Add") }
+        FloatingActionButton(onClick = { showAddDialog = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) { Icon(Icons.Default.Add, stringResource(R.string.action_add)) }
 
         if (showExportDialog) {
             val (sub, hdr, rws) = remember(entries, selectedProfileName) { repo.generateHealthReportTable(entries, selectedProfileName) }
@@ -239,7 +243,7 @@ private fun AddHealthDialog(onDismiss: () -> Unit, onSave: (HealthEntry) -> Unit
     val timeDisplay = "%02d:%02d".format(selectedHour, selectedMinute)
 
     AlertDialog(
-        onDismissRequest = onDismiss, title = { Text("Log Health") },
+        onDismissRequest = onDismiss, title = { Text(stringResource(R.string.health_log_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 // Date and time pickers
@@ -252,24 +256,24 @@ private fun AddHealthDialog(onDismiss: () -> Unit, onSave: (HealthEntry) -> Unit
                     }, modifier = Modifier.weight(1f)) { Text("🕐 $timeDisplay") }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = weight, onValueChange = { weight = it }, label = { Text("Weight kg") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f), singleLine = true)
-                    OutlinedTextField(value = temp, onValueChange = { temp = it }, label = { Text("Temp °") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = weight, onValueChange = { weight = it }, label = { Text(stringResource(R.string.health_label_weight)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = temp, onValueChange = { temp = it }, label = { Text(stringResource(R.string.health_label_temp)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f), singleLine = true)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = hr, onValueChange = { hr = it }, label = { Text("Heart bpm") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), singleLine = true)
-                    OutlinedTextField(value = steps, onValueChange = { steps = it }, label = { Text("Steps") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = hr, onValueChange = { hr = it }, label = { Text(stringResource(R.string.health_label_heart_bpm)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = steps, onValueChange = { steps = it }, label = { Text(stringResource(R.string.health_label_steps)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), singleLine = true)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = systolic, onValueChange = { systolic = it }, label = { Text("BP Sys") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), singleLine = true)
-                    OutlinedTextField(value = diastolic, onValueChange = { diastolic = it }, label = { Text("BP Dia") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = systolic, onValueChange = { systolic = it }, label = { Text(stringResource(R.string.health_label_bp_sys)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(value = diastolic, onValueChange = { diastolic = it }, label = { Text(stringResource(R.string.health_label_bp_dia)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f), singleLine = true)
                 }
-                Text("Sleep: ${"%.1f".format(sleep)} hrs")
+                Text(stringResource(R.string.health_label_sleep, "%.1f".format(sleep)))
                 Slider(value = sleep, onValueChange = { sleep = it }, valueRange = 0f..14f)
-                Text("Mood")
+                Text(stringResource(R.string.health_label_mood))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     MOOD_EMOJIS.forEachIndexed { i, e -> Text(e, fontSize = if (mood == i + 1) 32.sp else 22.sp, modifier = Modifier.clickable { mood = i + 1 }.padding(4.dp)) }
                 }
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text(stringResource(R.string.label_notes)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
             }
         },
         confirmButton = { TextButton(onClick = {
@@ -280,8 +284,8 @@ private fun AddHealthDialog(onDismiss: () -> Unit, onSave: (HealthEntry) -> Unit
                 temperature = temp.toFloatOrNull(), steps = steps.toIntOrNull(), heartRate = hr.toIntOrNull(),
                 systolic = systolic.toIntOrNull(), diastolic = diastolic.toIntOrNull(), notes = notes.ifBlank { null }
             ))
-        }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        }) { Text(stringResource(R.string.action_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
 
@@ -291,17 +295,17 @@ private fun AddProfileDialog(onDismiss: () -> Unit, onSave: (HealthProfile) -> U
     var icon by remember { mutableStateOf("👤") }
 
     AlertDialog(
-        onDismissRequest = onDismiss, title = { Text("Add Profile") },
+        onDismissRequest = onDismiss, title = { Text(stringResource(R.string.health_add_profile)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Text("Icon")
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.label_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Text(stringResource(R.string.label_icon))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     PROFILE_EMOJIS.forEach { e -> Text(e, fontSize = if (icon == e) 32.sp else 22.sp, modifier = Modifier.clickable { icon = e }.padding(4.dp)) }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { if (name.isNotBlank()) onSave(HealthProfile(name = name, icon = icon)) }, enabled = name.isNotBlank()) { Text("Add") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        confirmButton = { TextButton(onClick = { if (name.isNotBlank()) onSave(HealthProfile(name = name, icon = icon)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.action_add)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }

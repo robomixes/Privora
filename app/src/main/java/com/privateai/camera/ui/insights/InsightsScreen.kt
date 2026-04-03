@@ -44,12 +44,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.privateai.camera.R
 import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.DuressManager
 import com.privateai.camera.security.InsightsRepository
@@ -105,7 +107,7 @@ fun InsightsScreen(onBack: (() -> Unit)? = null) {
                     if (crypto.initialize()) { VaultLockManager.markUnlocked(); isLocked = false }
                 }
             })
-        prompt.authenticate(BiometricPrompt.PromptInfo.Builder().setTitle("Unlock Insights").setSubtitle("Authenticate to access your data")
+        prompt.authenticate(BiometricPrompt.PromptInfo.Builder().setTitle(context.getString(R.string.insights_unlock_title)).setSubtitle(context.getString(R.string.insights_unlock_subtitle))
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL).build())
     }
 
@@ -121,7 +123,7 @@ fun InsightsScreen(onBack: (() -> Unit)? = null) {
             if (crypto.initialize()) { VaultLockManager.markUnlocked(); isLocked = false; pinInput = ""; pinError = null }
             return
         }
-        pinError = "Incorrect PIN"; pinInput = ""
+        pinError = context.getString(R.string.insights_incorrect_pin); pinInput = ""
     }
 
     LaunchedEffect(Unit) {
@@ -130,26 +132,26 @@ fun InsightsScreen(onBack: (() -> Unit)? = null) {
 
     if (isLocked) {
         Scaffold(topBar = {
-            TopAppBar(title = { Text("Insights") }, navigationIcon = {
-                if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+            TopAppBar(title = { Text(stringResource(R.string.insights_title)) }, navigationIcon = {
+                if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) }
             })
         }) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Icon(Icons.Default.Lock, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
-                Text("Insights is locked", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
+                Text(stringResource(R.string.insights_locked), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
                 Spacer(Modifier.height(24.dp))
                 if (currentAuthMode == AuthMode.APP_PIN) {
                     OutlinedTextField(
                         value = pinInput, onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) { pinInput = it; pinError = null } },
-                        label = { Text("Enter PIN") }, modifier = Modifier.width(200.dp), singleLine = true,
+                        label = { Text(stringResource(R.string.insights_enter_pin)) }, modifier = Modifier.width(200.dp), singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { if (pinInput.length >= 4) checkPin(pinInput) }),
                         visualTransformation = PasswordVisualTransformation(), isError = pinError != null,
                         supportingText = { pinError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
                     )
-                    Button(onClick = { if (pinInput.length >= 4) checkPin(pinInput) }, enabled = pinInput.length >= 4, modifier = Modifier.width(200.dp)) { Text("Unlock") }
+                    Button(onClick = { if (pinInput.length >= 4) checkPin(pinInput) }, enabled = pinInput.length >= 4, modifier = Modifier.width(200.dp)) { Text(stringResource(R.string.action_unlock)) }
                 } else {
-                    Button(onClick = { authenticate() }, modifier = Modifier.width(200.dp)) { Text("Unlock") }
+                    Button(onClick = { authenticate() }, modifier = Modifier.width(200.dp)) { Text(stringResource(R.string.action_unlock)) }
                 }
             }
         }
@@ -157,18 +159,18 @@ fun InsightsScreen(onBack: (() -> Unit)? = null) {
     }
 
     // Unlocked — show tabs
-    val tabs = listOf("Expenses" to Icons.Default.AttachMoney, "Health" to Icons.Default.FitnessCenter, "Habits" to Icons.Default.CheckCircle)
+    val tabs = listOf(stringResource(R.string.tab_expenses) to Icons.Default.AttachMoney, stringResource(R.string.tab_health) to Icons.Default.FitnessCenter, stringResource(R.string.tab_habits) to Icons.Default.CheckCircle)
 
     Scaffold(topBar = {
-        TopAppBar(title = { Text("Insights") }, navigationIcon = {
-            if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+        TopAppBar(title = { Text(stringResource(R.string.insights_title)) }, navigationIcon = {
+            if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) }
         })
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             TabRow(selectedTabIndex = selectedTab) {
                 tabs.forEachIndexed { i, (title, icon) ->
                     Tab(selected = selectedTab == i, onClick = { selectedTab = i },
-                        text = { Text(title) }, icon = { Icon(icon, title, Modifier.size(20.dp)) })
+                        text = { Text(title) }, icon = { Icon(icon, null, Modifier.size(20.dp)) })
                 }
             }
 
@@ -176,7 +178,7 @@ fun InsightsScreen(onBack: (() -> Unit)? = null) {
                 if (isDuressActive) {
                     // Duress: show empty
                     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                        Text("No data yet", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.insights_no_data), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     when (selectedTab) {

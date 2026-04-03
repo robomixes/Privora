@@ -61,9 +61,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.privateai.camera.R
 import com.privateai.camera.bridge.Detection
 import com.privateai.camera.bridge.OnnxDetector
 import com.privateai.camera.util.cropDetectionRegion
@@ -95,18 +101,18 @@ fun CameraScreen(onBack: (() -> Unit)? = null) {
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    "Privo needs camera access",
+                    stringResource(R.string.camera_needs_access),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 Text(
-                    "All processing happens on your device.\nNo data is sent anywhere.",
+                    stringResource(R.string.camera_privacy_note),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 24.dp)
                 )
                 Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
-                    Text("Grant Camera Permission")
+                    Text(stringResource(R.string.grant_camera_permission))
                 }
             }
         }
@@ -256,7 +262,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
 
                 Image(
                     bitmap = cropped.asImageBitmap(),
-                    contentDescription = "Selected: ${det.className}",
+                    contentDescription = stringResource(R.string.cd_selected_object, det.className),
                     contentScale = ContentScale.FillBounds,
                     modifier = Modifier
                         .offset(
@@ -335,11 +341,11 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                             .size(40.dp)
                             .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_back), tint = Color.White)
                     }
                 }
                 Text(
-                    text = "${detections.size} objects",
+                    text = stringResource(R.string.object_count, detections.size),
                     color = Color.White,
                     fontSize = 14.sp,
                     modifier = Modifier
@@ -353,7 +359,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${inferenceTimeMs}ms",
+                    text = stringResource(R.string.inference_time_ms, inferenceTimeMs),
                     color = Color.White,
                     fontSize = 14.sp,
                     modifier = Modifier
@@ -372,7 +378,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                     ) {
                         Icon(
                             Icons.Default.Cameraswitch,
-                            contentDescription = "Switch Camera",
+                            contentDescription = stringResource(R.string.cd_switch_camera),
                             tint = Color.White
                         )
                     }
@@ -397,7 +403,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                         style = MaterialTheme.typography.headlineSmall
                     )
                     Text(
-                        text = "Confidence: ${(det.confidence * 100).toInt()}%",
+                        text = stringResource(R.string.confidence_percent, (det.confidence * 100).toInt()),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
@@ -418,7 +424,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                             context.startActivity(intent)
                         }) {
                             Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Web Search", modifier = Modifier.padding(start = 4.dp))
+                            Text(stringResource(R.string.web_search), modifier = Modifier.padding(start = 4.dp))
                         }
 
                         // Image search
@@ -429,7 +435,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                             cropped.recycle()
                         }) {
                             Icon(Icons.Default.ImageSearch, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Search by Image", modifier = Modifier.padding(start = 4.dp))
+                            Text(stringResource(R.string.search_by_image), modifier = Modifier.padding(start = 4.dp))
                         }
                     }
                 }
@@ -443,6 +449,10 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                     .align(Alignment.BottomEnd)
                     .padding(bottom = 32.dp, end = 16.dp)
                     .size(56.dp)
+                    .semantics {
+                        contentDescription = context.getString(R.string.cd_save_detection_photo)
+                        role = Role.Button
+                    }
                     .background(Color.White, CircleShape)
                     .border(3.dp, Color.White.copy(alpha = 0.7f), CircleShape)
                     .clickable {
@@ -478,11 +488,11 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                                     vault.savePhoto(mutable, com.privateai.camera.security.VaultCategory.DETECT)
                                     mutable.recycle()
                                     withContext(Dispatchers.Main) {
-                                        android.widget.Toast.makeText(context, "Detection photo saved to vault", android.widget.Toast.LENGTH_SHORT).show()
+                                        android.widget.Toast.makeText(context, context.getString(R.string.detection_photo_saved), android.widget.Toast.LENGTH_SHORT).show()
                                     }
                                 } catch (e: Exception) {
                                     withContext(Dispatchers.Main) {
-                                        android.widget.Toast.makeText(context, "Save failed", android.widget.Toast.LENGTH_SHORT).show()
+                                        android.widget.Toast.makeText(context, context.getString(R.string.save_failed_generic), android.widget.Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             }
@@ -523,7 +533,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                     ) {
                         Icon(
                             Icons.Default.Search,
-                            contentDescription = "Search",
+                            contentDescription = null,
                             tint = Color.White
                         )
                         Text(

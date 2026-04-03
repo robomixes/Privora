@@ -46,7 +46,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.privateai.camera.R
 import com.privateai.camera.security.EXPENSE_CATEGORIES
 import com.privateai.camera.security.Expense
 import com.privateai.camera.security.InsightsRepository
@@ -101,11 +103,11 @@ fun ExpensesTab(repo: InsightsRepository) {
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = {
                         if (selectedMonth == 0) { selectedMonth = 11; selectedYear-- } else selectedMonth--
-                    }) { Icon(Icons.Default.ChevronLeft, "Previous") }
+                    }) { Icon(Icons.Default.ChevronLeft, stringResource(R.string.action_previous)) }
                     Text("${monthNames[selectedMonth]} $selectedYear", style = MaterialTheme.typography.titleMedium)
                     IconButton(onClick = {
                         if (selectedMonth == 11) { selectedMonth = 0; selectedYear++ } else selectedMonth++
-                    }) { Icon(Icons.Default.ChevronRight, "Next") }
+                    }) { Icon(Icons.Default.ChevronRight, stringResource(R.string.action_next)) }
                 }
             }
 
@@ -114,12 +116,12 @@ fun ExpensesTab(repo: InsightsRepository) {
                 Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column {
-                            Text("Total", style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.expenses_total), style = MaterialTheme.typography.labelSmall)
                             Text("${"%.2f".format(monthTotal)}", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-                            Text("${expenses.size} expenses", style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.expenses_count, expenses.size), style = MaterialTheme.typography.bodySmall)
                         }
                         IconButton(onClick = { showExportDialog = true }) {
-                            Icon(Icons.Default.PictureAsPdf, "Export PDF", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.PictureAsPdf, stringResource(R.string.action_export_pdf), tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -130,7 +132,7 @@ fun ExpensesTab(repo: InsightsRepository) {
                 item {
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp)) {
-                            Text("By Category", style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(R.string.expenses_by_category), style = MaterialTheme.typography.titleSmall)
                             Spacer(Modifier.height(8.dp))
                             PieChart(catTotals, Modifier.fillMaxWidth().height(140.dp))
                             Spacer(Modifier.height(8.dp))
@@ -146,7 +148,7 @@ fun ExpensesTab(repo: InsightsRepository) {
             }
 
             if (expenses.isEmpty()) {
-                item { Text("No expenses this month", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 16.dp)) }
+                item { Text(stringResource(R.string.expenses_none_this_month), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 16.dp)) }
             }
 
             // List
@@ -163,7 +165,7 @@ fun ExpensesTab(repo: InsightsRepository) {
                         }
                         Text("${"%.2f".format(expense.amount)}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                         IconButton(onClick = { repo.deleteExpense(expense.id); allExpenses = repo.listExpenses() }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.Delete, "Delete", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Default.Delete, stringResource(R.string.action_delete), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -173,7 +175,7 @@ fun ExpensesTab(repo: InsightsRepository) {
         }
 
         FloatingActionButton(onClick = { showAddDialog = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
-            Icon(Icons.Default.Add, "Add")
+            Icon(Icons.Default.Add, stringResource(R.string.action_add))
         }
 
         if (showExportDialog) {
@@ -204,18 +206,18 @@ private fun AddExpenseDialog(onDismiss: () -> Unit, onSave: (Expense) -> Unit) {
     val dateDisplay = "%04d-%02d-%02d".format(selYear, selMonth + 1, selDay)
 
     AlertDialog(
-        onDismissRequest = onDismiss, title = { Text("Add Expense") },
+        onDismissRequest = onDismiss, title = { Text(stringResource(R.string.expenses_add_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = amount, onValueChange = { amount = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("Amount") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f), singleLine = true)
+                        label = { Text(stringResource(R.string.label_amount)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f), singleLine = true)
                     androidx.compose.material3.OutlinedButton(onClick = {
                         android.app.DatePickerDialog(context, { _, y, m, d -> selYear = y; selMonth = m; selDay = d }, selYear, selMonth, selDay).show()
                     }, modifier = Modifier.weight(1f)) { Text("📅 $dateDisplay") }
                 }
-                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Text("Category", style = MaterialTheme.typography.labelMedium)
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text(stringResource(R.string.label_description)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Text(stringResource(R.string.label_category), style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                     EXPENSE_CATEGORIES.take(4).forEachIndexed { i, cat ->
                         Box(Modifier.weight(1f).background(if (selectedCat == cat) CAT_COLORS[i] else Color.Transparent, RoundedCornerShape(8.dp)).clickable { selectedCat = cat }.padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
@@ -237,7 +239,7 @@ private fun AddExpenseDialog(onDismiss: () -> Unit, onSave: (Expense) -> Unit) {
                 val entryDate = Calendar.getInstance().apply { set(selYear, selMonth, selDay, 12, 0, 0) }.timeInMillis
                 onSave(Expense(amount = amt, category = selectedCat, description = description, date = entryDate))
             }
-        }, enabled = amount.toDoubleOrNull() != null) { Text("Add") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        }, enabled = amount.toDoubleOrNull() != null) { Text(stringResource(R.string.action_add)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }

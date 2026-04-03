@@ -38,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -50,7 +51,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.privateai.camera.R
 import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.VaultCategory
 import com.privateai.camera.security.VaultRepository
@@ -78,33 +81,58 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text("Settings") },
+            title = { Text(stringResource(R.string.settings_title)) },
             navigationIcon = {
                 if (onBack != null) IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                 }
             }
         )
     }) { padding ->
+        var searchQuery by remember { mutableStateOf("") }
+
+        fun matchesSearch(vararg texts: String): Boolean {
+            if (searchQuery.isBlank()) return true
+            return texts.any { it.contains(searchQuery, ignoreCase = true) }
+        }
+
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
         ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text(stringResource(R.string.settings_search_placeholder)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search)) },
+                singleLine = true
+            )
+
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+            ) {
+
             // Features section
-            SectionHeader("Home Screen Features")
+            val showFeatures = matchesSearch("Home Screen Features", "Camera", "Detect", "Scan", "QR Scan", "Translate", "Vault", "Notes", "Insights", "Tools", "reorder")
+            if (showFeatures) {
+            SectionHeader(stringResource(R.string.settings_section_home_features))
 
             val featureInfo = mapOf(
-                "camera" to Triple("Camera", "Photo & Video capture", Icons.Default.CameraAlt),
-                "detect" to Triple("Detect", "AI object detection", Icons.Default.Search),
-                "scan" to Triple("Scan", "Document scanner + OCR", Icons.Default.DocumentScanner),
-                "qrscanner" to Triple("QR Scan", "QR & barcode scanner", Icons.Default.Search),
-                "translate" to Triple("Translate", "Local translation", Icons.Default.Translate),
-                "vault" to Triple("Vault", "Encrypted photo storage", Icons.Default.Lock),
-                "notes" to Triple("Notes", "Secure encrypted notes", Icons.Default.NoteAlt),
-                "insights" to Triple("Insights", "Expenses, health, habits", Icons.Default.Info),
-                "tools" to Triple("Tools", "Unit converter", Icons.Default.Info)
+                "camera" to Triple(stringResource(R.string.feature_camera), stringResource(R.string.feature_camera_desc), Icons.Default.CameraAlt),
+                "detect" to Triple(stringResource(R.string.feature_detect), stringResource(R.string.feature_detect_desc), Icons.Default.Search),
+                "scan" to Triple(stringResource(R.string.feature_scan), stringResource(R.string.feature_scan_desc), Icons.Default.DocumentScanner),
+                "qrscanner" to Triple(stringResource(R.string.feature_qr_scan), stringResource(R.string.feature_qr_scan_desc), Icons.Default.Search),
+                "translate" to Triple(stringResource(R.string.feature_translate), stringResource(R.string.feature_translate_desc), Icons.Default.Translate),
+                "vault" to Triple(stringResource(R.string.feature_vault), stringResource(R.string.feature_vault_desc), Icons.Default.Lock),
+                "notes" to Triple(stringResource(R.string.feature_notes), stringResource(R.string.feature_notes_desc), Icons.Default.NoteAlt),
+                "insights" to Triple(stringResource(R.string.feature_insights), stringResource(R.string.feature_insights_desc), Icons.Default.Info),
+                "tools" to Triple(stringResource(R.string.feature_tools), stringResource(R.string.feature_tools_desc), Icons.Default.Info)
             )
             var featureOrder by remember { mutableStateOf(FeatureToggleManager.getOrderedFeatures(context)) }
 
@@ -124,7 +152,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                 FeatureToggleManager.saveOrder(context, featureOrder)
                             }
                         }, modifier = Modifier.size(24.dp), enabled = index > 0) {
-                            Icon(Icons.Default.KeyboardArrowUp, "Up", Modifier.size(18.dp), tint = if (index > 0) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            Icon(Icons.Default.KeyboardArrowUp, stringResource(R.string.action_move_up), Modifier.size(18.dp), tint = if (index > 0) MaterialTheme.colorScheme.primary else Color.Transparent)
                         }
                         IconButton(onClick = {
                             if (index < featureOrder.size - 1) {
@@ -134,7 +162,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                 FeatureToggleManager.saveOrder(context, featureOrder)
                             }
                         }, modifier = Modifier.size(24.dp), enabled = index < featureOrder.size - 1) {
-                            Icon(Icons.Default.KeyboardArrowDown, "Down", Modifier.size(18.dp), tint = if (index < featureOrder.size - 1) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.action_move_down), Modifier.size(18.dp), tint = if (index < featureOrder.size - 1) MaterialTheme.colorScheme.primary else Color.Transparent)
                         }
                     }
                     // Feature toggle
@@ -155,16 +183,19 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             }
 
             Text(
-                "Use arrows to reorder. Disabled features are hidden from home.",
+                stringResource(R.string.settings_reorder_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end showFeatures
 
             // AI Detection section
-            SectionHeader("AI Detection")
+            val showAiDetection = matchesSearch("AI Detection", "Confidence", "Detection Categories", "categories")
+            if (showAiDetection) {
+            SectionHeader(stringResource(R.string.settings_section_ai_detection))
 
             var showCategoriesDialog by remember { mutableStateOf(false) }
             var categoryCount by remember { mutableStateOf(getSelectedCategories(context).size) }
@@ -173,8 +204,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             // Confidence threshold
             SettingsItem(
                 icon = Icons.Default.Search,
-                title = "Minimum Confidence: ${confidencePercent}%",
-                subtitle = "Hide detections below this threshold",
+                title = stringResource(R.string.settings_min_confidence, confidencePercent),
+                subtitle = stringResource(R.string.settings_min_confidence_desc),
                 onClick = {
                     confidencePercent = when {
                         confidencePercent < 25 -> 25
@@ -192,8 +223,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             // Categories
             SettingsItem(
                 icon = Icons.Default.Search,
-                title = "Detection Categories",
-                subtitle = "$categoryCount of 80 categories selected",
+                title = stringResource(R.string.settings_detection_categories),
+                subtitle = stringResource(R.string.settings_detection_categories_desc, categoryCount),
                 onClick = { showCategoriesDialog = true }
             )
 
@@ -205,55 +236,61 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             }
 
             Text(
-                "These settings apply to the Detect feature and capture button.",
+                stringResource(R.string.settings_ai_detection_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end showAiDetection
 
             // Device section
-            SectionHeader("Device")
+            val showDevice = matchesSearch("Device", "Performance Tier", "Device Info", "Re-benchmark", "benchmark")
+            if (showDevice) {
+            SectionHeader(stringResource(R.string.settings_section_device))
 
             SettingsItem(
                 icon = Icons.Default.Info,
-                title = "Performance Tier: ${deviceProfile.tier}",
+                title = stringResource(R.string.settings_performance_tier, deviceProfile.tier),
                 subtitle = DeviceProfiler.getTierDescription(deviceProfile.tier)
             )
 
             SettingsItem(
                 icon = Icons.Default.Info,
-                title = "Device Info",
-                subtitle = "${deviceProfile.cpuCores} CPU cores • ${deviceProfile.ramMb} MB RAM • ${deviceProfile.inferenceMs}ms inference"
+                title = stringResource(R.string.settings_device_info),
+                subtitle = stringResource(R.string.settings_device_info_desc, deviceProfile.cpuCores, deviceProfile.ramMb, deviceProfile.inferenceMs)
             )
 
             SettingsItem(
                 icon = Icons.Default.Info,
-                title = "Re-benchmark",
-                subtitle = "Run performance test again",
+                title = stringResource(R.string.settings_rebenchmark),
+                subtitle = stringResource(R.string.settings_rebenchmark_desc),
                 onClick = {
-                    Toast.makeText(context, "Running benchmark...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.settings_running_benchmark), Toast.LENGTH_SHORT).show()
                     DeviceProfiler.runBenchmark(context)
-                    Toast.makeText(context, "Benchmark complete", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.settings_benchmark_complete), Toast.LENGTH_SHORT).show()
                 }
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end showDevice
 
             // Security section
-            SectionHeader("Security")
+            val showSecurity = matchesSearch("Security", "Encryption", "Screenshot Protection", "Emergency PIN", "Grace period", "Auto-lock")
+            if (showSecurity) {
+            SectionHeader(stringResource(R.string.settings_section_security))
 
             SettingsItem(
                 icon = Icons.Default.Lock,
-                title = "Encryption",
-                subtitle = "AES-256-GCM • Per-install key • Hardware-backed"
+                title = stringResource(R.string.settings_encryption),
+                subtitle = stringResource(R.string.settings_encryption_desc)
             )
 
             SettingsItem(
                 icon = Icons.Default.Security,
-                title = "Screenshot Protection",
-                subtitle = "Enabled — screenshots and screen recording blocked"
+                title = stringResource(R.string.settings_screenshot_protection),
+                subtitle = stringResource(R.string.settings_screenshot_protection_desc)
             )
 
             GracePeriodSetting(context)
@@ -262,52 +299,55 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 if (com.privateai.camera.security.DuressManager.isEnabled(context)) {
                     SettingsItem(
                         icon = Icons.Default.Security,
-                        title = "Emergency PIN",
-                        subtitle = "Active",
+                        title = stringResource(R.string.settings_emergency_pin),
+                        subtitle = stringResource(R.string.settings_emergency_pin_active),
                         onClick = { onDuressClick?.invoke() }
                     )
                 } else {
                     SettingsItem(
                         icon = Icons.Default.Security,
-                        title = "Set Emergency PIN",
-                        subtitle = "Create a PIN that shows empty vault when entered",
+                        title = stringResource(R.string.settings_set_emergency_pin),
+                        subtitle = stringResource(R.string.settings_set_emergency_pin_desc),
                         onClick = { onDuressClick?.invoke() }
                     )
                 }
             }
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end showSecurity
 
             // Storage section
-            SectionHeader("Storage")
+            val showStorage = matchesSearch("Storage", "Vault", "Notes", "Cache", "Device Storage", "Clear Cache")
+            if (showStorage) {
+            SectionHeader(stringResource(R.string.settings_section_storage))
 
             SettingsItem(
                 icon = Icons.Default.Storage,
-                title = "Vault",
-                subtitle = "${StorageManager.formatSize(storageInfo.vaultSizeBytes)} • $photoCount photos"
+                title = stringResource(R.string.settings_vault),
+                subtitle = stringResource(R.string.settings_vault_desc, StorageManager.formatSize(storageInfo.vaultSizeBytes), photoCount)
             )
 
             SettingsItem(
                 icon = Icons.Default.Storage,
-                title = "Notes",
-                subtitle = "${StorageManager.formatSize(storageInfo.notesSizeBytes)} • $noteCount notes"
+                title = stringResource(R.string.settings_notes),
+                subtitle = stringResource(R.string.settings_notes_desc, StorageManager.formatSize(storageInfo.notesSizeBytes), noteCount)
             )
 
             SettingsItem(
                 icon = Icons.Default.Storage,
-                title = "Cache",
+                title = stringResource(R.string.settings_cache),
                 subtitle = StorageManager.formatSize(storageInfo.cacheSizeBytes)
             )
 
             SettingsItem(
                 icon = Icons.Default.Storage,
-                title = "Device Storage",
-                subtitle = "${StorageManager.formatSize(storageInfo.deviceFreeBytes)} free of ${StorageManager.formatSize(storageInfo.deviceTotalBytes)} (${"%.0f".format(storageInfo.usagePercent)}% used)"
+                title = stringResource(R.string.settings_device_storage),
+                subtitle = stringResource(R.string.settings_device_storage_desc, StorageManager.formatSize(storageInfo.deviceFreeBytes), StorageManager.formatSize(storageInfo.deviceTotalBytes), "%.0f".format(storageInfo.usagePercent))
             )
 
             if (storageInfo.deviceFreeBytes < 500 * 1024 * 1024) {
                 Text(
-                    "⚠ Storage is low! Consider clearing cache or deleting old vault items.",
+                    stringResource(R.string.settings_storage_low_warning),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -316,72 +356,81 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
             SettingsItem(
                 icon = Icons.Default.Delete,
-                title = "Clear Cache",
-                subtitle = "Remove temporary shared files",
+                title = stringResource(R.string.settings_clear_cache),
+                subtitle = stringResource(R.string.settings_clear_cache_desc),
                 onClick = {
                     val freed = StorageManager.clearCache(context)
-                    Toast.makeText(context, "Cleared ${StorageManager.formatSize(freed)}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.settings_cleared_size, StorageManager.formatSize(freed)), Toast.LENGTH_SHORT).show()
                 }
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end showStorage
 
             // Privacy section
-            SectionHeader("Privacy")
+            val showPrivacy = matchesSearch("Privacy", "EXIF", "Face Blur", "Network Policy", "Backup Exclusion")
+            if (showPrivacy) {
+            SectionHeader(stringResource(R.string.settings_section_privacy))
 
             SettingsItem(
                 icon = Icons.Default.Security,
-                title = "EXIF Stripping",
-                subtitle = "Enabled — GPS, device info, timestamps removed from all shared images"
+                title = stringResource(R.string.settings_exif_stripping),
+                subtitle = stringResource(R.string.settings_exif_stripping_desc)
             )
 
             PrivacyToggle(
                 context = context,
                 key = "face_blur_on_share",
-                title = "Face Blur on Share",
-                subtitle = "Automatically blur faces before sharing photos"
+                title = stringResource(R.string.settings_face_blur),
+                subtitle = stringResource(R.string.settings_face_blur_desc)
             )
 
             SettingsItem(
                 icon = Icons.Default.Security,
-                title = "Network Policy",
-                subtitle = "No analytics, no telemetry. Network used only for ML Kit model downloads."
+                title = stringResource(R.string.settings_network_policy),
+                subtitle = stringResource(R.string.settings_network_policy_desc)
             )
 
             SettingsItem(
                 icon = Icons.Default.Storage,
-                title = "Backup Exclusion",
-                subtitle = "Vault data excluded from device backups"
+                title = stringResource(R.string.settings_backup_exclusion),
+                subtitle = stringResource(R.string.settings_backup_exclusion_desc)
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end showPrivacy
 
             // Backup & Migration section
-            SectionHeader("Backup & Migration")
+            val showBackup = matchesSearch("Backup", "Migration", "Export", "Import", "Transfer")
+            if (showBackup) {
+            SectionHeader(stringResource(R.string.settings_section_backup))
 
             SettingsItem(
                 icon = Icons.Default.CloudSync,
-                title = "Export / Import Backup",
-                subtitle = "Transfer photos, videos, and notes to a new phone",
+                title = stringResource(R.string.settings_export_import),
+                subtitle = stringResource(R.string.settings_export_import_desc),
                 onClick = { onBackupClick?.invoke() }
             )
 
             Text(
-                "Your data is encrypted with a key unique to this phone. Use backup to transfer data when changing phones.",
+                stringResource(R.string.settings_backup_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end showBackup
 
             // About section
-            SectionHeader("About")
+            val showAbout = matchesSearch("About", "Privo", "Version", "Crash Logs", "Privacy Policy", "Privacy Promise")
+            if (showAbout) {
+            SectionHeader(stringResource(R.string.settings_section_about))
 
             SettingsItem(
                 icon = Icons.Default.Info,
-                title = "Privo",
-                subtitle = "Version 1.0.0 • AI camera that never sends your data anywhere"
+                title = stringResource(R.string.settings_privo),
+                subtitle = stringResource(R.string.settings_privo_desc)
             )
 
             var crashLogs by remember { mutableStateOf(com.privateai.camera.service.CrashHandler.listLogs(context)) }
@@ -391,8 +440,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             if (crashLogs.isNotEmpty()) {
                 SettingsItem(
                     icon = Icons.Default.Info,
-                    title = "Crash Logs (${crashLogs.size})",
-                    subtitle = "View local crash reports — never sent anywhere",
+                    title = stringResource(R.string.settings_crash_logs, crashLogs.size),
+                    subtitle = stringResource(R.string.settings_crash_logs_desc),
                     onClick = { showCrashList = true }
                 )
             }
@@ -402,7 +451,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 val dateFmt = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()) }
                 AlertDialog(
                     onDismissRequest = { showCrashList = false },
-                    title = { Text("Crash Logs") },
+                    title = { Text(stringResource(R.string.settings_crash_logs_title)) },
                     text = {
                         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             crashLogs.forEach { log ->
@@ -420,10 +469,10 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                             com.privateai.camera.service.CrashHandler.clearLogs(context)
                             crashLogs = emptyList()
                             showCrashList = false
-                            Toast.makeText(context, "Crash logs cleared", Toast.LENGTH_SHORT).show()
-                        }) { Text("Clear All", color = MaterialTheme.colorScheme.error) }
+                            Toast.makeText(context, context.getString(R.string.settings_crash_logs_cleared), Toast.LENGTH_SHORT).show()
+                        }) { Text(stringResource(R.string.action_clear_all), color = MaterialTheme.colorScheme.error) }
                     },
-                    dismissButton = { TextButton(onClick = { showCrashList = false }) { Text("Close") } }
+                    dismissButton = { TextButton(onClick = { showCrashList = false }) { Text(stringResource(R.string.action_close)) } }
                 )
             }
 
@@ -432,7 +481,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 val content = remember(log) { com.privateai.camera.service.CrashHandler.readLog(log.file) }
                 AlertDialog(
                     onDismissRequest = { viewingCrashLog = null },
-                    title = { Text("Crash Report") },
+                    title = { Text(stringResource(R.string.settings_crash_report)) },
                     text = {
                         Column(Modifier.verticalScroll(rememberScrollState())) {
                             Text(content, style = MaterialTheme.typography.bodySmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
@@ -442,11 +491,11 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         TextButton(onClick = {
                             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(android.content.Intent.EXTRA_SUBJECT, "Privo Crash Report")
+                                putExtra(android.content.Intent.EXTRA_SUBJECT, context.getString(R.string.settings_crash_report_subject))
                                 putExtra(android.content.Intent.EXTRA_TEXT, content)
                             }
-                            context.startActivity(android.content.Intent.createChooser(intent, "Share"))
-                        }) { Text("Share") }
+                            context.startActivity(android.content.Intent.createChooser(intent, context.getString(R.string.action_share)))
+                        }) { Text(stringResource(R.string.action_share)) }
                     },
                     dismissButton = {
                         Row {
@@ -454,9 +503,9 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                 com.privateai.camera.service.CrashHandler.deleteLog(log.file)
                                 crashLogs = com.privateai.camera.service.CrashHandler.listLogs(context)
                                 viewingCrashLog = null
-                                Toast.makeText(context, "Log deleted", Toast.LENGTH_SHORT).show()
-                            }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
-                            TextButton(onClick = { viewingCrashLog = null }) { Text("Close") }
+                                Toast.makeText(context, context.getString(R.string.settings_log_deleted), Toast.LENGTH_SHORT).show()
+                            }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
+                            TextButton(onClick = { viewingCrashLog = null }) { Text(stringResource(R.string.action_close)) }
                         }
                     }
                 )
@@ -464,8 +513,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
             SettingsItem(
                 icon = Icons.Default.Security,
-                title = "Privacy Policy",
-                subtitle = "View our privacy policy",
+                title = stringResource(R.string.settings_privacy_policy),
+                subtitle = stringResource(R.string.settings_privacy_policy_desc),
                 onClick = {
                     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW,
                         android.net.Uri.parse("https://github.com/robomixes/private-ai-camera/blob/main/PRIVACY.md"))
@@ -479,22 +528,24 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Privacy Promise", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.settings_privacy_promise), style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "All AI processing runs on your device. Photos and notes are AES-256-GCM encrypted with a per-install key stored in your phone's hardware security module. No data is sent to any server. No analytics. No telemetry.",
+                        stringResource(R.string.settings_privacy_promise_text),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp)
                     )
                     Text(
-                        "Note: Document Scanner and Translation currently use Google ML Kit which runs through Google Play Services. These will be replaced with fully private alternatives in a future update.",
+                        stringResource(R.string.settings_ml_kit_note),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
             }
-        }
+            } // end showAbout
+            } // end inner scrollable Column
+        } // end outer Column
     }
 }
 
@@ -612,7 +663,7 @@ fun isFaceBlurEnabled(context: android.content.Context): Boolean {
 private fun GracePeriodSetting(context: android.content.Context) {
     val prefs = remember { context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE) }
     val options = listOf(0, 10, 30, 60, 120)
-    val labels = listOf("Immediately", "10 seconds", "30 seconds", "1 minute", "2 minutes")
+    val labels = listOf(stringResource(R.string.grace_immediately), stringResource(R.string.grace_10_seconds), stringResource(R.string.grace_30_seconds), stringResource(R.string.grace_1_minute), stringResource(R.string.grace_2_minutes))
     var currentValue by remember { mutableStateOf(prefs.getInt("lock_grace_seconds", 30)) }
     var expanded by remember { mutableStateOf(false) }
 
@@ -628,8 +679,8 @@ private fun GracePeriodSetting(context: android.content.Context) {
     ) {
         Icon(Icons.Default.Lock, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Column(Modifier.weight(1f)) {
-            Text("Auto-lock delay", style = MaterialTheme.typography.bodyLarge)
-            Text("Lock vault after: $currentLabel", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.settings_autolock_delay), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.settings_lock_vault_after, currentLabel), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -637,10 +688,10 @@ private fun GracePeriodSetting(context: android.content.Context) {
     if (expanded) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { expanded = false },
-            title = { Text("Auto-lock delay") },
+            title = { Text(stringResource(R.string.settings_autolock_delay)) },
             text = {
                 Column {
-                    Text("How long to wait before locking the vault when you leave the app.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 12.dp))
+                    Text(stringResource(R.string.settings_autolock_description), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 12.dp))
                     options.forEachIndexed { index, value ->
                         Row(
                             Modifier

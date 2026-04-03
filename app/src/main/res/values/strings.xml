@@ -1,4 +1,432 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Privo</string>
+    <string name="widget_name">Privo Quick Access</string>
+    <string name="widget_description">Quick access to Camera and Vault</string>
+
+    <!-- Common actions -->
+    <string name="action_back">Back</string>
+    <string name="action_search">Search</string>
+    <string name="action_close">Close</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_share">Share</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_add">Add</string>
+    <string name="action_save">Save</string>
+    <string name="action_create">Create</string>
+    <string name="action_unlock">Unlock</string>
+    <string name="action_clear_all">Clear All</string>
+    <string name="action_previous">Previous</string>
+    <string name="action_next">Next</string>
+    <string name="action_previous_day">Previous Day</string>
+    <string name="action_next_day">Next Day</string>
+    <string name="action_export_pdf">Export PDF</string>
+    <string name="action_move_up">Up</string>
+    <string name="action_move_down">Down</string>
+
+    <!-- Common labels -->
+    <string name="label_amount">Amount</string>
+    <string name="label_description">Description</string>
+    <string name="label_category">Category</string>
+    <string name="label_name">Name</string>
+    <string name="label_icon">Icon</string>
+    <string name="label_color">Color</string>
+    <string name="label_notes">Notes</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_search_placeholder">Search settings…</string>
+
+    <!-- Settings: Home Screen Features -->
+    <string name="settings_section_home_features">Home Screen Features</string>
+    <string name="feature_camera">Camera</string>
+    <string name="feature_camera_desc">Photo &amp; Video capture</string>
+    <string name="feature_detect">Detect</string>
+    <string name="feature_detect_desc">AI object detection</string>
+    <string name="feature_scan">Scan</string>
+    <string name="feature_scan_desc">Document scanner + OCR</string>
+    <string name="feature_qr_scan">QR Scan</string>
+    <string name="feature_qr_scan_desc">QR &amp; barcode scanner</string>
+    <string name="feature_translate">Translate</string>
+    <string name="feature_translate_desc">Local translation</string>
+    <string name="feature_vault">Vault</string>
+    <string name="feature_vault_desc">Encrypted photo storage</string>
+    <string name="feature_notes">Notes</string>
+    <string name="feature_notes_desc">Secure encrypted notes</string>
+    <string name="feature_insights">Insights</string>
+    <string name="feature_insights_desc">Expenses, health, habits</string>
+    <string name="feature_tools">Tools</string>
+    <string name="feature_tools_desc">Unit converter</string>
+    <string name="settings_reorder_hint">Use arrows to reorder. Disabled features are hidden from home.</string>
+
+    <!-- Settings: AI Detection -->
+    <string name="settings_section_ai_detection">AI Detection</string>
+    <string name="settings_min_confidence">Minimum Confidence: %1$d%%</string>
+    <string name="settings_min_confidence_desc">Hide detections below this threshold</string>
+    <string name="settings_detection_categories">Detection Categories</string>
+    <string name="settings_detection_categories_desc">%1$d of 80 categories selected</string>
+    <string name="settings_ai_detection_hint">These settings apply to the Detect feature and capture button.</string>
+
+    <!-- Settings: Device -->
+    <string name="settings_section_device">Device</string>
+    <string name="settings_performance_tier">Performance Tier: %1$s</string>
+    <string name="settings_device_info">Device Info</string>
+    <string name="settings_device_info_desc">%1$d CPU cores \u2022 %2$d MB RAM \u2022 %3$dms inference</string>
+    <string name="settings_rebenchmark">Re-benchmark</string>
+    <string name="settings_rebenchmark_desc">Run performance test again</string>
+    <string name="settings_running_benchmark">Running benchmark\u2026</string>
+    <string name="settings_benchmark_complete">Benchmark complete</string>
+
+    <!-- Settings: Security -->
+    <string name="settings_section_security">Security</string>
+    <string name="settings_encryption">Encryption</string>
+    <string name="settings_encryption_desc">AES-256-GCM \u2022 Per-install key \u2022 Hardware-backed</string>
+    <string name="settings_screenshot_protection">Screenshot Protection</string>
+    <string name="settings_screenshot_protection_desc">Enabled \u2014 screenshots and screen recording blocked</string>
+    <string name="settings_emergency_pin">Emergency PIN</string>
+    <string name="settings_emergency_pin_active">Active</string>
+    <string name="settings_set_emergency_pin">Set Emergency PIN</string>
+    <string name="settings_set_emergency_pin_desc">Create a PIN that shows empty vault when entered</string>
+    <string name="settings_autolock_delay">Auto-lock delay</string>
+    <string name="settings_lock_vault_after">Lock vault after: %1$s</string>
+    <string name="settings_autolock_description">How long to wait before locking the vault when you leave the app.</string>
+    <string name="grace_immediately">Immediately</string>
+    <string name="grace_10_seconds">10 seconds</string>
+    <string name="grace_30_seconds">30 seconds</string>
+    <string name="grace_1_minute">1 minute</string>
+    <string name="grace_2_minutes">2 minutes</string>
+
+    <!-- Settings: Storage -->
+    <string name="settings_section_storage">Storage</string>
+    <string name="settings_vault">Vault</string>
+    <string name="settings_vault_desc">%1$s \u2022 %2$d photos</string>
+    <string name="settings_notes">Notes</string>
+    <string name="settings_notes_desc">%1$s \u2022 %2$d notes</string>
+    <string name="settings_cache">Cache</string>
+    <string name="settings_device_storage">Device Storage</string>
+    <string name="settings_device_storage_desc">%1$s free of %2$s (%3$s%% used)</string>
+    <string name="settings_storage_low_warning">\u26A0 Storage is low! Consider clearing cache or deleting old vault items.</string>
+    <string name="settings_clear_cache">Clear Cache</string>
+    <string name="settings_clear_cache_desc">Remove temporary shared files</string>
+    <string name="settings_cleared_size">Cleared %1$s</string>
+
+    <!-- Settings: Privacy -->
+    <string name="settings_section_privacy">Privacy</string>
+    <string name="settings_exif_stripping">EXIF Stripping</string>
+    <string name="settings_exif_stripping_desc">Enabled \u2014 GPS, device info, timestamps removed from all shared images</string>
+    <string name="settings_face_blur">Face Blur on Share</string>
+    <string name="settings_face_blur_desc">Automatically blur faces before sharing photos</string>
+    <string name="settings_network_policy">Network Policy</string>
+    <string name="settings_network_policy_desc">No analytics, no telemetry. Network used only for ML Kit model downloads.</string>
+    <string name="settings_backup_exclusion">Backup Exclusion</string>
+    <string name="settings_backup_exclusion_desc">Vault data excluded from device backups</string>
+
+    <!-- Settings: Backup & Migration -->
+    <string name="settings_section_backup">Backup &amp; Migration</string>
+    <string name="settings_export_import">Export / Import Backup</string>
+    <string name="settings_export_import_desc">Transfer photos, videos, and notes to a new phone</string>
+    <string name="settings_backup_hint">Your data is encrypted with a key unique to this phone. Use backup to transfer data when changing phones.</string>
+
+    <!-- Settings: About -->
+    <string name="settings_section_about">About</string>
+    <string name="settings_privo">Privo</string>
+    <string name="settings_privo_desc">Version 1.0.0 \u2022 AI camera that never sends your data anywhere</string>
+    <string name="settings_crash_logs">Crash Logs (%1$d)</string>
+    <string name="settings_crash_logs_desc">View local crash reports \u2014 never sent anywhere</string>
+    <string name="settings_crash_logs_title">Crash Logs</string>
+    <string name="settings_crash_logs_cleared">Crash logs cleared</string>
+    <string name="settings_crash_report">Crash Report</string>
+    <string name="settings_crash_report_subject">Privo Crash Report</string>
+    <string name="settings_log_deleted">Log deleted</string>
+    <string name="settings_privacy_policy">Privacy Policy</string>
+    <string name="settings_privacy_policy_desc">View our privacy policy</string>
+    <string name="settings_privacy_promise">Privacy Promise</string>
+    <string name="settings_privacy_promise_text">All AI processing runs on your device. Photos and notes are AES-256-GCM encrypted with a per-install key stored in your phone\'s hardware security module. No data is sent to any server. No analytics. No telemetry.</string>
+    <string name="settings_ml_kit_note">Note: Document Scanner and Translation currently use Google ML Kit which runs through Google Play Services. These will be replaced with fully private alternatives in a future update.</string>
+
+    <!-- Insights screen -->
+    <string name="insights_title">Insights</string>
+    <string name="insights_locked">Insights is locked</string>
+    <string name="insights_unlock_title">Unlock Insights</string>
+    <string name="insights_unlock_subtitle">Authenticate to access your data</string>
+    <string name="insights_enter_pin">Enter PIN</string>
+    <string name="insights_incorrect_pin">Incorrect PIN</string>
+    <string name="insights_no_data">No data yet</string>
+    <string name="tab_expenses">Expenses</string>
+    <string name="tab_health">Health</string>
+    <string name="tab_habits">Habits</string>
+
+    <!-- Expenses tab -->
+    <string name="expenses_total">Total</string>
+    <string name="expenses_count">%1$d expenses</string>
+    <string name="expenses_by_category">By Category</string>
+    <string name="expenses_none_this_month">No expenses this month</string>
+    <string name="expenses_add_title">Add Expense</string>
+
+    <!-- Health tab -->
+    <string name="health_myself">Myself</string>
+    <string name="health_unknown">Unknown</string>
+    <string name="health_add_profile">Add Profile</string>
+    <string name="health_entries_this_month">%1$d entries this month</string>
+    <string name="health_weight">Weight</string>
+    <string name="health_heart_rate">Heart Rate</string>
+    <string name="health_no_entries">No entries this month</string>
+    <string name="health_log_title">Log Health</string>
+    <string name="health_label_weight">Weight kg</string>
+    <string name="health_label_temp">Temp \u00B0</string>
+    <string name="health_label_heart_bpm">Heart bpm</string>
+    <string name="health_label_steps">Steps</string>
+    <string name="health_label_bp_sys">BP Sys</string>
+    <string name="health_label_bp_dia">BP Dia</string>
+    <string name="health_label_sleep">Sleep: %1$s hrs</string>
+    <string name="health_label_mood">Mood</string>
+
+    <!-- Habits tab -->
+    <string name="habits_today">Today</string>
+    <string name="habits_none_configured">No habits configured. Tap + to add.</string>
+    <string name="habits_day_streak">%1$d day streak \uD83D\uDD25</string>
+    <string name="habits_completed_count">%1$d / %2$d completed</string>
+    <string name="habits_all_done">All done! \uD83C\uDF89</string>
+    <string name="habits_add">Add Habit</string>
+    <string name="habits_new_title">New Habit</string>
+
+    <!-- Export dialog -->
+    <string name="export_title">Export Report</string>
+    <string name="export_share_report">Share Report</string>
+    <string name="export_share_desc">Send PDF via email, messaging, etc.</string>
+    <string name="export_save_to_vault">Save to Vault</string>
+    <string name="export_save_to_vault_desc">Encrypt and store in vault</string>
+    <string name="export_saved_to_vault">Saved to vault (Reports)</string>
+    <string name="export_save_failed">Save failed: %1$s</string>
+    <string name="export_save_to_device">Save to Device</string>
+    <string name="export_save_to_device_desc">Save PDF to Downloads folder</string>
+    <string name="export_saved_to_downloads">Saved to Downloads/Privo</string>
+    <string name="export_csv">Export CSV</string>
+    <string name="export_csv_desc">Save spreadsheet to Downloads folder</string>
+    <string name="export_saved_csv_to_downloads">Saved CSV to Downloads/Privo</string>
+
+    <!-- Unit Converter screen -->
+    <string name="unit_converter_title">Unit Converter</string>
+    <string name="unit_converter_from">From</string>
+    <string name="unit_converter_to">To</string>
+    <string name="unit_converter_swap">Swap</string>
+    <string name="unit_converter_all_conversions">All conversions</string>
+
+    <!-- Shared UI strings (Vault, Notes, Editor) -->
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="share">Share</string>
+    <string name="save">Save</string>
+    <string name="create">Create</string>
+    <string name="unlock">Unlock</string>
+    <string name="close">Close</string>
+    <string name="search">Search</string>
+    <string name="clear">Clear</string>
+    <string name="edit">Edit</string>
+    <string name="rename">Rename</string>
+    <string name="move">Move</string>
+    <string name="details">Details</string>
+    <string name="previous">Previous</string>
+    <string name="next">Next</string>
+    <string name="pin">Pin</string>
+    <string name="color">Color</string>
+    <string name="all">All</string>
+    <string name="photo">Photo</string>
+    <string name="video">Video</string>
+    <string name="enter_pin">Enter PIN</string>
+    <string name="incorrect_pin">Incorrect PIN</string>
+    <string name="n_selected">%d selected</string>
+
+    <!-- Vault screen -->
+    <string name="encrypted_vault">Encrypted Vault</string>
+    <string name="vault_is_locked">Vault is locked</string>
+    <string name="unlock_vault">Unlock Vault</string>
+    <string name="authenticate_to_access_vault">Authenticate to access encrypted photos</string>
+    <string name="search_vault">Search vault…</string>
+    <string name="no_results_found">No results found</string>
+    <string name="n_results">%d result(s)</string>
+    <string name="no_items_yet">No items yet</string>
+    <string name="category_camera">Camera</string>
+    <string name="category_videos">Videos</string>
+    <string name="category_scans">Scans</string>
+    <string name="category_detections">Detections</string>
+    <string name="category_reports">Reports</string>
+    <string name="category_with_count">%1$s (%2$d)</string>
+    <string name="my_folders">My Folders</string>
+    <string name="new_folder">New Folder</string>
+    <string name="no_folders_yet">No folders yet</string>
+    <string name="empty_folder">Empty folder</string>
+    <string name="create_folder">Create Folder</string>
+    <string name="folder_name">Folder name</string>
+    <string name="rename_folder">Rename Folder</string>
+    <string name="new_name">New name</string>
+    <string name="delete_folder_title">Delete Folder?</string>
+    <string name="delete_folder_message">\"%1$s\" and all its contents will be permanently deleted.</string>
+    <string name="move_to">Move to…</string>
+    <string name="system_label">System</string>
+    <string name="moved_n_items">Moved %d item(s)</string>
+    <string name="moved_n_items_to_folder">Moved %1$d item(s) to %2$s</string>
+    <string name="n_items">%d Items</string>
+    <string name="n_items_count">%d items</string>
+    <string name="delete_item">Delete %s</string>
+    <string name="permanently_deleted_from_vault">Permanently deleted from vault.</string>
+    <string name="file_details">File Details</string>
+    <string name="detail_type">Type</string>
+    <string name="detail_name">Name</string>
+    <string name="detail_date">Date</string>
+    <string name="detail_encrypted_size">Encrypted Size</string>
+    <string name="detail_category">Category</string>
+    <string name="security">Security</string>
+    <string name="detail_encryption">Encryption</string>
+    <string name="aes_256_gcm">AES-256-GCM</string>
+    <string name="detail_key_storage">Key Storage</string>
+    <string name="hardware_tee_strongbox">Hardware TEE/StrongBox</string>
+    <string name="detail_exif_data">EXIF Data</string>
+    <string name="stripped_on_share">Stripped on share</string>
+    <string name="detail_storage">Storage</string>
+    <string name="app_internal_hidden">App-internal (hidden)</string>
+    <string name="type_photo_jpeg">Photo (JPEG)</string>
+    <string name="type_video_mp4">Video (MP4)</string>
+    <string name="type_pdf_document">PDF Document</string>
+    <string name="failed_to_decrypt_video">Failed to decrypt video</string>
+    <string name="open_pdf">Open PDF</string>
+    <string name="failed_to_open_pdf">Failed to open PDF: %s</string>
+    <string name="share_pdf">Share PDF</string>
+    <string name="share_photo">Share photo</string>
+    <string name="share_video">Share Video</string>
+    <string name="share_n_items">Share %d items</string>
+    <string name="items_saved_to_gallery">%d item(s) saved to gallery</string>
+    <string name="video_saved_to_gallery">Video saved to gallery</string>
+    <string name="save_failed">Save failed</string>
+    <string name="save_to_device">Save to Device</string>
+    <string name="share_no_blur">Share (no blur)</string>
+    <string name="share_faces_blurred">Share (faces blurred)</string>
+    <string name="share_without_blur">Share without blur</string>
+    <string name="blur_and_share">Blur &amp; Share</string>
+    <string name="import_to_folder">Import to Folder</string>
+    <string name="new_subfolder">New Subfolder</string>
+    <string name="n_photos">%d photo(s)</string>
+    <string name="n_videos">%d video(s)</string>
+    <string name="n_pdfs">%d PDF(s)</string>
+    <string name="to_folder"> to %s</string>
+    <string name="imported_summary">Imported %1$s%2$s</string>
+    <string name="skipped_large"> (%d skipped — over 150MB)</string>
+
+    <!-- Content descriptions (Vault) -->
+    <string name="cd_pdf_document">PDF document</string>
+    <string name="cd_video_thumbnail">Video thumbnail</string>
+    <string name="cd_photo_thumbnail">Photo thumbnail</string>
+    <string name="cd_encrypted_item">Encrypted item</string>
+
+    <!-- Notes screen -->
+    <string name="secure_notes">Secure Notes</string>
+    <string name="notes_are_locked">Notes are locked</string>
+    <string name="unlock_notes">Unlock Notes</string>
+    <string name="authenticate_to_access_notes">Authenticate to access secure notes</string>
+    <string name="secure_notes_count">Secure Notes (%d)</string>
+    <string name="search_notes">Search notes…</string>
+    <string name="no_notes_yet">No notes yet</string>
+    <string name="tap_plus_to_create">Tap + to create one</string>
+    <string name="share_notes">Share notes</string>
+    <string name="delete_n_notes">Delete %d note(s)</string>
+    <string name="permanently_deleted">Permanently deleted.</string>
+    <string name="choose_color">Choose color</string>
+    <string name="new_note">New Note</string>
+
+    <!-- Note Editor screen -->
+    <string name="edit_note">Edit Note</string>
+    <string name="delete_note_title">Delete Note</string>
+    <string name="delete_note_message">This note will be permanently deleted.</string>
+    <string name="title_label">Title</string>
+    <string name="tag_placeholder">Tag</string>
+    <string name="add_tag">Add tag</string>
+    <string name="new_tag">New tag</string>
+    <string name="note_label">Note</string>
+
+    <!-- Home screen -->
+    <string name="app_name_home">Privo</string>
+    <string name="vault_notes_locked">Vault &amp; Notes locked</string>
+    <string name="cd_lock_vault">Lock Vault</string>
+    <string name="cd_settings">Settings</string>
+    <string name="backup_restored">Backup Restored</string>
+    <string name="cd_dismiss">Dismiss</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Privo</string>
+    <string name="onboarding_welcome_description">AI-powered camera that runs entirely on your device.\nNo data is ever sent to any server.</string>
+    <string name="onboarding_get_started">Get Started</string>
+    <string name="onboarding_have_backup">I have a backup</string>
+    <string name="onboarding_privacy_title">Your Privacy Matters</string>
+    <string name="onboarding_privacy_description">All AI processing happens on-device.\nPhotos and notes are encrypted with AES-256-GCM.\nNo analytics. No telemetry. No cloud.</string>
+    <string name="onboarding_feature_detection">Object detection runs locally</string>
+    <string name="onboarding_feature_scanning">Documents scanned on-device</string>
+    <string name="onboarding_feature_translation">Translation models downloaded once, then offline</string>
+    <string name="onboarding_feature_vault_encryption">Vault encrypted with hardware-backed keys</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_continue">Continue</string>
+    <string name="auth_mode_title">How to Unlock Vault?</string>
+    <string name="auth_mode_description">Choose how you want to protect your encrypted vault and notes.</string>
+    <string name="auth_use_phone_lock">Use Phone Lock</string>
+    <string name="auth_phone_lock_desc">Fingerprint, face, or device PIN</string>
+    <string name="auth_create_app_pin">Create App PIN</string>
+    <string name="auth_app_pin_desc">Separate PIN just for this app. Enables Emergency PIN feature.</string>
+    <string name="pin_min_digits">PIN must be at least 4 digits</string>
+    <string name="pins_dont_match_toast">PINs don\'t match</string>
+    <string name="protection_phone_lock">phone lock (fingerprint/PIN)</string>
+    <string name="protection_app_pin">app PIN</string>
+    <string name="duress_note">You can set up an Emergency PIN in Settings.</string>
+    <string name="onboarding_all_set_title">You\'re All Set!</string>
+    <string name="onboarding_all_set_description">Your vault is secured with %1$s.%2$s\nAll photos and notes will be encrypted automatically.</string>
+    <string name="onboarding_start_using_app">Start Using App</string>
+    <string name="pin_setup_title">Set Your PIN</string>
+    <string name="pin_setup_description">This PIN protects your vault and secure notes.\nChoose at least 4 digits.</string>
+    <string name="pin_label">PIN</string>
+    <string name="pin_placeholder">Enter 4–8 digit PIN</string>
+    <string name="cd_toggle_visibility">Toggle visibility</string>
+    <string name="confirm_pin_label">Confirm PIN</string>
+    <string name="confirm_pin_placeholder">Re-enter PIN</string>
+    <string name="pins_dont_match">PINs don\'t match</string>
+    <string name="set_pin_button">Set PIN</string>
+
+    <!-- Camera capture -->
+    <string name="grant_camera_permission">Grant Camera Permission</string>
+    <string name="save_failed_with_msg">Save failed: %1$s</string>
+    <string name="recording_failed">Recording failed</string>
+    <string name="no_audio">(no audio)</string>
+    <string name="encrypting_video">Encrypting video…</string>
+    <string name="cd_back">Back</string>
+    <string name="face_count">%1$d face(s)</string>
+    <string name="cd_switch_camera">Switch Camera</string>
+    <string name="mode_photo">PHOTO</string>
+    <string name="mode_video">VIDEO</string>
+    <string name="cd_view_last_capture">View last capture</string>
+    <string name="cd_last_capture">Last capture</string>
+    <string name="cd_stop_recording">Stop recording</string>
+    <string name="cd_start_recording">Start recording</string>
+    <string name="cd_take_photo">Take photo</string>
+    <string name="cd_photos_taken">%1$d photos taken</string>
+    <string name="cd_captured_photo">Captured photo</string>
+    <string name="cd_close">Close</string>
+    <string name="cd_share">Share</string>
+    <string name="cd_share_without_blur">Share without blur</string>
+    <string name="cd_blur_and_share">Blur &amp; Share</string>
+    <string name="cd_delete">Delete</string>
+
+    <!-- Camera detection -->
+    <string name="camera_needs_access">Privo needs camera access</string>
+    <string name="camera_privacy_note">All processing happens on your device.\nNo data is sent anywhere.</string>
+    <string name="object_count">%1$d objects</string>
+    <string name="inference_time_ms">%1$dms</string>
+    <string name="cd_selected_object">Selected: %1$s</string>
+    <string name="confidence_percent">Confidence: %1$d%%</string>
+    <string name="web_search">Web Search</string>
+    <string name="search_by_image">Search by Image</string>
+    <string name="cd_save_detection_photo">Save detection photo</string>
+    <string name="detection_photo_saved">Detection photo saved to vault</string>
+    <string name="save_failed_generic">Save failed</string>
+
+    <!-- Health profile dialog -->
+    <string name="health_add_profile_title">Add Family Member</string>
+    <string name="health_profile_name">Name</string>
 </resources>

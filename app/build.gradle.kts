@@ -61,6 +61,12 @@ android {
     buildFeatures {
         compose = true
     }
+
+    bundle {
+        language { enableSplit = true }
+        density { enableSplit = true }
+        abi { enableSplit = true }
+    }
 }
 
 dependencies {
@@ -95,6 +101,9 @@ dependencies {
 
     // Biometric
     implementation(libs.androidx.biometric)
+
+    // Testing
+    testImplementation(libs.junit)
 
     // ML Kit
     implementation(libs.mlkit.document.scanner)

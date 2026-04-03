@@ -40,7 +40,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.privateai.camera.R
 
 // ===== Unit Data =====
 
@@ -176,9 +178,9 @@ fun UnitConverterScreen(onBack: (() -> Unit)? = null) {
 
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text("Unit Converter") },
+            title = { Text(stringResource(R.string.unit_converter_title)) },
             navigationIcon = {
-                if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+                if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) }
             }
         )
     }) { padding ->
@@ -213,7 +215,7 @@ fun UnitConverterScreen(onBack: (() -> Unit)? = null) {
             // From
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("From", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.unit_converter_from), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(
                             value = inputValue,
@@ -244,14 +246,14 @@ fun UnitConverterScreen(onBack: (() -> Unit)? = null) {
                 IconButton(onClick = {
                     val tmp = fromUnitIdx; fromUnitIdx = toUnitIdx; toUnitIdx = tmp; saveState()
                 }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Default.SwapVert, "Swap", Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.SwapVert, stringResource(R.string.unit_converter_swap), Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                 }
             }
 
             // To (result)
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("To", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text(stringResource(R.string.unit_converter_to), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = result.ifEmpty { "—" },
@@ -278,7 +280,7 @@ fun UnitConverterScreen(onBack: (() -> Unit)? = null) {
             if (inputNum != null) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("All conversions", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.unit_converter_all_conversions), style = MaterialTheme.typography.titleSmall)
                         Spacer(Modifier.height(4.dp))
                         val baseValue = fromUnit.toBase(inputNum)
                         category.units.forEach { unit ->
