@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Privora</string>
+    <string name="widget_name">Privora 快速访问</string>
+    <string name="widget_description">快速访问相机和保险库</string>
+
+    <!-- Common actions -->
+    <string name="action_back">返回</string>
+    <string name="action_search">搜索</string>
+    <string name="action_close">关闭</string>
+    <string name="action_delete">删除</string>
+    <string name="action_share">分享</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_add">添加</string>
+    <string name="action_save">保存</string>
+    <string name="action_create">创建</string>
+    <string name="action_unlock">解锁</string>
+    <string name="action_clear_all">全部清除</string>
+    <string name="action_previous">上一个</string>
+    <string name="action_next">下一个</string>
+    <string name="action_previous_day">前一天</string>
+    <string name="action_next_day">后一天</string>
+    <string name="action_export_pdf">导出 PDF</string>
+    <string name="action_move_up">上移</string>
+    <string name="action_move_down">下移</string>
+
+    <!-- Common labels -->
+    <string name="label_amount">金额</string>
+    <string name="label_description">描述</string>
+    <string name="label_category">分类</string>
+    <string name="label_name">名称</string>
+    <string name="label_icon">图标</string>
+    <string name="label_color">颜色</string>
+    <string name="label_notes">笔记</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">设置</string>
+    <string name="settings_search_placeholder">搜索设置…</string>
+
+    <!-- Settings: Home Screen Features -->
+    <string name="settings_section_home_features">主屏幕功能</string>
+    <string name="feature_camera">相机</string>
+    <string name="feature_camera_desc">拍照和录像</string>
+    <string name="feature_detect">检测</string>
+    <string name="feature_detect_desc">AI 物体检测</string>
+    <string name="feature_scan">扫描</string>
+    <string name="feature_scan_desc">文档扫描 + OCR</string>
+    <string name="feature_qr_scan">QR 扫描</string>
+    <string name="feature_qr_scan_desc">QR 和条形码扫描</string>
+    <string name="feature_translate">翻译</string>
+    <string name="feature_translate_desc">本地翻译</string>
+    <string name="feature_vault">保险库</string>
+    <string name="feature_vault_desc">加密照片存储</string>
+    <string name="feature_notes">笔记</string>
+    <string name="feature_notes_desc">安全加密笔记</string>
+    <string name="feature_insights">数据分析</string>
+    <string name="feature_insights_desc">支出、健康、习惯</string>
+    <string name="feature_tools">工具</string>
+    <string name="feature_tools_desc">单位换算</string>
+    <string name="settings_reorder_hint">使用箭头重新排序。已禁用的功能将从主屏幕隐藏。</string>
+
+    <!-- Settings: AI Detection -->
+    <string name="settings_section_ai_detection">AI 检测</string>
+    <string name="settings_min_confidence">最低置信度：%1$d%%</string>
+    <string name="settings_min_confidence_desc">隐藏低于此阈值的检测结果</string>
+    <string name="settings_detection_categories">检测类别</string>
+    <string name="settings_detection_categories_desc">已选择 %1$d / 80 个类别</string>
+    <string name="settings_ai_detection_hint">这些设置适用于检测功能和拍摄按钮。</string>
+
+    <!-- Settings: Device -->
+    <string name="settings_section_device">设备</string>
+    <string name="settings_performance_tier">性能等级：%1$s</string>
+    <string name="settings_device_info">设备信息</string>
+    <string name="settings_device_info_desc">%1$d 个 CPU 核心 \u2022 %2$d MB RAM \u2022 %3$dms 推理</string>
+    <string name="settings_rebenchmark">重新测试</string>
+    <string name="settings_rebenchmark_desc">再次运行性能测试</string>
+    <string name="settings_running_benchmark">正在运行基准测试\u2026</string>
+    <string name="settings_benchmark_complete">基准测试完成</string>
+    <string name="settings_language">语言</string>
+    <string name="settings_language_system">系统默认</string>
+
+    <!-- Settings: Security -->
+    <string name="settings_section_security">安全</string>
+    <string name="settings_encryption">加密</string>
+    <string name="settings_encryption_desc">AES-256-GCM \u2022 每次安装独立密钥 \u2022 硬件支持</string>
+    <string name="settings_screenshot_protection">截屏保护</string>
+    <string name="settings_screenshot_protection_desc">已启用 \u2014 截屏和屏幕录制已被阻止</string>
+    <string name="settings_emergency_pin">紧急 PIN</string>
+    <string name="settings_emergency_pin_active">已激活</string>
+    <string name="settings_set_emergency_pin">设置紧急 PIN</string>
+    <string name="settings_set_emergency_pin_desc">创建一个输入后显示空保险库的 PIN</string>
+    <string name="settings_autolock_delay">自动锁定延迟</string>
+    <string name="settings_lock_vault_after">保险库锁定时间：%1$s</string>
+    <string name="settings_autolock_description">离开应用后等待多长时间锁定保险库。</string>
+    <string name="grace_immediately">立即</string>
+    <string name="grace_10_seconds">10 秒</string>
+    <string name="grace_30_seconds">30 秒</string>
+    <string name="grace_1_minute">1 分钟</string>
+    <string name="grace_2_minutes">2 分钟</string>
+
+    <!-- Settings: Storage -->
+    <string name="settings_section_storage">存储</string>
+    <string name="settings_vault">保险库</string>
+    <string name="settings_vault_desc">%1$s \u2022 %2$d 张照片</string>
+    <string name="settings_notes">笔记</string>
+    <string name="settings_notes_desc">%1$s \u2022 %2$d 条笔记</string>
+    <string name="settings_cache">缓存</string>
+    <string name="settings_device_storage">设备存储</string>
+    <string name="settings_device_storage_desc">%1$s 可用，共 %2$s（已使用 %3$s%%）</string>
+    <string name="settings_storage_low_warning">\u26A0 存储空间不足！请考虑清除缓存或删除旧的保险库项目。</string>
+    <string name="settings_clear_cache">清除缓存</string>
+    <string name="settings_clear_cache_desc">移除临时共享文件</string>
+    <string name="settings_cleared_size">已清除 %1$s</string>
+
+    <!-- Settings: Privacy -->
+    <string name="settings_section_privacy">隐私</string>
+    <string name="settings_exif_stripping">EXIF 清除</string>
+    <string name="settings_exif_stripping_desc">已启用 \u2014 分享图片时移除 GPS、设备信息和时间戳</string>
+    <string name="settings_face_blur">分享时模糊人脸</string>
+    <string name="settings_face_blur_desc">分享照片前自动模糊人脸</string>
+    <string name="settings_network_policy">网络策略</string>
+    <string name="settings_network_policy_desc">无分析、无遥测。网络仅用于 ML Kit 模型下载。</string>
+    <string name="settings_backup_exclusion">备份排除</string>
+    <string name="settings_backup_exclusion_desc">保险库数据已从设备备份中排除</string>
+
+    <!-- Settings: Backup & Migration -->
+    <string name="settings_section_backup">备份和迁移</string>
+    <string name="settings_export_import">导出 / 导入备份</string>
+    <string name="settings_export_import_desc">将照片、视频和笔记转移到新手机</string>
+    <string name="settings_backup_hint">您的数据使用此手机独有的密钥加密。更换手机时请使用备份来转移数据。</string>
+
+    <!-- Settings: About -->
+    <string name="settings_section_about">关于</string>
+    <string name="settings_privo">Privora</string>
+    <string name="settings_privo_desc">版本 1.0.0 \u2022 永不将您的数据发送到任何地方的 AI 相机</string>
+    <string name="settings_crash_logs">崩溃日志（%1$d）</string>
+    <string name="settings_crash_logs_desc">查看本地崩溃报告 \u2014 永远不会发送到任何地方</string>
+    <string name="settings_crash_logs_title">崩溃日志</string>
+    <string name="settings_crash_logs_cleared">崩溃日志已清除</string>
+    <string name="settings_crash_report">崩溃报告</string>
+    <string name="settings_crash_report_subject">Privora 崩溃报告</string>
+    <string name="settings_log_deleted">日志已删除</string>
+    <string name="settings_privacy_policy">隐私政策</string>
+    <string name="settings_privacy_policy_desc">查看我们的隐私政策</string>
+    <string name="settings_privacy_promise">隐私承诺</string>
+    <string name="settings_privacy_promise_text">所有 AI 处理均在您的设备上运行。照片和笔记使用 AES-256-GCM 加密，密钥存储在手机的硬件安全模块中，每次安装独立生成。不会向任何服务器发送任何数据。无分析。无遥测。</string>
+    <string name="settings_ml_kit_note">注意：文档扫描和翻译目前使用通过 Google Play 服务运行的 Google ML Kit。未来更新中将替换为完全私密的替代方案。</string>
+
+    <!-- Insights screen -->
+    <string name="insights_title">数据分析</string>
+    <string name="insights_locked">数据分析已锁定</string>
+    <string name="insights_unlock_title">解锁数据分析</string>
+    <string name="insights_unlock_subtitle">验证身份以访问您的数据</string>
+    <string name="insights_enter_pin">输入 PIN</string>
+    <string name="insights_incorrect_pin">PIN 不正确</string>
+    <string name="insights_no_data">暂无数据</string>
+    <string name="tab_expenses">支出</string>
+    <string name="tab_health">健康</string>
+    <string name="tab_habits">习惯</string>
+
+    <!-- Expenses tab -->
+    <string name="expenses_total">总计</string>
+    <string name="expenses_count">%1$d 笔支出</string>
+    <string name="expenses_by_category">按分类</string>
+    <string name="expenses_none_this_month">本月无支出</string>
+    <string name="expenses_add_title">添加支出</string>
+
+    <!-- Health tab -->
+    <string name="health_myself">本人</string>
+    <string name="health_unknown">未知</string>
+    <string name="health_add_profile">添加档案</string>
+    <string name="health_entries_this_month">本月 %1$d 条记录</string>
+    <string name="health_weight">体重</string>
+    <string name="health_heart_rate">心率</string>
+    <string name="health_no_entries">本月无记录</string>
+    <string name="health_log_title">记录健康</string>
+    <string name="health_label_weight">体重 kg</string>
+    <string name="health_label_temp">体温 \u00B0</string>
+    <string name="health_label_heart_bpm">心率 bpm</string>
+    <string name="health_label_steps">步数</string>
+    <string name="health_label_bp_sys">收缩压</string>
+    <string name="health_label_bp_dia">舒张压</string>
+    <string name="health_label_sleep">睡眠：%1$s 小时</string>
+    <string name="health_label_mood">心情</string>
+
+    <!-- Habits tab -->
+    <string name="habits_today">今天</string>
+    <string name="habits_none_configured">未配置习惯。点击 + 添加。</string>
+    <string name="habits_day_streak">连续 %1$d 天 \uD83D\uDD25</string>
+    <string name="habits_completed_count">已完成 %1$d / %2$d</string>
+    <string name="habits_all_done">全部完成！\uD83C\uDF89</string>
+    <string name="habits_add">添加习惯</string>
+    <string name="habits_new_title">新习惯</string>
+
+    <!-- Export dialog -->
+    <string name="export_title">导出报告</string>
+    <string name="export_share_report">分享报告</string>
+    <string name="export_share_desc">通过电子邮件、消息等发送 PDF</string>
+    <string name="export_save_to_vault">保存到保险库</string>
+    <string name="export_save_to_vault_desc">加密并存储在保险库中</string>
+    <string name="export_saved_to_vault">已保存到保险库（报告）</string>
+    <string name="export_save_failed">保存失败：%1$s</string>
+    <string name="export_save_to_device">保存到设备</string>
+    <string name="export_save_to_device_desc">将 PDF 保存到下载文件夹</string>
+    <string name="export_saved_to_downloads">已保存到 Downloads/Privora</string>
+    <string name="export_csv">导出 CSV</string>
+    <string name="export_csv_desc">将电子表格保存到下载文件夹</string>
+    <string name="export_saved_csv_to_downloads">已将 CSV 保存到 Downloads/Privora</string>
+
+    <!-- Unit Converter screen -->
+    <string name="unit_converter_title">单位换算</string>
+    <string name="unit_converter_from">从</string>
+    <string name="unit_converter_to">到</string>
+    <string name="unit_converter_swap">交换</string>
+    <string name="unit_converter_all_conversions">所有换算</string>
+
+    <!-- Shared UI strings (Vault, Notes, Editor) -->
+    <string name="back">返回</string>
+    <string name="cancel">取消</string>
+    <string name="delete">删除</string>
+    <string name="share">分享</string>
+    <string name="save">保存</string>
+    <string name="create">创建</string>
+    <string name="unlock">解锁</string>
+    <string name="close">关闭</string>
+    <string name="search">搜索</string>
+    <string name="clear">清除</string>
+    <string name="edit">编辑</string>
+    <string name="rename">重命名</string>
+    <string name="move">移动</string>
+    <string name="details">详情</string>
+    <string name="previous">上一个</string>
+    <string name="next">下一个</string>
+    <string name="pin">固定</string>
+    <string name="color">颜色</string>
+    <string name="all">全部</string>
+    <string name="photo">照片</string>
+    <string name="video">视频</string>
+    <string name="enter_pin">输入 PIN</string>
+    <string name="incorrect_pin">PIN 不正确</string>
+    <string name="n_selected">已选择 %d 项</string>
+
+    <!-- Vault screen -->
+    <string name="encrypted_vault">加密保险库</string>
+    <string name="vault_is_locked">保险库已锁定</string>
+    <string name="unlock_vault">解锁保险库</string>
+    <string name="authenticate_to_access_vault">验证身份以访问加密照片</string>
+    <string name="search_vault">搜索保险库…</string>
+    <string name="no_results_found">未找到结果</string>
+    <string name="n_results">%d 条结果</string>
+    <string name="no_items_yet">暂无项目</string>
+    <string name="category_camera">相机</string>
+    <string name="category_videos">视频</string>
+    <string name="category_scans">扫描</string>
+    <string name="category_detections">检测</string>
+    <string name="category_reports">报告</string>
+    <string name="category_with_count">%1$s（%2$d）</string>
+    <string name="my_folders">我的文件夹</string>
+    <string name="new_folder">新建文件夹</string>
+    <string name="no_folders_yet">暂无文件夹</string>
+    <string name="empty_folder">空文件夹</string>
+    <string name="create_folder">创建文件夹</string>
+    <string name="folder_name">文件夹名称</string>
+    <string name="rename_folder">重命名文件夹</string>
+    <string name="new_name">新名称</string>
+    <string name="delete_folder_title">删除文件夹？</string>
+    <string name="delete_folder_message">\"%1$s\" 及其所有内容将被永久删除。</string>
+    <string name="move_to">移动到…</string>
+    <string name="system_label">系统</string>
+    <string name="moved_n_items">已移动 %d 个项目</string>
+    <string name="moved_n_items_to_folder">已将 %1$d 个项目移动到 %2$s</string>
+    <string name="n_items">%d 个项目</string>
+    <string name="n_items_count">%d 个项目</string>
+    <string name="delete_item">删除 %s</string>
+    <string name="permanently_deleted_from_vault">已从保险库永久删除。</string>
+    <string name="file_details">文件详情</string>
+    <string name="detail_type">类型</string>
+    <string name="detail_name">名称</string>
+    <string name="detail_date">日期</string>
+    <string name="detail_encrypted_size">加密大小</string>
+    <string name="detail_category">分类</string>
+    <string name="security">安全</string>
+    <string name="detail_encryption">加密</string>
+    <string name="aes_256_gcm">AES-256-GCM</string>
+    <string name="detail_key_storage">密钥存储</string>
+    <string name="hardware_tee_strongbox">硬件 TEE/StrongBox</string>
+    <string name="detail_exif_data">EXIF 数据</string>
+    <string name="stripped_on_share">分享时清除</string>
+    <string name="detail_storage">存储</string>
+    <string name="app_internal_hidden">应用内部（隐藏）</string>
+    <string name="type_photo_jpeg">照片 (JPEG)</string>
+    <string name="type_video_mp4">视频 (MP4)</string>
+    <string name="type_pdf_document">PDF 文档</string>
+    <string name="failed_to_decrypt_video">视频解密失败</string>
+    <string name="open_pdf">打开 PDF</string>
+    <string name="failed_to_open_pdf">打开 PDF 失败：%s</string>
+    <string name="share_pdf">分享 PDF</string>
+    <string name="share_photo">分享照片</string>
+    <string name="share_video">分享视频</string>
+    <string name="share_n_items">分享 %d 个项目</string>
+    <string name="items_saved_to_gallery">%d 个项目已保存到相册</string>
+    <string name="video_saved_to_gallery">视频已保存到相册</string>
+    <string name="save_failed">保存失败</string>
+    <string name="save_to_device">保存到设备</string>
+    <string name="share_no_blur">分享（不模糊）</string>
+    <string name="share_faces_blurred">分享（已模糊人脸）</string>
+    <string name="share_without_blur">不模糊分享</string>
+    <string name="blur_and_share">模糊并分享</string>
+    <string name="import_to_folder">导入到文件夹</string>
+    <string name="new_subfolder">新建子文件夹</string>
+    <string name="n_photos">%d 张照片</string>
+    <string name="n_videos">%d 个视频</string>
+    <string name="n_pdfs">%d 个 PDF</string>
+    <string name="to_folder"> 到 %s</string>
+    <string name="imported_summary">已导入 %1$s%2$s</string>
+    <string name="skipped_large"> （跳过 %d 个 — 超过 150MB）</string>
+
+    <!-- Content descriptions (Vault) -->
+    <string name="cd_pdf_document">PDF 文档</string>
+    <string name="cd_video_thumbnail">视频缩略图</string>
+    <string name="cd_photo_thumbnail">照片缩略图</string>
+    <string name="cd_encrypted_item">加密项目</string>
+
+    <!-- Notes screen -->
+    <string name="secure_notes">安全笔记</string>
+    <string name="notes_are_locked">笔记已锁定</string>
+    <string name="unlock_notes">解锁笔记</string>
+    <string name="authenticate_to_access_notes">验证身份以访问安全笔记</string>
+    <string name="secure_notes_count">安全笔记（%d）</string>
+    <string name="search_notes">搜索笔记…</string>
+    <string name="no_notes_yet">暂无笔记</string>
+    <string name="tap_plus_to_create">点击 + 创建一条</string>
+    <string name="share_notes">分享笔记</string>
+    <string name="delete_n_notes">删除 %d 条笔记</string>
+    <string name="permanently_deleted">已永久删除。</string>
+    <string name="choose_color">选择颜色</string>
+    <string name="new_note">新建笔记</string>
+
+    <!-- Note Editor screen -->
+    <string name="edit_note">编辑笔记</string>
+    <string name="delete_note_title">删除笔记</string>
+    <string name="delete_note_message">此笔记将被永久删除。</string>
+    <string name="title_label">标题</string>
+    <string name="tag_placeholder">标签</string>
+    <string name="add_tag">添加标签</string>
+    <string name="new_tag">新标签</string>
+    <string name="note_label">笔记</string>
+
+    <!-- Home screen -->
+    <string name="app_name_home">Privora</string>
+    <string name="vault_notes_locked">保险库和笔记已锁定</string>
+    <string name="cd_lock_vault">锁定保险库</string>
+    <string name="cd_settings">设置</string>
+    <string name="backup_restored">备份已恢复</string>
+    <string name="cd_dismiss">关闭</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Privora</string>
+    <string name="onboarding_welcome_description">完全在设备上运行的 AI 相机。\n不会向任何服务器发送任何数据。</string>
+    <string name="onboarding_get_started">开始使用</string>
+    <string name="onboarding_have_backup">我有备份</string>
+    <string name="onboarding_privacy_title">您的隐私至关重要</string>
+    <string name="onboarding_privacy_description">所有 AI 处理均在设备上进行。\n照片和笔记使用 AES-256-GCM 加密。\n无分析。无遥测。无云端。</string>
+    <string name="onboarding_feature_detection">物体检测在本地运行</string>
+    <string name="onboarding_feature_scanning">文档在设备上扫描</string>
+    <string name="onboarding_feature_translation">翻译模型下载一次后离线使用</string>
+    <string name="onboarding_feature_vault_encryption">保险库使用硬件支持的密钥加密</string>
+    <string name="onboarding_next">下一步</string>
+    <string name="onboarding_continue">继续</string>
+    <string name="auth_mode_title">如何解锁保险库？</string>
+    <string name="auth_mode_description">选择您希望如何保护加密保险库和笔记。</string>
+    <string name="auth_use_phone_lock">使用手机锁定</string>
+    <string name="auth_phone_lock_desc">指纹、面部或设备 PIN</string>
+    <string name="auth_create_app_pin">创建应用 PIN</string>
+    <string name="auth_app_pin_desc">仅用于此应用的独立 PIN。启用紧急 PIN 功能。</string>
+    <string name="pin_min_digits">PIN 至少需要 4 位数字</string>
+    <string name="pins_dont_match_toast">PIN 不匹配</string>
+    <string name="protection_phone_lock">手机锁定（指纹/PIN）</string>
+    <string name="protection_app_pin">应用 PIN</string>
+    <string name="duress_note">您可以在设置中配置紧急 PIN。</string>
+    <string name="onboarding_all_set_title">一切就绪！</string>
+    <string name="onboarding_all_set_description">您的保险库已通过 %1$s 保护。%2$s\n所有照片和笔记将自动加密。</string>
+    <string name="onboarding_start_using_app">开始使用应用</string>
+    <string name="pin_setup_title">设置您的 PIN</string>
+    <string name="pin_setup_description">此 PIN 用于保护您的保险库和安全笔记。\n请设置至少 4 位数字。</string>
+    <string name="pin_label">PIN</string>
+    <string name="pin_placeholder">输入 4–8 位 PIN</string>
+    <string name="cd_toggle_visibility">切换可见性</string>
+    <string name="confirm_pin_label">确认 PIN</string>
+    <string name="confirm_pin_placeholder">再次输入 PIN</string>
+    <string name="pins_dont_match">PIN 不匹配</string>
+    <string name="set_pin_button">设置 PIN</string>
+
+    <!-- Camera capture -->
+    <string name="grant_camera_permission">授予相机权限</string>
+    <string name="save_failed_with_msg">保存失败：%1$s</string>
+    <string name="recording_failed">录制失败</string>
+    <string name="no_audio">（无音频）</string>
+    <string name="encrypting_video">正在加密视频…</string>
+    <string name="cd_back">返回</string>
+    <string name="face_count">%1$d 张人脸</string>
+    <string name="cd_switch_camera">切换相机</string>
+    <string name="mode_photo">拍照</string>
+    <string name="mode_video">录像</string>
+    <string name="cd_view_last_capture">查看上次拍摄</string>
+    <string name="cd_last_capture">上次拍摄</string>
+    <string name="cd_stop_recording">停止录制</string>
+    <string name="cd_start_recording">开始录制</string>
+    <string name="cd_take_photo">拍照</string>
+    <string name="cd_photos_taken">已拍摄 %1$d 张照片</string>
+    <string name="cd_captured_photo">已拍摄的照片</string>
+    <string name="cd_close">关闭</string>
+    <string name="cd_share">分享</string>
+    <string name="cd_share_without_blur">不模糊分享</string>
+    <string name="cd_blur_and_share">模糊并分享</string>
+    <string name="cd_delete">删除</string>
+
+    <!-- Camera detection -->
+    <string name="camera_needs_access">Privora 需要相机权限</string>
+    <string name="camera_privacy_note">所有处理均在您的设备上进行。\n不会向任何地方发送数据。</string>
+    <string name="object_count">%1$d 个物体</string>
+    <string name="inference_time_ms">%1$dms</string>
+    <string name="cd_selected_object">已选择：%1$s</string>
+    <string name="confidence_percent">置信度：%1$d%%</string>
+    <string name="web_search">网页搜索</string>
+    <string name="search_by_image">以图搜索</string>
+    <string name="cd_save_detection_photo">保存检测照片</string>
+    <string name="detection_photo_saved">检测照片已保存到保险库</string>
+    <string name="save_failed_generic">保存失败</string>
+
+    <!-- Health profile dialog -->
+    <string name="health_add_profile_title">添加家庭成员</string>
+    <string name="health_profile_name">姓名</string>
+</resources>

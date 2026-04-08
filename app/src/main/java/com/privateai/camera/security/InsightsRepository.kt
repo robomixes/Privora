@@ -18,13 +18,15 @@ data class Expense(
     val category: String,
     val description: String,
     val date: Long = System.currentTimeMillis(),
-    val receiptPhotoId: String? = null
+    val receiptPhotoId: String? = null,
+    val personId: String? = null
 )
 
 data class HealthProfile(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val icon: String = "👤", // emoji
+    val personId: String? = null,
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -81,6 +83,7 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
             put("id", expense.id); put("amount", expense.amount); put("currency", expense.currency)
             put("category", expense.category); put("description", expense.description)
             put("date", expense.date); put("receiptPhotoId", expense.receiptPhotoId ?: "")
+            put("personId", expense.personId ?: "")
         }.toString()
         crypto.encryptToFile(json.toByteArray(Charsets.UTF_8), File(expensesDir, "${expense.id}.expense.enc"))
     }
@@ -97,7 +100,8 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
                         currency = obj.optString("currency", "USD"),
                         category = obj.getString("category"), description = obj.getString("description"),
                         date = obj.getLong("date"),
-                        receiptPhotoId = obj.optString("receiptPhotoId", "").ifEmpty { null }
+                        receiptPhotoId = obj.optString("receiptPhotoId", "").ifEmpty { null },
+                        personId = obj.optString("personId", "").ifEmpty { null }
                     )
                 } catch (e: Exception) { Log.e(TAG, "Failed to load expense: ${e.message}"); null }
             }
@@ -181,7 +185,7 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
 
     fun saveProfiles(profiles: List<HealthProfile>) {
         val arr = JSONArray()
-        profiles.forEach { p -> arr.put(JSONObject().apply { put("id", p.id); put("name", p.name); put("icon", p.icon); put("createdAt", p.createdAt) }) }
+        profiles.forEach { p -> arr.put(JSONObject().apply { put("id", p.id); put("name", p.name); put("icon", p.icon); put("personId", p.personId ?: ""); put("createdAt", p.createdAt) }) }
         crypto.encryptToFile(arr.toString().toByteArray(Charsets.UTF_8), File(healthDir, "profiles.enc"))
     }
 
@@ -191,7 +195,7 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
         return try {
             val arr = JSONArray(String(crypto.decryptFile(file), Charsets.UTF_8))
             (0 until arr.length()).map { i -> val o = arr.getJSONObject(i)
-                HealthProfile(o.getString("id"), o.getString("name"), o.optString("icon", "👤"), o.optLong("createdAt", 0))
+                HealthProfile(o.getString("id"), o.getString("name"), o.optString("icon", "👤"), o.optString("personId", "").ifEmpty { null }, o.optLong("createdAt", 0))
             }
         } catch (_: Exception) { emptyList() }
     }

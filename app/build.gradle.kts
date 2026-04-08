@@ -62,11 +62,6 @@ android {
         compose = true
     }
 
-    bundle {
-        language { enableSplit = true }
-        density { enableSplit = true }
-        abi { enableSplit = true }
-    }
 }
 
 dependencies {
@@ -107,6 +102,10 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+
+    // SQLCipher (encrypted SQLite)
+    implementation(libs.sqlcipher)
+    implementation(libs.sqlite.ktx)
 
     // ML Kit
     implementation(libs.mlkit.document.scanner)

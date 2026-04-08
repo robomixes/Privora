@@ -19,6 +19,10 @@
 # Keep bridge classes (ONNX detector)
 -keep class com.privateai.camera.bridge.** { *; }
 
+# SQLCipher
+-keep class net.zetetic.database.** { *; }
+-dontwarn net.zetetic.database.**
+
 # Crypto
 -keep class javax.crypto.** { *; }
 -keep class java.security.** { *; }

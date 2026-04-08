@@ -10,7 +10,7 @@ private const val KEY_ORDER = "feature_order"
  */
 object FeatureToggleManager {
 
-    private val DEFAULT_ORDER = listOf("camera", "detect", "scan", "qrscanner", "translate", "vault", "notes", "insights", "tools")
+    private val DEFAULT_ORDER = listOf("camera", "detect", "scan", "qrscanner", "translate", "vault", "notes", "insights", "tools", "contacts")
 
     fun isFeatureEnabled(context: Context, route: String): Boolean {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

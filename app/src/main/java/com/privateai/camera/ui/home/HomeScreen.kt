@@ -2,6 +2,7 @@ package com.privateai.camera.ui.home
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Translate
@@ -80,6 +82,7 @@ val features = listOf(
     FeatureItem("notes", R.string.feature_notes, R.string.feature_notes_desc, Icons.Default.NoteAlt, Color(0xFF4E342E), Color(0xFFD7CCC8)),
     FeatureItem("insights", R.string.feature_insights, R.string.feature_insights_desc, Icons.Default.BarChart, Color(0xFF00695C), Color(0xFFB2DFDB)),
     FeatureItem("tools", R.string.feature_tools, R.string.feature_tools_desc, Icons.Default.Build, Color(0xFF37474F), Color(0xFFCFD8DC)),
+    FeatureItem("contacts", R.string.feature_contacts, R.string.feature_contacts_desc, Icons.Default.Person, Color(0xFFEF6C00), Color(0xFFFFF3E0)),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -187,6 +190,7 @@ fun HomeScreen(
                 items(visibleFeatures) { feature ->
                     FeatureCard(
                         feature = feature,
+                        isLimited = com.privateai.camera.service.DeviceProfiler.isFeatureLimited(context, feature.route),
                         onClick = { onFeatureClick(feature.route) }
                     )
                 }
@@ -198,6 +202,7 @@ fun HomeScreen(
 @Composable
 fun FeatureCard(
     feature: FeatureItem,
+    isLimited: Boolean = false,
     onClick: () -> Unit
 ) {
     val label = stringResource(feature.labelRes)
@@ -212,31 +217,40 @@ fun FeatureCard(
             containerColor = feature.bgColor
         )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                feature.icon,
-                contentDescription = null,
-                modifier = Modifier.size(36.dp),
-                tint = feature.iconColor
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                label,
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    feature.icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    tint = feature.iconColor
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    label,
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+            if (isLimited) {
+                Text(
+                    "⚡",
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
     }
 }

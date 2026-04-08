@@ -293,6 +293,30 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
     }
 
     /**
+     * List ALL photos (not videos, not PDFs) from all categories + custom folders.
+     * Used by the virtual "Photos" smart view.
+     */
+    fun listAllPhotosOnly(folderItems: List<VaultPhoto> = emptyList()): List<VaultPhoto> {
+        val fromCategories = VaultCategory.entries.flatMap { listPhotos(it) }
+            .filter { it.mediaType == VaultMediaType.PHOTO }
+        return (fromCategories + folderItems.filter { it.mediaType == VaultMediaType.PHOTO })
+            .distinctBy { it.id }
+            .sortedByDescending { it.timestamp }
+    }
+
+    /**
+     * List ALL videos from all categories + custom folders.
+     * Used by the virtual "Videos" smart view.
+     */
+    fun listAllVideosOnly(folderItems: List<VaultPhoto> = emptyList()): List<VaultPhoto> {
+        val fromCategories = VaultCategory.entries.flatMap { listPhotos(it) }
+            .filter { it.mediaType == VaultMediaType.VIDEO }
+        return (fromCategories + folderItems.filter { it.mediaType == VaultMediaType.VIDEO })
+            .distinctBy { it.id }
+            .sortedByDescending { it.timestamp }
+    }
+
+    /**
      * Get count per category.
      */
     fun countByCategory(): Map<VaultCategory, Int> {
@@ -417,6 +441,131 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
      */
     fun getVaultSize(): Long {
         return vaultDir.walkTopDown().filter { it.isFile }.fold(0L) { acc, file -> acc + file.length() }
+    }
+
+    // ===== Trash / Recycle Bin =====
+
+    private val trashDir = File(vaultDir, "_trash").also { it.mkdirs() }
+    private val trashIndexFile = File(trashDir, "_index.enc")
+
+    data class TrashedItem(
+        val id: String,
+        val originalCategory: VaultCategory,
+        val trashedAt: Long,
+        val encryptedFile: File,
+        val thumbnailFile: File,
+        val mediaType: VaultMediaType
+    )
+
+    /** Move a photo to trash instead of permanently deleting. */
+    fun moveToTrash(photo: VaultPhoto) {
+        // Move files to trash dir
+        val trashedEnc = File(trashDir, photo.encryptedFile.name)
+        val trashedThumb = File(trashDir, photo.thumbnailFile.name)
+        photo.encryptedFile.renameTo(trashedEnc)
+        if (photo.thumbnailFile.exists() && photo.thumbnailFile != photo.encryptedFile) {
+            photo.thumbnailFile.renameTo(trashedThumb)
+        }
+        // Add to trash index
+        val items = loadTrashIndex().toMutableList()
+        items.add(TrashedItem(photo.id, photo.category, System.currentTimeMillis(), trashedEnc, trashedThumb, photo.mediaType))
+        saveTrashIndex(items)
+        Log.d(TAG, "Moved to trash: ${photo.id}")
+    }
+
+    /** Restore a photo from trash to its original category. */
+    fun restoreFromTrash(itemId: String) {
+        val items = loadTrashIndex().toMutableList()
+        val item = items.find { it.id == itemId } ?: return
+        val targetDir = categoryDir(item.originalCategory)
+        // Move files back
+        val restoredEnc = File(targetDir, item.encryptedFile.name)
+        val restoredThumb = File(targetDir, item.thumbnailFile.name)
+        item.encryptedFile.renameTo(restoredEnc)
+        if (item.thumbnailFile.exists() && item.thumbnailFile != item.encryptedFile) {
+            item.thumbnailFile.renameTo(restoredThumb)
+        }
+        items.removeAll { it.id == itemId }
+        saveTrashIndex(items)
+        Log.d(TAG, "Restored from trash: $itemId")
+    }
+
+    /** List all items in trash. */
+    fun listTrash(): List<TrashedItem> = loadTrashIndex().sortedByDescending { it.trashedAt }
+
+    /** Permanently delete a single item from trash. */
+    fun permanentDeleteFromTrash(itemId: String) {
+        val items = loadTrashIndex().toMutableList()
+        val item = items.find { it.id == itemId } ?: return
+        item.encryptedFile.delete()
+        item.thumbnailFile.delete()
+        items.removeAll { it.id == itemId }
+        saveTrashIndex(items)
+        Log.d(TAG, "Permanently deleted from trash: $itemId")
+    }
+
+    /** Empty all trash. */
+    fun emptyTrash() {
+        val items = loadTrashIndex()
+        items.forEach { it.encryptedFile.delete(); it.thumbnailFile.delete() }
+        saveTrashIndex(emptyList())
+        Log.d(TAG, "Trash emptied: ${items.size} items")
+    }
+
+    /** Auto-purge items older than maxDays. Call on vault open. */
+    fun autoPurgeTrash(maxDays: Int = 30) {
+        val cutoff = System.currentTimeMillis() - maxDays.toLong() * 24 * 60 * 60 * 1000
+        val items = loadTrashIndex().toMutableList()
+        val expired = items.filter { it.trashedAt < cutoff }
+        if (expired.isEmpty()) return
+        expired.forEach { it.encryptedFile.delete(); it.thumbnailFile.delete() }
+        items.removeAll { it.trashedAt < cutoff }
+        saveTrashIndex(items)
+        Log.d(TAG, "Auto-purged ${expired.size} items from trash")
+    }
+
+    /** Trash item count. */
+    fun trashCount(): Int = loadTrashIndex().size
+
+    private fun loadTrashIndex(): List<TrashedItem> {
+        if (!trashIndexFile.exists()) return emptyList()
+        return try {
+            val json = String(crypto.decryptFile(trashIndexFile), Charsets.UTF_8)
+            val arr = org.json.JSONArray(json)
+            (0 until arr.length()).mapNotNull { i ->
+                val obj = arr.getJSONObject(i)
+                TrashedItem(
+                    id = obj.getString("id"),
+                    originalCategory = try { VaultCategory.valueOf(obj.getString("category")) } catch (_: Exception) { VaultCategory.CAMERA },
+                    trashedAt = obj.getLong("trashedAt"),
+                    encryptedFile = File(trashDir, obj.getString("encFile")),
+                    thumbnailFile = File(trashDir, obj.getString("thumbFile")),
+                    mediaType = try { VaultMediaType.valueOf(obj.getString("mediaType")) } catch (_: Exception) { VaultMediaType.PHOTO }
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load trash index: ${e.message}")
+            emptyList()
+        }
+    }
+
+    private fun saveTrashIndex(items: List<TrashedItem>) {
+        try {
+            val arr = org.json.JSONArray()
+            items.forEach { item ->
+                arr.put(org.json.JSONObject().apply {
+                    put("id", item.id)
+                    put("category", item.originalCategory.name)
+                    put("trashedAt", item.trashedAt)
+                    put("encFile", item.encryptedFile.name)
+                    put("thumbFile", item.thumbnailFile.name)
+                    put("mediaType", item.mediaType.name)
+                })
+            }
+            crypto.encryptToFile(arr.toString().toByteArray(Charsets.UTF_8), trashIndexFile)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save trash index: ${e.message}")
+        }
     }
 
     /**

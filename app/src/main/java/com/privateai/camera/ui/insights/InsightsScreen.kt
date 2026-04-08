@@ -62,7 +62,7 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InsightsScreen(onBack: (() -> Unit)? = null) {
+fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPersonId: String? = null) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -72,7 +72,7 @@ fun InsightsScreen(onBack: (() -> Unit)? = null) {
     val startUnlocked = remember { VaultLockManager.isUnlockedWithinGrace(context) && crypto.initialize() }
     var isLocked by remember { mutableStateOf(!startUnlocked) }
     var isDuressActive by remember { mutableStateOf(VaultLockManager.isDuressActive) }
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(initialTab) }
 
     // Auto-lock
     DisposableEffect(lifecycleOwner) {
@@ -184,7 +184,7 @@ fun InsightsScreen(onBack: (() -> Unit)? = null) {
                 } else {
                     when (selectedTab) {
                         0 -> ExpensesTab(repo)
-                        1 -> HealthTab(repo)
+                        1 -> HealthTab(repo, filterPersonId = filterPersonId)
                         2 -> HabitsTab(repo)
                     }
                 }

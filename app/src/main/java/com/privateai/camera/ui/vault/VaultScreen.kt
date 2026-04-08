@@ -54,6 +54,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
@@ -71,8 +72,10 @@ import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -93,6 +96,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -132,16 +136,27 @@ import com.privateai.camera.security.VaultRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.util.Log
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.ui.text.style.TextAlign
+import com.privateai.camera.bridge.FaceEmbedder
+import com.privateai.camera.bridge.ImageClassifier
+import com.privateai.camera.security.PhotoIndex
+import com.privateai.camera.security.PrivoraDatabase
 
 // Screens: LOCKED -> CATEGORIES -> GALLERY -> VIEWER / VIDEO_PLAYER
-private enum class VaultPage { LOCKED, CATEGORIES, GALLERY, VIEWER, VIDEO_PLAYER, FOLDER_VIEW }
+private enum class VaultPage { LOCKED, CATEGORIES, GALLERY, VIEWER, VIDEO_PLAYER, FOLDER_VIEW, TRASH }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun VaultScreen(onBack: (() -> Unit)? = null) {
+fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -158,6 +173,9 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
     var photos by remember { mutableStateOf<List<VaultPhoto>>(emptyList()) }
     var thumbnails by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
     var categoryCounts by remember { mutableStateOf<Map<VaultCategory, Int>>(emptyMap()) }
+    var trashCount by remember { mutableIntStateOf(0) }
+    var trashItems by remember { mutableStateOf<List<VaultRepository.TrashedItem>>(emptyList()) }
+    var trashThumbnails by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
 
     // Viewer state
     var viewerPhoto by remember { mutableStateOf<VaultPhoto?>(null) }
@@ -181,7 +199,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
     var isDuressActive by remember { mutableStateOf(VaultLockManager.isDuressActive) }
 
     // Search
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf(initialSearchQuery) }
     var searchResults by remember { mutableStateOf<List<VaultPhoto>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchThumbnails by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
@@ -190,6 +208,26 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isSelectionMode by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+
+    // Photo Intelligence
+    var photoIndex by remember { mutableStateOf<PhotoIndex?>(null) }
+    var classifier by remember { mutableStateOf<ImageClassifier?>(null) }
+    var isIndexing by remember { mutableStateOf(false) }
+    var indexProgress by remember { mutableStateOf(0 to 0) }  // (done, total)
+    var smartMode by remember { mutableStateOf<String?>(null) } // "duplicates", "blurry", or null
+    var showFaceGroups by remember { mutableStateOf(false) }
+    var faceGroups by remember { mutableStateOf<Map<String, List<Triple<String, Int, PhotoIndex.FaceEntry>>>>(emptyMap()) }
+    var selectedFaceGroup by remember { mutableStateOf<String?>(null) }
+    var renamingGroup by remember { mutableStateOf<String?>(null) }
+    var mergeSourceGroup by remember { mutableStateOf<String?>(null) } // first group selected for merge
+    var mergeTargetGroup by remember { mutableStateOf<String?>(null) } // second group to confirm merge
+    var searchFromViewer by remember { mutableStateOf(false) } // true = back returns to VIEWER
+    var searchSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var duplicateGroups by remember { mutableStateOf<List<List<String>>>(emptyList()) }
+
+    // Virtual smart views
+    var isVirtualPhotos by remember { mutableStateOf(false) }
+    var isVirtualVideos by remember { mutableStateOf(false) }
 
     // Auto-lock with shared grace period
     DisposableEffect(lifecycleOwner) {
@@ -203,9 +241,9 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                         page = VaultPage.LOCKED
                         crypto.lock()
                         VaultLockManager.lock()
-                        thumbnails.values.forEach { it.recycle() }
+                        // thumbnails cleared — GC handles bitmap recycling (Compose may still be drawing)
                         thumbnails = emptyMap()
-                        viewerBitmap?.recycle()
+                        // viewerBitmap cleared — GC handles recycling
                         viewerBitmap = null
                     }
                 }
@@ -215,8 +253,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            thumbnails.values.forEach { it.recycle() }
-            viewerBitmap?.recycle()
+            // thumbnails cleared — GC handles bitmap recycling (Compose may still be drawing)
+            // viewerBitmap cleared — GC handles recycling
             videoTempFile?.delete()
         }
     }
@@ -231,8 +269,11 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
             var importedPdfs = 0
             var importedVideos = 0
             var skippedLarge = 0
+            // Keep vault unlocked during import
+            VaultLockManager.markUnlocked()
             withContext(Dispatchers.IO) {
                 uris.forEach { uri ->
+                    VaultLockManager.markUnlocked() // Keep alive during long imports
                     try {
                         val mimeType = context.contentResolver.getType(uri)
 
@@ -284,7 +325,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                     } catch (_: Exception) {}
                 }
             }
-            if (!isDuressActive) { categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders() }
+            if (!isDuressActive) { categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders(); trashCount = vault.trashCount() }
             // Refresh folder view if importing into a folder
             val refreshFolder = currentFolder
             if (page == VaultPage.FOLDER_VIEW && refreshFolder != null) {
@@ -310,6 +351,33 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
             val skipMsg = if (skippedLarge > 0) context.getString(R.string.skipped_large, skippedLarge) else ""
             if (msg.isNotEmpty() || skipMsg.isNotEmpty()) {
                 Toast.makeText(context, "$msg$skipMsg", Toast.LENGTH_LONG).show()
+            }
+            // Auto-index newly imported photos in background
+            val pi = photoIndex
+            val cl = classifier
+            if (pi != null && cl != null && importedImages > 0) {
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        val fe = try { com.privateai.camera.bridge.FaceEmbedder(context) } catch (_: Exception) { null }
+                        val fromCats = vault.listAllPhotos()
+                        val fromFolders = folderManager.listAllFolders().flatMap { f -> vault.listFolderItems(folderManager.getFolderDir(f.id)) }
+                        val allPhotos = (fromCats + fromFolders).distinctBy { p -> p.id }.filter { p -> p.mediaType == VaultMediaType.PHOTO }
+                        val unindexed = allPhotos.filter { p -> !pi.isIndexed(p.id) }
+                        if (unindexed.isNotEmpty()) {
+                            isIndexing = true
+                            unindexed.forEachIndexed { i, photo ->
+                                val bmp = vault.loadFullPhoto(photo) ?: vault.loadThumbnail(photo)
+                                bmp?.let { img ->
+                                    try { pi.indexPhoto(photo.id, img, cl, faceEmbedder = fe) } catch (_: Exception) {}
+                                    img.recycle()
+                                }
+                                indexProgress = i + 1 to unindexed.size
+                            }
+                            isIndexing = false
+                        }
+                        fe?.release()
+                    }
+                }
             }
         }
     }
@@ -351,6 +419,13 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                     BiometricManager.Authenticators.DEVICE_CREDENTIAL
                 ).build()
         )
+    }
+
+    /** Get ALL items from all categories + all folders (unified view for AI). */
+    fun getAllVaultItems(): List<VaultPhoto> {
+        val fromCategories = vault.listAllPhotos()
+        val fromFolders = folderManager.listAllFolders().flatMap { vault.listFolderItems(folderManager.getFolderDir(it.id)) }
+        return (fromCategories + fromFolders).distinctBy { it.id }.sortedByDescending { it.timestamp }
     }
 
     fun openCategory(cat: VaultCategory) {
@@ -431,14 +506,19 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
     }
 
     fun deletePhotos(ids: Set<String>) {
-        val toDelete = photos.filter { it.id in ids }
-        toDelete.forEach { vault.deletePhoto(it) }
-        toDelete.forEach { thumbnails[it.id]?.recycle() }
+        // Move to trash instead of permanent delete — keep index entries for fast restore
+        val allKnown = (photos + searchResults).distinctBy { it.id }
+        val toDelete = allKnown.filter { it.id in ids }
+        toDelete.forEach { vault.moveToTrash(it) }
         thumbnails = thumbnails - ids
         photos = photos.filter { it.id !in ids }
-        categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders()
+        searchResults = searchResults.filter { it.id !in ids }
+        searchThumbnails = searchThumbnails - ids
+        // Don't remove from photoIndex — keep entries so restore doesn't need re-indexing
+        categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders(); trashCount = vault.trashCount()
         selectedIds = emptySet()
         isSelectionMode = false
+        Toast.makeText(context, "Moved to Trash", Toast.LENGTH_SHORT).show()
     }
 
     fun sharePdf(ids: Set<String>) {
@@ -720,7 +800,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                             }
                             photos = photos.filter { it.id !in selectedIds }
                             selectedIds = emptySet(); isSelectionMode = false
-                            if (!isDuressActive) { categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders() }
+                            if (!isDuressActive) { categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders(); trashCount = vault.trashCount() }
                             showMoveDialog = false
                             Toast.makeText(context, context.getString(R.string.moved_n_items, toMove.size), Toast.LENGTH_SHORT).show()
                         }, modifier = Modifier.fillMaxWidth()) {
@@ -739,7 +819,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                                 toMove.forEach { photo -> vault.moveToFolder(photo, targetDir) }
                                 photos = photos.filter { it.id !in selectedIds }
                                 selectedIds = emptySet(); isSelectionMode = false
-                                if (!isDuressActive) { categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders() }
+                                if (!isDuressActive) { categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders(); trashCount = vault.trashCount() }
                                 showMoveDialog = false
                                 Toast.makeText(context, context.getString(R.string.moved_n_items_to_folder, toMove.size, folder.name), Toast.LENGTH_SHORT).show()
                             }, modifier = Modifier.fillMaxWidth()) {
@@ -780,6 +860,65 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                 }) { Text(stringResource(R.string.delete), color = Color.Red) }
             },
             dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+
+    // Merge face groups confirmation dialog
+    mergeTargetGroup?.let { targetId ->
+        val sourceId = mergeSourceGroup ?: return@let
+        val sourceName = photoIndex?.getFaceGroupName(sourceId) ?: "Unknown"
+        val targetName = photoIndex?.getFaceGroupName(targetId) ?: "Unknown"
+        AlertDialog(
+            onDismissRequest = { mergeTargetGroup = null; mergeSourceGroup = null },
+            title = { Text("Merge Face Groups") },
+            text = { Text("Merge \"$sourceName\" into \"$targetName\"? This combines both groups and helps the AI recognize this person better.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    photoIndex?.mergeFaceGroups(targetId, sourceId)
+                    mergeTargetGroup = null
+                    mergeSourceGroup = null
+                    // Refresh face groups
+                    val pi = photoIndex
+                    if (pi != null) {
+                        scope.launch {
+                            val groups = withContext(Dispatchers.IO) { pi.getFaceGroups() }
+                            faceGroups = groups
+                        }
+                    }
+                }) { Text("Merge") }
+            },
+            dismissButton = {
+                TextButton(onClick = { mergeTargetGroup = null; mergeSourceGroup = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Rename face group dialog
+    renamingGroup?.let { groupId ->
+        var newName by remember { mutableStateOf(photoIndex?.getFaceGroupName(groupId) ?: "") }
+        AlertDialog(
+            onDismissRequest = { renamingGroup = null },
+            title = { Text("Name this person") },
+            text = {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newName.isNotBlank()) {
+                        photoIndex?.setFaceGroupName(groupId, newName.trim())
+                    }
+                    renamingGroup = null
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renamingGroup = null }) { Text("Cancel") }
+            }
         )
     }
 
@@ -841,6 +980,106 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
         }
     }
 
+    // Auto-purge old trash items
+    LaunchedEffect(Unit) {
+        if (!isDuressActive) {
+            withContext(Dispatchers.IO) { vault.autoPurgeTrash(); trashCount = vault.trashCount() }
+        }
+    }
+
+    // Initialize Photo Intelligence index + classifier, then auto-index new photos
+    LaunchedEffect(Unit) {
+        if (!isDuressActive) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val c = ImageClassifier(context)
+                    classifier = c
+                    val fe = try { FaceEmbedder(context) } catch (_: Exception) { null }
+                    val pi = PhotoIndex(PrivoraDatabase.getInstance(context, crypto))
+                    photoIndex = pi
+
+                    // Auto-index any unindexed photos in background
+                    val allPhotos = getAllVaultItems().filter { it.mediaType == VaultMediaType.PHOTO }
+                    val unindexed = allPhotos.filter { !pi.isIndexed(it.id) }
+                    if (unindexed.isNotEmpty()) {
+                        isIndexing = true
+                        unindexed.forEachIndexed { i, photo ->
+                            // Try full photo for face detection, fall back to thumbnail if OOM
+                            val bmp = try {
+                                // Skip full photo if encrypted file > 10MB (likely to OOM)
+                                if (photo.encryptedFile.length() > 10 * 1024 * 1024) vault.loadThumbnail(photo)
+                                else vault.loadFullPhoto(photo) ?: vault.loadThumbnail(photo)
+                            } catch (_: OutOfMemoryError) { vault.loadThumbnail(photo) }
+                            bmp?.let { img ->
+                                try {
+                                    pi.indexPhoto(photo.id, img, c, faceEmbedder = fe)
+                                } catch (_: Exception) {}
+                                img.recycle()
+                            }
+                            indexProgress = i + 1 to unindexed.size
+                        }
+                        isIndexing = false
+                    }
+                    // Auto-name face groups from People profile photos
+                    if (fe != null) {
+                        try {
+                            val contactRepo = com.privateai.camera.security.ContactRepository(
+                                java.io.File(context.filesDir, "vault/contacts"), crypto, com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+                            )
+                            pi.autoNameFromContacts(contactRepo, fe)
+                        } catch (_: Exception) {}
+                    }
+                    fe?.release()
+                } catch (e: Exception) {
+                    Log.e("VaultScreen", "Failed to init photo index: ${e.message}")
+                }
+            }
+        }
+    }
+
+    // Auto-search when opened with a search query (e.g., from People → Photos)
+    LaunchedEffect(initialSearchQuery, photoIndex, page) {
+        if (initialSearchQuery.isNotBlank() && photoIndex != null && page == VaultPage.CATEGORIES && !isSearching) {
+            val pi = photoIndex ?: return@LaunchedEffect
+            isSearching = true
+            scope.launch {
+                val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
+                var matchedIds = withContext(Dispatchers.IO) { pi.searchByLabel(initialSearchQuery).toSet() }
+
+                // If no results from label/name search, try profile photo face matching
+                if (matchedIds.isEmpty()) {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            // initialSearchQuery contains "name contactId" — extract contactId
+                            val parts = initialSearchQuery.split(" ")
+                            val contactId = parts.lastOrNull()?.takeIf { it.length > 10 } // UUIDs are long
+                            if (contactId != null) {
+                                val contactRepo = com.privateai.camera.security.ContactRepository(java.io.File(context.filesDir, "vault/contacts"), crypto, com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto))
+                                val profileBmp = contactRepo.loadProfilePhoto(contactId)
+                                if (profileBmp != null) {
+                                    val fe = com.privateai.camera.bridge.FaceEmbedder(context)
+                                    val embeddings = fe.detectAndEmbed(profileBmp)
+                                    profileBmp.recycle()
+                                    if (embeddings.isNotEmpty()) {
+                                        matchedIds = pi.findPhotosByFaceEmbedding(embeddings[0].second).toSet()
+                                    }
+                                    fe.release()
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+
+                searchResults = allItems.filter { it.id in matchedIds }
+                val thumbMap = mutableMapOf<String, Bitmap>()
+                withContext(Dispatchers.IO) {
+                    searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                }
+                searchThumbnails = thumbMap
+            }
+        }
+    }
+
     when (page) {
         VaultPage.LOCKED -> {
             Scaffold(topBar = {
@@ -899,7 +1138,26 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
         VaultPage.CATEGORIES -> {
             Scaffold(topBar = {
                 TopAppBar(title = { Text(stringResource(R.string.encrypted_vault)) }, navigationIcon = {
-                    if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                    if (onBack != null) IconButton(onClick = {
+                        if (showFaceGroups) {
+                            if (selectedFaceGroup != null) {
+                                selectedFaceGroup = null
+                            } else {
+                                showFaceGroups = false
+                            }
+                        } else if (isSearching || smartMode != null) {
+                            if (searchFromViewer) {
+                                // Return to the photo viewer
+                                searchFromViewer = false
+                                page = VaultPage.VIEWER
+                            }
+                            searchQuery = ""; isSearching = false; smartMode = null
+                            searchResults = emptyList(); searchThumbnails = emptyMap()
+                            searchSuggestions = emptyList()
+                        } else {
+                            onBack()
+                        }
+                    }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                 })
             }) { padding ->
                 Column(
@@ -911,16 +1169,37 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                         value = searchQuery,
                         onValueChange = { query ->
                             searchQuery = query
+                            smartMode = null
+                            searchFromViewer = false
+                            if (isDuressActive) { isSearching = false; searchResults = emptyList(); return@OutlinedTextField }
+                            // Auto-suggest from known labels + aliases
+                            if (query.isNotEmpty()) {
+                                val q = query.lowercase()
+                                val aliasKeys = photoIndex?.let {
+                                    it.getAllLabels().filter { l -> l.lowercase().startsWith(q) }
+                                } ?: emptyList()
+                                val aliasMatches = listOf("person", "people", "selfie", "face", "food", "animal", "car", "flower", "building", "beach", "nature", "sky", "tree", "baby", "sport", "phone", "laptop", "book", "cat", "dog")
+                                    .filter { it.startsWith(q) && it != q }
+                                searchSuggestions = (aliasMatches + aliasKeys).distinct().take(5)
+                            } else {
+                                searchSuggestions = emptyList()
+                            }
                             if (query.length >= 2) {
                                 isSearching = true
                                 scope.launch {
-                                    val allItems = withContext(Dispatchers.IO) { vault.listAllPhotos() }
+                                    val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
                                     val dateFmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
                                     searchResults = allItems.filter { item ->
                                         item.id.contains(query, ignoreCase = true) ||
                                         item.mediaType.name.contains(query, ignoreCase = true) ||
                                         item.category.label.contains(query, ignoreCase = true) ||
                                         dateFmt.format(java.util.Date(item.timestamp)).contains(query)
+                                    }
+                                    // Also search by AI labels if index is available
+                                    val labelMatches = photoIndex?.searchByLabel(query)?.toSet() ?: emptySet()
+                                    if (labelMatches.isNotEmpty()) {
+                                        val labelPhotos = allItems.filter { it.id in labelMatches }
+                                        searchResults = (searchResults + labelPhotos).distinctBy { it.id }
                                     }
                                     // Load thumbnails for search results
                                     val thumbMap = searchThumbnails.toMutableMap()
@@ -947,6 +1226,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                                     searchQuery = ""
                                     isSearching = false
                                     searchResults = emptyList()
+                                    smartMode = null
                                 }) {
                                     Icon(Icons.Default.Close, stringResource(R.string.clear))
                                 }
@@ -955,7 +1235,378 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                         singleLine = true
                     )
 
-                    if (isSearching) {
+                    // Auto-suggest
+                    if (searchSuggestions.isNotEmpty() && searchQuery.isNotEmpty()) {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            searchSuggestions.forEach { suggestion ->
+                                AssistChip(
+                                    onClick = {
+                                        searchQuery = suggestion
+                                        searchSuggestions = emptyList()
+                                        // Trigger search
+                                        isSearching = true
+                                        scope.launch {
+                                            val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
+                                            val labelMatches = photoIndex?.searchByLabel(suggestion)?.toSet() ?: emptySet()
+                                            searchResults = allItems.filter { it.id in labelMatches }
+                                            val thumbMap = mutableMapOf<String, Bitmap>()
+                                            withContext(Dispatchers.IO) {
+                                                searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                                            }
+                                            searchThumbnails = thumbMap
+                                        }
+                                    },
+                                    label = { Text(suggestion, style = MaterialTheme.typography.bodySmall) }
+                                )
+                            }
+                        }
+                    }
+
+                    // Smart search chips (hidden during duress)
+                    if (!isDuressActive) Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 0.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val pi = photoIndex
+                        if (pi != null) {
+                            val indexedCount = pi.getIndexedCount()
+                            val totalPhotos = getAllVaultItems().count { it.mediaType == VaultMediaType.PHOTO }
+
+                            if (indexedCount < totalPhotos && !isIndexing) {
+                                FilterChip(
+                                    selected = false,
+                                    onClick = {
+                                        isIndexing = true
+                                        scope.launch(Dispatchers.IO) {
+                                            val allPhotos = getAllVaultItems().filter { it.mediaType == VaultMediaType.PHOTO }
+                                            val cl = classifier ?: return@launch
+                                            val fe = try { FaceEmbedder(context) } catch (_: Exception) { null }
+                                            allPhotos.forEachIndexed { i, photo ->
+                                                if (!pi.isIndexed(photo.id)) {
+                                                    val bmp = vault.loadFullPhoto(photo) ?: vault.loadThumbnail(photo)
+                                                    bmp?.let { img ->
+                                                        pi.indexPhoto(photo.id, img, cl, faceEmbedder = fe)
+                                                        img.recycle()
+                                                    }
+                                                }
+                                                indexProgress = i + 1 to allPhotos.size
+                                            }
+                                            fe?.release()
+                                            isIndexing = false
+                                        }
+                                    },
+                                    label = { Text("Index Photos ($indexedCount/$totalPhotos)") }
+                                )
+                            }
+
+                            if (isIndexing) {
+                                FilterChip(
+                                    selected = true,
+                                    onClick = {},
+                                    label = { Text("Indexing... ${indexProgress.first}/${indexProgress.second}") }
+                                )
+                            }
+
+                            if (indexedCount > 0) {
+                                FilterChip(
+                                    selected = smartMode == "duplicates",
+                                    onClick = {
+                                        showFaceGroups = false; selectedFaceGroup = null
+                                        if (smartMode == "duplicates") {
+                                            smartMode = null
+                                            isSearching = false
+                                        } else {
+                                            smartMode = "duplicates"
+                                            duplicateGroups = pi.findDuplicates()
+                                            val dupIds = duplicateGroups.flatten().toSet()
+                                            val allPhotos = getAllVaultItems()
+                                            searchResults = allPhotos.filter { it.id in dupIds }
+                                            isSearching = true
+                                            scope.launch {
+                                                val thumbMap = mutableMapOf<String, Bitmap>()
+                                                withContext(Dispatchers.IO) {
+                                                    searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                                                }
+                                                searchThumbnails = thumbMap
+                                            }
+                                        }
+                                    },
+                                    label = { Text("Duplicates") }
+                                )
+
+                                FilterChip(
+                                    selected = smartMode == "blurry",
+                                    onClick = {
+                                        showFaceGroups = false; selectedFaceGroup = null
+                                        if (smartMode == "blurry") {
+                                            smartMode = null
+                                            isSearching = false
+                                        } else {
+                                            smartMode = "blurry"
+                                            val blurryIds = pi.findBlurry().toSet()
+                                            val allPhotos = getAllVaultItems()
+                                            searchResults = allPhotos.filter { it.id in blurryIds }
+                                            isSearching = true
+                                            scope.launch {
+                                                val thumbMap = mutableMapOf<String, Bitmap>()
+                                                withContext(Dispatchers.IO) {
+                                                    searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                                                }
+                                                searchThumbnails = thumbMap
+                                            }
+                                        }
+                                    },
+                                    label = { Text("Blurry") }
+                                )
+
+                                FilterChip(
+                                    selected = showFaceGroups,
+                                    onClick = {
+                                        if (showFaceGroups) {
+                                            showFaceGroups = false
+                                            selectedFaceGroup = null
+                                        } else {
+                                            val pi = photoIndex ?: return@FilterChip
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) {
+                                                    val groups = pi.getFaceGroups()
+                                                    // Auto-name groups from People profile photos
+                                                    try {
+                                                        val contactRepo = com.privateai.camera.security.ContactRepository(
+                                                            java.io.File(context.filesDir, "vault/contacts"), crypto, com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+                                                        )
+                                                        val fe = com.privateai.camera.bridge.FaceEmbedder(context)
+                                                        pi.autoNameFromContacts(contactRepo, fe)
+                                                        fe.release()
+                                                    } catch (_: Exception) {}
+                                                    faceGroups = groups
+                                                }
+                                                showFaceGroups = true
+                                                isSearching = false
+                                                smartMode = null
+                                            }
+                                        }
+                                    },
+                                    label = { Text("\uD83D\uDC64 Faces") }
+                                )
+                            }
+                        }
+                    }
+
+                    if (showFaceGroups && selectedFaceGroup == null) {
+                        // Load thumbnails for face group avatars
+                        var faceGroupThumbs by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
+                        LaunchedEffect(faceGroups) {
+                            val thumbs = mutableMapOf<String, Bitmap>()
+                            withContext(Dispatchers.IO) {
+                                faceGroups.forEach { (groupId, members) ->
+                                    val firstPhotoId = members.firstOrNull()?.first ?: return@forEach
+                                    val photo = getAllVaultItems().find { it.id == firstPhotoId } ?: return@forEach
+                                    vault.loadThumbnail(photo)?.let { thumbs[groupId] = it }
+                                }
+                            }
+                            faceGroupThumbs = thumbs
+                        }
+                        // Show face groups grid
+                        if (faceGroups.isEmpty()) {
+                            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                Text("No face groups found", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Index more photos to detect faces", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        } else {
+                            if (mergeSourceGroup != null) {
+                                Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Tap another group to merge", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    TextButton(onClick = { mergeSourceGroup = null }) { Text("Cancel") }
+                                }
+                            } else {
+                                Text("${faceGroups.size} groups  •  Long press to merge", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(3),
+                                contentPadding = PaddingValues(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                faceGroups.forEach { (groupId, members) ->
+                                    item {
+                                        val groupName = photoIndex?.getFaceGroupName(groupId)
+                                        val photoCount = members.map { it.first }.distinct().size
+                                        val firstThumb = faceGroupThumbs[groupId]
+
+                                        Card(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .height(120.dp)
+                                                .then(if (mergeSourceGroup == groupId) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier)
+                                                .combinedClickable(
+                                                    onClick = {
+                                                        if (mergeSourceGroup != null && mergeSourceGroup != groupId) {
+                                                            // Second group tapped — confirm merge
+                                                            mergeTargetGroup = groupId
+                                                        } else if (mergeSourceGroup == groupId) {
+                                                            // Cancel merge mode
+                                                            mergeSourceGroup = null
+                                                        } else {
+                                                            // Normal: show photos
+                                                            selectedFaceGroup = groupId
+                                                            val photoIds = members.map { it.first }.distinct().toSet()
+                                                            val allPhotos = getAllVaultItems()
+                                                            searchResults = allPhotos.filter { it.id in photoIds }
+                                                            scope.launch {
+                                                                val thumbMap = mutableMapOf<String, Bitmap>()
+                                                                withContext(Dispatchers.IO) {
+                                                                    searchResults.forEach { p ->
+                                                                        vault.loadThumbnail(p)?.let { thumbMap[p.id] = it }
+                                                                    }
+                                                                }
+                                                                searchThumbnails = thumbMap
+                                                            }
+                                                        }
+                                                    },
+                                                    onLongClick = {
+                                                        if (mergeSourceGroup == null) {
+                                                            mergeSourceGroup = groupId
+                                                        } else {
+                                                            renamingGroup = groupId
+                                                        }
+                                                    }
+                                                )
+                                        ) {
+                                            Column(
+                                                Modifier.fillMaxSize().padding(8.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
+                                                // Face avatar circle
+                                                if (firstThumb != null) {
+                                                    Image(
+                                                        firstThumb.asImageBitmap(),
+                                                        "Face group",
+                                                        contentScale = ContentScale.Crop,
+                                                        modifier = Modifier.size(48.dp).clip(CircleShape)
+                                                    )
+                                                } else {
+                                                    Icon(Icons.Default.Face, "Face group", Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                                                }
+                                                Spacer(Modifier.height(4.dp))
+                                                Text(
+                                                    groupName ?: "Unknown",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    maxLines = 1,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                                Text(
+                                                    "$photoCount photos",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if (showFaceGroups && selectedFaceGroup != null) {
+                        // Show photos for selected face group (sorted newest first)
+                        val groupName = photoIndex?.getFaceGroupName(selectedFaceGroup!!) ?: "Unknown Person"
+                        val sortedResults = remember(searchResults) { searchResults.sortedByDescending { it.timestamp } }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(groupName, style = MaterialTheme.typography.titleSmall)
+                                Text("${sortedResults.size}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isSelectionMode && selectedIds.isNotEmpty()) {
+                                    Text("${selectedIds.size}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(end = 4.dp))
+                                    // Remove from group (doesn't delete the photo)
+                                    IconButton(onClick = {
+                                        selectedFaceGroup?.let { gId ->
+                                            photoIndex?.removeFromFaceGroup(gId, selectedIds)
+                                            searchResults = searchResults.filter { it.id !in selectedIds }
+                                            // Refresh faceGroups so re-entering shows updated data
+                                            val pi = photoIndex
+                                            if (pi != null) {
+                                                scope.launch {
+                                                    faceGroups = withContext(Dispatchers.IO) { pi.getFaceGroups() }
+                                                }
+                                            }
+                                        }
+                                        selectedIds = emptySet(); isSelectionMode = false
+                                    }) {
+                                        Icon(Icons.Default.Close, "Remove from group", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                    // Delete photo permanently
+                                    IconButton(onClick = { showDeleteDialog = true }) {
+                                        Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                                    }
+                                    IconButton(onClick = { selectedIds = emptySet(); isSelectionMode = false }) {
+                                        Icon(Icons.Default.Close, stringResource(R.string.action_cancel))
+                                    }
+                                }
+                                IconButton(onClick = { selectedFaceGroup = null; selectedIds = emptySet(); isSelectionMode = false }) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to groups")
+                                }
+                            }
+                        }
+                        // Google Photos-style staggered grid
+                        val faceGridWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 24.dp
+                        val maxItemHeight = 160f // cap max height
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            // Build rows: pack photos into rows of 3, using real aspect ratios
+                            val photosWithAspect = sortedResults.map { photo ->
+                                val thumb = searchThumbnails[photo.id]
+                                val aspect = if (thumb != null && thumb.height > 0) thumb.width.toFloat() / thumb.height else if (photo.mediaType == VaultMediaType.PDF) 0.75f else 1.33f
+                                photo to aspect
+                            }
+                            val rows = photosWithAspect.chunked(3)
+
+                            items(rows) { row ->
+                                val totalAspect = row.sumOf { it.second.toDouble() }.toFloat()
+                                val gaps = (row.size - 1) * 3f
+                                val rowHeight = ((faceGridWidth.value - gaps) / totalAspect).coerceAtMost(maxItemHeight)
+                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    row.forEach { (photo, aspect) ->
+                                        val itemWidth = (rowHeight * aspect).dp
+                                        val itemHeight = rowHeight.dp
+                                        val thumb = searchThumbnails[photo.id]
+                                        val isSelected = photo.id in selectedIds
+                                        Box(
+                                            Modifier.width(itemWidth).height(itemHeight)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                                                .combinedClickable(
+                                                    onClick = {
+                                                        if (isSelectionMode) {
+                                                            selectedIds = if (isSelected) selectedIds - photo.id else selectedIds + photo.id
+                                                            if (selectedIds.isEmpty()) isSelectionMode = false
+                                                        } else {
+                                                            photos = sortedResults; thumbnails = searchThumbnails; openViewer(photo)
+                                                        }
+                                                    },
+                                                    onLongClick = { isSelectionMode = true; selectedIds = selectedIds + photo.id }
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (thumb != null) {
+                                                Image(thumb.asImageBitmap(), "Photo", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                            } else {
+                                                Icon(Icons.Default.Lock, "Encrypted", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            if (isSelectionMode && isSelected) {
+                                                Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
+                                                    Icon(Icons.Default.Check, null, Modifier.size(14.dp), tint = Color.White)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if (isSearching) {
                         // Search results view
                         if (searchResults.isEmpty()) {
                             Column(
@@ -966,49 +1617,58 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                                 Text(stringResource(R.string.no_results_found), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         } else {
-                            Text(
-                                stringResource(R.string.n_results, searchResults.size),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            @OptIn(ExperimentalLayoutApi::class)
-                            LazyColumn(
-                                contentPadding = PaddingValues(4.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                item {
-                                    @OptIn(ExperimentalLayoutApi::class)
-                                    FlowRow(
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(horizontal = 4.dp)
-                                    ) {
-                                        searchResults.forEach { photo ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    stringResource(R.string.n_results, searchResults.size),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (isSelectionMode && selectedIds.isNotEmpty()) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Text("${selectedIds.size}", style = MaterialTheme.typography.titleSmall)
+                                        IconButton(onClick = { showDeleteDialog = true }) {
+                                            Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                                        }
+                                        IconButton(onClick = { selectedIds = emptySet(); isSelectionMode = false }) {
+                                            Icon(Icons.Default.Close, stringResource(R.string.action_cancel))
+                                        }
+                                    }
+                                }
+                            }
+                            val searchGridWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 24.dp
+                            LazyColumn(contentPadding = PaddingValues(4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                val searchRows = searchResults.chunked(3)
+                                items(searchRows) { row ->
+                                    val totalAspect = row.sumOf {
+                                        val t = searchThumbnails[it.id]
+                                        (if (t != null && t.height > 0) t.width.toFloat() / t.height else if (it.mediaType == VaultMediaType.PDF) 0.75f else 1.33f).toDouble()
+                                    }.toFloat()
+                                    val gaps = (row.size - 1) * 3f
+                                    val rowHeight = ((searchGridWidth.value - gaps) / totalAspect).coerceIn(80f, 160f)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        row.forEach { photo ->
                                             val thumb = searchThumbnails[photo.id]
-                                            val itemSize = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 28.dp) / 4
-
+                                            val aspect = if (thumb != null && thumb.height > 0) thumb.width.toFloat() / thumb.height else if (photo.mediaType == VaultMediaType.PDF) 0.75f else 1.33f
+                                            val isSelected = photo.id in selectedIds
                                             Box(
-                                                Modifier
-                                                    .size(itemSize)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                                    .clickable {
-                                                        // Set up photos list so viewer navigation works
-                                                        photos = searchResults
-                                                        thumbnails = searchThumbnails
-                                                        openViewer(photo)
-                                                    },
+                                                Modifier.width((rowHeight * aspect).dp).height(rowHeight.dp)
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                                                    .combinedClickable(
+                                                        onClick = {
+                                                            if (isSelectionMode) {
+                                                                selectedIds = if (isSelected) selectedIds - photo.id else selectedIds + photo.id
+                                                                if (selectedIds.isEmpty()) isSelectionMode = false
+                                                            } else { photos = searchResults; thumbnails = searchThumbnails; openViewer(photo) }
+                                                        },
+                                                        onLongClick = { isSelectionMode = true; selectedIds = selectedIds + photo.id }
+                                                    ),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 if (photo.mediaType == VaultMediaType.PDF) {
                                                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
                                                         Icon(Icons.Default.PictureAsPdf, stringResource(R.string.cd_pdf_document), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp))
-                                                        Text(
-                                                            text = photo.id.let { if (it.length > 15) it.take(12) + "..." else it },
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                            maxLines = 1
-                                                        )
+                                                        Text(photo.id.let { if (it.length > 15) it.take(12) + "..." else it }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                                                     }
                                                 } else if (thumb != null) {
                                                     Image(thumb.asImageBitmap(), if (photo.mediaType == VaultMediaType.VIDEO) stringResource(R.string.cd_video_thumbnail) else stringResource(R.string.cd_photo_thumbnail), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -1016,12 +1676,15 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                                                     Icon(Icons.Default.Lock, stringResource(R.string.cd_encrypted_item), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                                 }
                                                 if (photo.mediaType == VaultMediaType.VIDEO) {
-                                                    Icon(
-                                                        Icons.Default.PlayCircleFilled,
-                                                        contentDescription = stringResource(R.string.video),
-                                                        tint = Color.White.copy(alpha = 0.8f),
-                                                        modifier = Modifier.size(32.dp).align(Alignment.Center)
-                                                    )
+                                                    Box(Modifier.fillMaxWidth().height(36.dp).align(Alignment.BottomCenter)
+                                                        .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.4f)))))
+                                                    Icon(Icons.Default.PlayCircleFilled, stringResource(R.string.video), tint = Color.White.copy(alpha = 0.9f),
+                                                        modifier = Modifier.size(40.dp).align(Alignment.Center))
+                                                }
+                                                if (isSelectionMode && isSelected) {
+                                                    Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
+                                                        Icon(Icons.Default.Check, null, Modifier.size(14.dp), tint = Color.White)
+                                                    }
                                                 }
                                             }
                                         }
@@ -1037,8 +1700,52 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             val halfWidth = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 48.dp) / 2
+                            val allFolderItems = if (!isDuressActive) folderManager.listAllFolders().flatMap { vault.listFolderItems(folderManager.getFolderDir(it.id)) } else emptyList()
+                            val allPhotosCount = if (!isDuressActive) vault.listAllPhotosOnly(allFolderItems).size else 0
+                            val allVideosCount = if (!isDuressActive) vault.listAllVideosOnly(allFolderItems).size else 0
                             CompactCategoryCard(stringResource(R.string.category_camera), categoryCounts[VaultCategory.CAMERA] ?: 0, Icons.Default.CameraAlt, halfWidth) { openCategory(VaultCategory.CAMERA) }
-                            CompactCategoryCard(stringResource(R.string.category_videos), categoryCounts[VaultCategory.VIDEO] ?: 0, Icons.Default.Videocam, halfWidth) { openCategory(VaultCategory.VIDEO) }
+                            // Photos (virtual smart view)
+                            CompactCategoryCard(stringResource(R.string.all_photos), allPhotosCount, Icons.Default.Photo, halfWidth) {
+                                isVirtualPhotos = true
+                                isVirtualVideos = false
+                                scope.launch {
+                                    val allFolderItems = withContext(Dispatchers.IO) {
+                                        folderManager.listAllFolders().flatMap { folder ->
+                                            vault.listFolderItems(folderManager.getFolderDir(folder.id))
+                                        }
+                                    }
+                                    photos = withContext(Dispatchers.IO) { vault.listAllPhotosOnly(allFolderItems) }
+                                    thumbnails = emptyMap()
+                                    currentCategory = VaultCategory.CAMERA
+                                    page = VaultPage.GALLERY
+                                    scope.launch {
+                                        val thumbMap = mutableMapOf<String, Bitmap>()
+                                        withContext(Dispatchers.IO) { photos.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } } }
+                                        thumbnails = thumbMap
+                                    }
+                                }
+                            }
+                            // Videos (virtual smart view)
+                            CompactCategoryCard(stringResource(R.string.all_videos), allVideosCount, Icons.Default.Videocam, halfWidth) {
+                                isVirtualVideos = true
+                                isVirtualPhotos = false
+                                scope.launch {
+                                    val allFolderItems = withContext(Dispatchers.IO) {
+                                        folderManager.listAllFolders().flatMap { folder ->
+                                            vault.listFolderItems(folderManager.getFolderDir(folder.id))
+                                        }
+                                    }
+                                    photos = withContext(Dispatchers.IO) { vault.listAllVideosOnly(allFolderItems) }
+                                    thumbnails = emptyMap()
+                                    currentCategory = VaultCategory.VIDEO
+                                    page = VaultPage.GALLERY
+                                    scope.launch {
+                                        val thumbMap = mutableMapOf<String, Bitmap>()
+                                        withContext(Dispatchers.IO) { photos.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } } }
+                                        thumbnails = thumbMap
+                                    }
+                                }
+                            }
                             CompactCategoryCard(stringResource(R.string.category_scans), categoryCounts[VaultCategory.SCAN] ?: 0, Icons.Default.DocumentScanner, halfWidth) { openCategory(VaultCategory.SCAN) }
                             CompactCategoryCard(stringResource(R.string.category_detections), categoryCounts[VaultCategory.DETECT] ?: 0, Icons.Default.CameraAlt, halfWidth) { openCategory(VaultCategory.DETECT) }
                             CompactCategoryCard(stringResource(R.string.category_reports), categoryCounts[VaultCategory.REPORTS] ?: 0, Icons.Default.Description, halfWidth) { openCategory(VaultCategory.REPORTS) }
@@ -1088,6 +1795,42 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                             }
                         }
                         } // end FlowRow
+
+                        // Trash section
+                        if (trashCount > 0) {
+                            Spacer(Modifier.height(16.dp))
+                            Card(
+                                Modifier.fillMaxWidth().clickable {
+                                    trashItems = vault.listTrash()
+                                    // Load trash thumbnails
+                                    scope.launch {
+                                        val thumbs = mutableMapOf<String, Bitmap>()
+                                        withContext(Dispatchers.IO) {
+                                            trashItems.forEach { item ->
+                                                if (item.thumbnailFile.exists()) {
+                                                    try {
+                                                        val bytes = crypto.decryptFile(item.thumbnailFile)
+                                                        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { thumbs[item.id] = it }
+                                                    } catch (_: Exception) {}
+                                                }
+                                            }
+                                        }
+                                        trashThumbnails = thumbs
+                                    }
+                                    page = VaultPage.TRASH
+                                },
+                                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f))
+                            ) {
+                                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Icon(Icons.Default.Delete, "Trash", Modifier.size(24.dp), tint = MaterialTheme.colorScheme.error)
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Trash", style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                                        Text("$trashCount item${if (trashCount > 1) "s" else ""} • auto-deletes after 30 days", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Icon(Icons.Default.Info, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
                     } // end if/else isSearching
                 }
             }
@@ -1106,7 +1849,9 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                                     showDetailsDialog = true
                                 }) { Icon(Icons.Default.Info, stringResource(R.string.details)) }
                             }
-                            IconButton(onClick = { showMoveDialog = true }) { Icon(Icons.Default.DriveFileMove, stringResource(R.string.move)) }
+                            if (!isVirtualPhotos && !isVirtualVideos) {
+                                IconButton(onClick = { showMoveDialog = true }) { Icon(Icons.Default.DriveFileMove, stringResource(R.string.move)) }
+                            }
                             IconButton(onClick = { shareImages(selectedIds) }) { Icon(Icons.Default.Share, stringResource(R.string.share)) }
                             IconButton(onClick = { saveToDevice(selectedIds) }) { Icon(Icons.Default.SaveAlt, stringResource(R.string.save)) }
                             IconButton(onClick = { showDeleteDialog = true }) { Icon(Icons.Default.Delete, stringResource(R.string.delete)) }
@@ -1114,11 +1859,21 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                     )
                 } else {
                     TopAppBar(
-                        title = { Text(stringResource(R.string.category_with_count, currentCategory.label, photos.size)) },
+                        title = {
+                            Text(
+                                when {
+                                    isVirtualPhotos -> "${stringResource(R.string.all_photos)} (${photos.size})"
+                                    isVirtualVideos -> "${stringResource(R.string.all_videos)} (${photos.size})"
+                                    else -> stringResource(R.string.category_with_count, currentCategory.label, photos.size)
+                                }
+                            )
+                        },
                         navigationIcon = {
                             IconButton(onClick = {
-                                thumbnails.values.forEach { it.recycle() }
+                                // thumbnails cleared — GC handles bitmap recycling (Compose may still be drawing)
                                 thumbnails = emptyMap()
+                                isVirtualPhotos = false
+                                isVirtualVideos = false
                                 if (!isDuressActive) categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders()
                                 page = VaultPage.CATEGORIES
                             }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
@@ -1133,9 +1888,10 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                 } else {
                     val grouped = remember(photos) { groupPhotosByDate(photos) }
 
+                    val galleryGridWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 16.dp
                     LazyColumn(
                         contentPadding = PaddingValues(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
                         modifier = Modifier.padding(padding)
                     ) {
                         grouped.forEach { (header, groupPhotos) ->
@@ -1147,63 +1903,108 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                                 )
                             }
-                            item {
-                                @OptIn(ExperimentalLayoutApi::class)
-                                FlowRow(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                                    modifier = Modifier.padding(horizontal = 4.dp)
-                                ) {
-                                    groupPhotos.forEach { photo ->
-                                        val thumb = thumbnails[photo.id]
-                                        val isSelected = photo.id in selectedIds
-                                        val itemSize = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 28.dp) / 4
+                            // Build rows: separate videos (2 per row, full width) from photos (3/2 alternating)
+                            val isVideoCategory = isVirtualVideos || currentCategory == VaultCategory.VIDEO
+                            val isScanCategory = currentCategory == VaultCategory.SCAN && !isVirtualPhotos && !isVirtualVideos
 
-                                        Box(
-                                            Modifier
-                                                .size(itemSize)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                                .then(if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)) else Modifier)
-                                                .combinedClickable(
-                                                    onClick = {
-                                                        if (isSelectionMode) {
-                                                            selectedIds = if (isSelected) selectedIds - photo.id else selectedIds + photo.id
-                                                            if (selectedIds.isEmpty()) isSelectionMode = false
-                                                        } else openViewer(photo)
-                                                    },
-                                                    onLongClick = { isSelectionMode = true; selectedIds = setOf(photo.id) }
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (photo.mediaType == VaultMediaType.PDF) {
-                                                // PDF icon + filename
-                                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
-                                                    Icon(Icons.Default.PictureAsPdf, stringResource(R.string.cd_pdf_document), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp))
-                                                    Text(
-                                                        text = photo.id.let { if (it.length > 15) it.take(12) + "..." else it },
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        maxLines = 1
-                                                    )
+                            // Split into typed rows: videos always 2-per-row full width, photos use normal layout
+                            data class TypedRow(val items: List<VaultPhoto>, val isVideoRow: Boolean)
+                            val typedRows = if (isVideoCategory) {
+                                groupPhotos.chunked(2).map { TypedRow(it, true) }
+                            } else if (isScanCategory) {
+                                groupPhotos.chunked(3).map { TypedRow(it, false) }
+                            } else {
+                                // Build rows preserving chronological order, grouping consecutive same-type items
+                                val rows = mutableListOf<TypedRow>()
+                                var currentPhotoBatch = mutableListOf<VaultPhoto>()
+                                var currentVideoBatch = mutableListOf<VaultPhoto>()
+
+                                fun flushPhotos() {
+                                    if (currentPhotoBatch.isEmpty()) return
+                                    var i2 = 0; var ri = 0
+                                    while (i2 < currentPhotoBatch.size) {
+                                        val count = if (ri % 3 == 1) 2 else 3
+                                        rows.add(TypedRow(currentPhotoBatch.subList(i2, (i2 + count).coerceAtMost(currentPhotoBatch.size)), false))
+                                        i2 += count; ri++
+                                    }
+                                    currentPhotoBatch = mutableListOf()
+                                }
+                                fun flushVideos() {
+                                    if (currentVideoBatch.isEmpty()) return
+                                    currentVideoBatch.chunked(2).forEach { rows.add(TypedRow(it, true)) }
+                                    currentVideoBatch = mutableListOf()
+                                }
+
+                                // Items are already sorted by timestamp desc
+                                groupPhotos.forEach { item ->
+                                    if (item.mediaType == VaultMediaType.VIDEO) {
+                                        flushPhotos()
+                                        currentVideoBatch.add(item)
+                                    } else {
+                                        flushVideos()
+                                        currentPhotoBatch.add(item)
+                                    }
+                                }
+                                flushPhotos()
+                                flushVideos()
+                                rows
+                            }
+                            typedRows.forEach { typedRow ->
+                                val row = typedRow.items
+                                item {
+                                    val isVidRow = typedRow.isVideoRow
+                                    val totalAspect = row.sumOf {
+                                        val t = thumbnails[it.id]
+                                        val a = if (t != null && t.height > 0) t.width.toFloat() / t.height else if (it.mediaType == VaultMediaType.PDF) 0.75f else 1.33f
+                                        a.toDouble()
+                                    }.toFloat()
+                                    val gaps = (row.size - 1) * 3f
+                                    val maxRowH = if (isVidRow) 220f else 160f
+                                    val rowHeight = ((galleryGridWidth.value - gaps) / totalAspect).coerceIn(80f, maxRowH)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+                                        row.forEach { photo ->
+                                            val thumb = thumbnails[photo.id]
+                                            val aspect = if (thumb != null && thumb.height > 0) thumb.width.toFloat() / thumb.height else if (photo.mediaType == VaultMediaType.PDF) 0.75f else 1.33f
+                                            val isSelected = photo.id in selectedIds
+                                            val fillEqual = isVidRow || isScanCategory
+                                            val equalWidth = (galleryGridWidth.value - (row.size - 1) * 3f) / row.size
+                                            val equalHeight = (equalWidth / (if (isVidRow) 1.78f else 0.75f)).dp
+                                            Box(
+                                                Modifier.then(if (fillEqual) Modifier.weight(1f).height(equalHeight) else Modifier.width((rowHeight * aspect).dp).height(rowHeight.dp))
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                    .then(if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp)) else Modifier)
+                                                    .combinedClickable(
+                                                        onClick = {
+                                                            if (isSelectionMode) {
+                                                                selectedIds = if (isSelected) selectedIds - photo.id else selectedIds + photo.id
+                                                                if (selectedIds.isEmpty()) isSelectionMode = false
+                                                            } else openViewer(photo)
+                                                        },
+                                                        onLongClick = { isSelectionMode = true; selectedIds = setOf(photo.id) }
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (photo.mediaType == VaultMediaType.PDF) {
+                                                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
+                                                        Icon(Icons.Default.PictureAsPdf, stringResource(R.string.cd_pdf_document), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp))
+                                                        Text(photo.id.let { if (it.length > 15) it.take(12) + "..." else it }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                    }
+                                                } else if (thumb != null) {
+                                                    Image(thumb.asImageBitmap(), if (photo.mediaType == VaultMediaType.VIDEO) stringResource(R.string.cd_video_thumbnail) else stringResource(R.string.cd_photo_thumbnail), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                                } else {
+                                                    Icon(Icons.Default.Lock, stringResource(R.string.cd_encrypted_item), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                                 }
-                                            } else if (thumb != null) {
-                                                Image(thumb.asImageBitmap(), if (photo.mediaType == VaultMediaType.VIDEO) stringResource(R.string.cd_video_thumbnail) else stringResource(R.string.cd_photo_thumbnail), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                                            } else {
-                                                Icon(Icons.Default.Lock, stringResource(R.string.cd_encrypted_item), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            }
-                                            // Video play icon overlay
-                                            if (photo.mediaType == VaultMediaType.VIDEO) {
-                                                Icon(
-                                                    Icons.Default.PlayCircleFilled,
-                                                    contentDescription = stringResource(R.string.video),
-                                                    tint = Color.White.copy(alpha = 0.8f),
-                                                    modifier = Modifier.size(32.dp).align(Alignment.Center)
-                                                )
-                                            }
-                                            if (isSelectionMode && isSelected) {
-                                                Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(24.dp).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
-                                                    Icon(Icons.Default.CheckCircle, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                                if (photo.mediaType == VaultMediaType.VIDEO) {
+                                                    Box(Modifier.fillMaxWidth().height(36.dp).align(Alignment.BottomCenter)
+                                                        .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.4f)))))
+                                                    Icon(Icons.Default.PlayCircleFilled, stringResource(R.string.video), tint = Color.White.copy(alpha = 0.9f),
+                                                        modifier = Modifier.size(40.dp).align(Alignment.Center))
+                                                }
+                                                if (isSelectionMode && isSelected) {
+                                                    Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
+                                                        Icon(Icons.Default.Check, null, Modifier.size(14.dp), tint = Color.White)
+                                                    }
                                                 }
                                             }
                                         }
@@ -1228,7 +2029,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                     scope.launch {
                         val tempFile = withContext(Dispatchers.IO) { vault.decryptVideoToTempFile(item) }
                         if (tempFile != null) {
-                            viewerBitmap?.recycle()
+                            // viewerBitmap cleared — GC handles recycling
                             viewerBitmap = null
                             videoTempFile = tempFile
                             viewerPhoto = item
@@ -1238,7 +2039,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                 } else {
                     scope.launch {
                         val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(item) }
-                        viewerBitmap?.recycle()
+                        // viewerBitmap cleared — GC handles recycling
                         viewerBitmap = bmp
                         viewerPhoto = item
                     }
@@ -1284,7 +2085,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                 }
 
                 IconButton(
-                    onClick = { viewerBitmap?.recycle(); viewerBitmap = null; page = VaultPage.GALLERY },
+                    onClick = { viewerBitmap = null; page = VaultPage.GALLERY },
                     Modifier.align(Alignment.TopStart).padding(top = 48.dp, start = 16.dp).size(40.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
                 ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = Color.White) }
 
@@ -1346,12 +2147,73 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                             Icon(Icons.Default.Edit, stringResource(R.string.edit), tint = Color.White)
                         }
                     }
+                    // Find Similar button
+                    if (photoIndex != null && viewerPhoto != null) {
+                        IconButton(onClick = {
+                            val pi = photoIndex ?: return@IconButton
+                            val vp = viewerPhoto ?: return@IconButton
+                            scope.launch {
+                                val similarIds = withContext(Dispatchers.IO) { pi.findSimilar(vp.id).map { it.first }.toSet() }
+                                if (similarIds.isNotEmpty()) {
+                                    val allPhotos = withContext(Dispatchers.IO) { getAllVaultItems() }
+                                    searchResults = allPhotos.filter { it.id in similarIds }
+                                    isSearching = true
+                                    smartMode = null
+                                    searchFromViewer = true
+                                    page = VaultPage.CATEGORIES
+                                    val thumbMap = mutableMapOf<String, Bitmap>()
+                                    withContext(Dispatchers.IO) {
+                                        searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                                    }
+                                    searchThumbnails = thumbMap
+                                } else {
+                                    Toast.makeText(context, context.getString(R.string.no_similar_found), Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Search, stringResource(R.string.find_similar), tint = Color.White)
+                        }
+                    }
                     // Details
                     IconButton(onClick = { showDetailsDialog = true }) {
                         Icon(Icons.Default.Info, stringResource(R.string.details), tint = Color.White)
                     }
                     IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = Color(0xFFFF6B6B))
+                    }
+                }
+
+                // AI labels (above action bar, pass-through touches)
+                viewerPhoto?.let { vp ->
+                    photoIndex?.getLabels(vp.id)?.let { labels ->
+                        if (labels.isNotEmpty()) {
+                            Row(
+                                Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp)
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                labels.forEach { label ->
+                                    SuggestionChip(onClick = {
+                                        searchQuery = label
+                                        searchFromViewer = true
+                                        scope.launch {
+                                            val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
+                                            val labelMatches = photoIndex?.searchByLabel(label)?.toSet() ?: emptySet()
+                                            searchResults = allItems.filter { it.id in labelMatches }
+                                            isSearching = true
+                                            smartMode = null
+                                            page = VaultPage.CATEGORIES
+                                            val thumbMap = mutableMapOf<String, Bitmap>()
+                                            withContext(Dispatchers.IO) {
+                                                searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                                            }
+                                            searchThumbnails = thumbMap
+                                        }
+                                    }, label = { Text(label, style = MaterialTheme.typography.labelSmall) })
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1520,7 +2382,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                     title = { Text(folder.name) },
                     navigationIcon = {
                         IconButton(onClick = {
-                            thumbnails.values.forEach { it.recycle() }
+                            // thumbnails cleared — GC handles bitmap recycling (Compose may still be drawing)
                             thumbnails = emptyMap()
                             if (folder.parentId != null) {
                                 // Go up to parent folder
@@ -1619,31 +2481,39 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
                         }
                     } else if (photos.isNotEmpty()) {
                         val grouped = remember(photos) { groupPhotosByDate(photos) }
-                        LazyColumn(contentPadding = PaddingValues(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val folderGridW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 16.dp
+                        LazyColumn(contentPadding = PaddingValues(4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             grouped.forEach { (header, groupPhotos) ->
                                 item {
                                     Text(header, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
                                 }
-                                item {
-                                    @OptIn(ExperimentalLayoutApi::class)
-                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
-                                        groupPhotos.forEach { photo ->
-                                            val thumb = thumbnails[photo.id]
-                                            val itemSize = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 28.dp) / 4
-                                            Box(Modifier.size(itemSize).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
-                                                .clickable { openViewer(photo) }, contentAlignment = Alignment.Center) {
-                                                if (photo.mediaType == VaultMediaType.PDF) {
-                                                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
-                                                        Icon(Icons.Default.PictureAsPdf, stringResource(R.string.cd_pdf_document), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp))
-                                                        Text(photo.id.let { if (it.length > 15) it.take(12) + "..." else it }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                groupPhotos.chunked(3).forEach { row ->
+                                    item {
+                                        val totalAspect = row.sumOf {
+                                            val t = thumbnails[it.id]
+                                            (if (t != null && t.height > 0) t.width.toFloat() / t.height else if (it.mediaType == VaultMediaType.PDF) 0.75f else 1.33f).toDouble()
+                                        }.toFloat()
+                                        val gaps = (row.size - 1) * 3f
+                                        val rowH = ((folderGridW.value - gaps) / totalAspect).coerceIn(80f, 160f)
+                                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
+                                            row.forEach { photo ->
+                                                val thumb = thumbnails[photo.id]
+                                                val aspect = if (thumb != null && thumb.height > 0) thumb.width.toFloat() / thumb.height else if (photo.mediaType == VaultMediaType.PDF) 0.75f else 1.33f
+                                                Box(Modifier.width((rowH * aspect).dp).height(rowH.dp).clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceVariant)
+                                                    .clickable { openViewer(photo) }, contentAlignment = Alignment.Center) {
+                                                    if (photo.mediaType == VaultMediaType.PDF) {
+                                                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
+                                                            Icon(Icons.Default.PictureAsPdf, stringResource(R.string.cd_pdf_document), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp))
+                                                            Text(photo.id.let { if (it.length > 15) it.take(12) + "..." else it }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                        }
+                                                    } else if (thumb != null) {
+                                                        Image(thumb.asImageBitmap(), if (photo.mediaType == VaultMediaType.VIDEO) stringResource(R.string.cd_video_thumbnail) else stringResource(R.string.cd_photo_thumbnail), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                                    } else {
+                                                        Icon(Icons.Default.Lock, stringResource(R.string.cd_encrypted_item), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                                     }
-                                                } else if (thumb != null) {
-                                                    Image(thumb.asImageBitmap(), if (photo.mediaType == VaultMediaType.VIDEO) stringResource(R.string.cd_video_thumbnail) else stringResource(R.string.cd_photo_thumbnail), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                                                } else {
-                                                    Icon(Icons.Default.Lock, stringResource(R.string.cd_encrypted_item), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                }
-                                                if (photo.mediaType == VaultMediaType.VIDEO) {
-                                                    Icon(Icons.Default.PlayCircleFilled, stringResource(R.string.video), tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(32.dp).align(Alignment.Center))
+                                                    if (photo.mediaType == VaultMediaType.VIDEO) {
+                                                        Icon(Icons.Default.PlayCircleFilled, stringResource(R.string.video), tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(32.dp).align(Alignment.Center))
+                                                    }
                                                 }
                                             }
                                         }
@@ -1656,6 +2526,123 @@ fun VaultScreen(onBack: (() -> Unit)? = null) {
             }
         }
         } // end else (folder != null)
+
+        VaultPage.TRASH -> {
+            Scaffold(topBar = {
+                TopAppBar(
+                    title = { Text("Trash (${trashItems.size})") },
+                    navigationIcon = {
+                        IconButton(onClick = { page = VaultPage.CATEGORIES; trashCount = vault.trashCount() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
+                        }
+                    },
+                    actions = {
+                        if (isSelectionMode && selectedIds.isNotEmpty()) {
+                            // Restore selected
+                            IconButton(onClick = {
+                                val restoredIds = selectedIds.toSet()
+                                selectedIds.forEach { vault.restoreFromTrash(it) }
+                                trashItems = vault.listTrash()
+                                categoryCounts = vault.countByCategory(); trashCount = vault.trashCount()
+                                selectedIds = emptySet(); isSelectionMode = false
+                                Toast.makeText(context, "Restored", Toast.LENGTH_SHORT).show()
+                                // Re-index restored photos in background
+                                val pi = photoIndex; val cl = classifier
+                                if (pi != null && cl != null) {
+                                    scope.launch(Dispatchers.IO) {
+                                        val fe = try { FaceEmbedder(context) } catch (_: Exception) { null }
+                                        val allPhotos = getAllVaultItems().filter { it.id in restoredIds && it.mediaType == VaultMediaType.PHOTO }
+                                        allPhotos.forEach { photo ->
+                                            if (!pi.isIndexed(photo.id)) {
+                                                val bmp = try {
+                                                    if (photo.encryptedFile.length() > 10 * 1024 * 1024) vault.loadThumbnail(photo)
+                                                    else vault.loadFullPhoto(photo) ?: vault.loadThumbnail(photo)
+                                                } catch (_: OutOfMemoryError) { vault.loadThumbnail(photo) }
+                                                bmp?.let { img -> try { pi.indexPhoto(photo.id, img, cl, faceEmbedder = fe) } catch (_: Exception) {}; img.recycle() }
+                                            }
+                                        }
+                                        fe?.release()
+                                    }
+                                }
+                            }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Restore") }
+                            // Permanent delete selected
+                            IconButton(onClick = {
+                                selectedIds.forEach { vault.permanentDeleteFromTrash(it) }
+                                trashItems = vault.listTrash()
+                                trashCount = vault.trashCount()
+                                selectedIds = emptySet(); isSelectionMode = false
+                                Toast.makeText(context, "Permanently deleted", Toast.LENGTH_SHORT).show()
+                            }) { Icon(Icons.Default.Delete, "Delete forever", tint = MaterialTheme.colorScheme.error) }
+                            IconButton(onClick = { selectedIds = emptySet(); isSelectionMode = false }) { Icon(Icons.Default.Close, stringResource(R.string.action_cancel)) }
+                        } else if (trashItems.isNotEmpty()) {
+                            TextButton(onClick = {
+                                vault.emptyTrash()
+                                trashItems = emptyList()
+                                trashThumbnails = emptyMap()
+                                trashCount = 0
+                                Toast.makeText(context, "Trash emptied", Toast.LENGTH_SHORT).show()
+                                page = VaultPage.CATEGORIES
+                            }) { Text("Empty Trash", color = MaterialTheme.colorScheme.error) }
+                        }
+                    }
+                )
+            }) { padding ->
+                if (trashItems.isEmpty()) {
+                    Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Icon(Icons.Default.Delete, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+                        Spacer(Modifier.height(12.dp))
+                        Text("Trash is empty", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    val dateFmt = remember { java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()) }
+                    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        trashItems.forEach { item ->
+                            val isSelected = item.id in selectedIds
+                            val thumb = trashThumbnails[item.id]
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                selectedIds = if (isSelected) selectedIds - item.id else selectedIds + item.id
+                                                if (selectedIds.isEmpty()) isSelectionMode = false
+                                            }
+                                        },
+                                        onLongClick = { isSelectionMode = true; selectedIds = selectedIds + item.id }
+                                    )
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // Thumbnail
+                                Box(Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                                    if (thumb != null) {
+                                        Image(thumb.asImageBitmap(), "Trashed", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                    } else {
+                                        Icon(if (item.mediaType == VaultMediaType.PDF) Icons.Default.PictureAsPdf else Icons.Default.Photo, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    if (item.mediaType == VaultMediaType.VIDEO) {
+                                        Icon(Icons.Default.PlayCircleFilled, null, Modifier.size(24.dp), tint = Color.White.copy(alpha = 0.8f))
+                                    }
+                                }
+                                // Info
+                                Column(Modifier.weight(1f)) {
+                                    Text(item.mediaType.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.bodyMedium)
+                                    Text("From: ${item.originalCategory.label}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Deleted: ${dateFmt.format(java.util.Date(item.trashedAt))}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                // Selection check
+                                if (isSelectionMode && isSelected) {
+                                    Icon(Icons.Default.CheckCircle, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Photo editor overlay

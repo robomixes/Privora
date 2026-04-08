@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
@@ -76,7 +77,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
     val noteRepo = remember { NoteRepository(File(context.filesDir, "vault/notes"), crypto) }
 
     val storageInfo = remember { StorageManager.getStorageInfo(context) }
-    val deviceProfile = remember { DeviceProfiler.getProfile(context) }
+    var deviceProfile by remember { mutableStateOf(DeviceProfiler.getProfile(context)) }
     val noteCount = remember { noteRepo.noteCount() }
     val photoCount = remember {
         VaultCategory.entries.filter { it != VaultCategory.FILES }
@@ -136,7 +137,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 "vault" to Triple(stringResource(R.string.feature_vault), stringResource(R.string.feature_vault_desc), Icons.Default.Lock),
                 "notes" to Triple(stringResource(R.string.feature_notes), stringResource(R.string.feature_notes_desc), Icons.Default.NoteAlt),
                 "insights" to Triple(stringResource(R.string.feature_insights), stringResource(R.string.feature_insights_desc), Icons.Default.Info),
-                "tools" to Triple(stringResource(R.string.feature_tools), stringResource(R.string.feature_tools_desc), Icons.Default.Info)
+                "tools" to Triple(stringResource(R.string.feature_tools), stringResource(R.string.feature_tools_desc), Icons.Default.Info),
+                "contacts" to Triple(stringResource(R.string.feature_contacts), stringResource(R.string.feature_contacts_desc), Icons.Default.Person)
             )
             var featureOrder by remember { mutableStateOf(FeatureToggleManager.getOrderedFeatures(context)) }
 
@@ -272,7 +274,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 subtitle = stringResource(R.string.settings_rebenchmark_desc),
                 onClick = {
                     Toast.makeText(context, context.getString(R.string.settings_running_benchmark), Toast.LENGTH_SHORT).show()
-                    DeviceProfiler.runBenchmark(context)
+                    deviceProfile = DeviceProfiler.runBenchmark(context)
                     Toast.makeText(context, context.getString(R.string.settings_benchmark_complete), Toast.LENGTH_SHORT).show()
                 }
             )
@@ -291,7 +293,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 "en" to "English",
                 "ar" to "\u0627\u0644\u0639\u0631\u0628\u064A\u0629",
                 "es" to "Espa\u00F1ol",
-                "fr" to "Fran\u00E7ais"
+                "fr" to "Fran\u00E7ais",
+                "zh" to "中文"
             )
 
             SettingsItem(
@@ -362,15 +365,48 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 subtitle = stringResource(R.string.settings_encryption_desc)
             )
 
-            SettingsItem(
-                icon = Icons.Default.Security,
-                title = stringResource(R.string.settings_screenshot_protection),
-                subtitle = stringResource(R.string.settings_screenshot_protection_desc)
-            )
+            val screenshotPref = remember { context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE) }
+            var screenshotBlocked by remember { mutableStateOf(screenshotPref.getBoolean("block_screenshots", true)) }
+            Row(
+                Modifier.fillMaxWidth().clickable {
+                    screenshotBlocked = !screenshotBlocked
+                    screenshotPref.edit().putBoolean("block_screenshots", screenshotBlocked).apply()
+                    // Apply immediately
+                    val activity = context as? android.app.Activity
+                    if (screenshotBlocked) {
+                        activity?.window?.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                    } else {
+                        activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                    }
+                }.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Security, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                    Text(stringResource(R.string.settings_screenshot_protection), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        if (screenshotBlocked) stringResource(R.string.settings_screenshot_protection_desc)
+                        else "Disabled — screenshots and screen recording allowed",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = screenshotBlocked, onCheckedChange = {
+                    screenshotBlocked = it
+                    screenshotPref.edit().putBoolean("block_screenshots", screenshotBlocked).apply()
+                    val activity = context as? android.app.Activity
+                    if (screenshotBlocked) {
+                        activity?.window?.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                    } else {
+                        activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                    }
+                })
+            }
 
             GracePeriodSetting(context)
 
-            if (com.privateai.camera.ui.onboarding.getAuthMode(context) == com.privateai.camera.ui.onboarding.AuthMode.APP_PIN) {
+            if (!com.privateai.camera.security.VaultLockManager.isDuressActive &&
+                com.privateai.camera.ui.onboarding.getAuthMode(context) == com.privateai.camera.ui.onboarding.AuthMode.APP_PIN) {
                 if (com.privateai.camera.security.DuressManager.isEnabled(context)) {
                     SettingsItem(
                         icon = Icons.Default.Security,
@@ -512,14 +548,14 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             var showCrashList by remember { mutableStateOf(false) }
             var viewingCrashLog by remember { mutableStateOf<com.privateai.camera.service.CrashLog?>(null) }
 
-            if (crashLogs.isNotEmpty()) {
-                SettingsItem(
-                    icon = Icons.Default.Info,
-                    title = stringResource(R.string.settings_crash_logs, crashLogs.size),
-                    subtitle = stringResource(R.string.settings_crash_logs_desc),
-                    onClick = { showCrashList = true }
-                )
-            }
+            SettingsItem(
+                icon = Icons.Default.Info,
+                title = if (crashLogs.isNotEmpty()) stringResource(R.string.settings_crash_logs, crashLogs.size)
+                        else stringResource(R.string.settings_crash_logs_title),
+                subtitle = if (crashLogs.isNotEmpty()) stringResource(R.string.settings_crash_logs_desc)
+                           else "No crashes recorded",
+                onClick = if (crashLogs.isNotEmpty()) { { showCrashList = true } } else null
+            )
 
             // Crash log list dialog
             if (showCrashList) {
@@ -737,8 +773,8 @@ fun isFaceBlurEnabled(context: android.content.Context): Boolean {
 @Composable
 private fun GracePeriodSetting(context: android.content.Context) {
     val prefs = remember { context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE) }
-    val options = listOf(0, 10, 30, 60, 120)
-    val labels = listOf(stringResource(R.string.grace_immediately), stringResource(R.string.grace_10_seconds), stringResource(R.string.grace_30_seconds), stringResource(R.string.grace_1_minute), stringResource(R.string.grace_2_minutes))
+    val options = listOf(0, 10, 30, 60, 120, 300)
+    val labels = listOf(stringResource(R.string.grace_immediately), stringResource(R.string.grace_10_seconds), stringResource(R.string.grace_30_seconds), stringResource(R.string.grace_1_minute), stringResource(R.string.grace_2_minutes), stringResource(R.string.grace_5_minutes))
     var currentValue by remember { mutableStateOf(prefs.getInt("lock_grace_seconds", 30)) }
     var expanded by remember { mutableStateOf(false) }
 

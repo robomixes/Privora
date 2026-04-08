@@ -13,6 +13,8 @@ data class SecureNote(
     val tags: List<String>,
     val color: Int = 0,       // 0=default, 1-8 = color presets
     val pinned: Boolean = false,
+    val attachments: List<String> = emptyList(), // vault photo IDs
+    val personId: String? = null,
     val createdAt: Long,
     val modifiedAt: Long
 )
@@ -41,13 +43,15 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
         return updated
     }
 
-    fun createNote(title: String, content: String, tags: List<String> = emptyList()): SecureNote {
+    fun createNote(title: String, content: String, tags: List<String> = emptyList(), attachments: List<String> = emptyList(), personId: String? = null): SecureNote {
         val now = System.currentTimeMillis()
         val note = SecureNote(
             id = UUID.randomUUID().toString(),
             title = title,
             content = content,
             tags = tags,
+            attachments = attachments,
+            personId = personId,
             createdAt = now,
             modifiedAt = now
         )
@@ -116,6 +120,8 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
             put("tags", JSONArray(note.tags))
             put("color", note.color)
             put("pinned", note.pinned)
+            put("attachments", JSONArray(note.attachments))
+            put("personId", note.personId ?: "")
             put("createdAt", note.createdAt)
             put("modifiedAt", note.modifiedAt)
         }.toString()
@@ -125,6 +131,10 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
         val obj = JSONObject(json)
         val tagsArray = obj.getJSONArray("tags")
         val tags = (0 until tagsArray.length()).map { tagsArray.getString(it) }
+        val attachments = if (obj.has("attachments")) {
+            val arr = obj.getJSONArray("attachments")
+            (0 until arr.length()).map { arr.getString(it) }
+        } else emptyList()
         return SecureNote(
             id = obj.getString("id"),
             title = obj.getString("title"),
@@ -132,6 +142,8 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
             tags = tags,
             color = obj.optInt("color", 0),
             pinned = obj.optBoolean("pinned", false),
+            attachments = attachments,
+            personId = obj.optString("personId", "").ifEmpty { null },
             createdAt = obj.getLong("createdAt"),
             modifiedAt = obj.getLong("modifiedAt")
         )

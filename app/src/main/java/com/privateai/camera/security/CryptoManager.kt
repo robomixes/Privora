@@ -30,6 +30,8 @@ class CryptoManager(private val context: Context) {
         private const val GCM_IV_SIZE = 12
         private const val GCM_TAG_SIZE = 128 // bits
         private const val DEK_SIZE = 32 // 256 bits
+        private const val CHUNK_SIZE = 16L * 1024 * 1024 // 16MB chunks for large file encryption
+        private const val CHUNKED_VERSION: Byte = 2
     }
 
     private var cachedDEK: SecretKey? = null
@@ -91,25 +93,110 @@ class CryptoManager(private val context: Context) {
     }
 
     /**
-     * Encrypt a file: read plaintext → encrypt → write to .enc file atomically.
+     * Encrypt a file using chunked GCM to avoid OOM on large files.
+     * For files > 16MB: splits into 16MB chunks, each independently GCM-encrypted.
+     * Format: [1-byte version=2][for each chunk: [12-byte IV][4-byte chunk size][encrypted chunk + GCM tag]]
+     * For files <= 16MB: original format [12-byte IV][ciphertext+tag] (version byte absent = v1)
      */
     fun encryptFile(inputFile: File, outputFile: File) {
-        val plaintext = FileInputStream(inputFile).use { it.readBytes() }
-        val encrypted = encrypt(plaintext)
+        if (cachedDEK == null) initialize()
+        val dek = cachedDEK ?: throw IllegalStateException("CryptoManager not initialized")
 
-        // Atomic write: write to temp, then rename
+        val fileSize = inputFile.length()
         val tempFile = File(outputFile.parentFile, "${outputFile.name}.tmp")
-        FileOutputStream(tempFile).use { it.write(encrypted) }
+
+        if (fileSize <= CHUNK_SIZE) {
+            // Small file: encrypt in one shot (original format, backward compatible)
+            val plaintext = FileInputStream(inputFile).use { it.readBytes() }
+            val encrypted = encrypt(plaintext)
+            FileOutputStream(tempFile).use { it.write(encrypted) }
+        } else {
+            // Large file: chunked encryption
+            FileInputStream(inputFile).use { fis ->
+                FileOutputStream(tempFile).use { fos ->
+                    fos.write(CHUNKED_VERSION.toInt()) // version marker
+                    val buffer = ByteArray(CHUNK_SIZE.toInt())
+                    var bytesRead: Int
+                    while (fis.read(buffer).also { bytesRead = it } != -1) {
+                        val cipher = Cipher.getInstance(AES_GCM)
+                        cipher.init(Cipher.ENCRYPT_MODE, dek)
+                        val iv = cipher.iv
+                        val chunkCiphertext = cipher.doFinal(buffer, 0, bytesRead)
+                        fos.write(iv) // 12 bytes
+                        // Write chunk ciphertext size as 4 bytes big-endian
+                        val size = chunkCiphertext.size
+                        fos.write(size shr 24)
+                        fos.write(size shr 16)
+                        fos.write(size shr 8)
+                        fos.write(size)
+                        fos.write(chunkCiphertext)
+                    }
+                }
+            }
+        }
         tempFile.renameTo(outputFile)
     }
 
     /**
      * Decrypt a file: read .enc → decrypt → return plaintext bytes.
+     * Supports both original format (small files) and chunked format (large files).
      * Never writes decrypted data to disk.
      */
     fun decryptFile(encryptedFile: File): ByteArray {
-        val encrypted = FileInputStream(encryptedFile).use { it.readBytes() }
-        return decrypt(encrypted)
+        if (cachedDEK == null) initialize()
+        val dek = cachedDEK ?: throw IllegalStateException("CryptoManager not initialized")
+
+        // Guard against OOM: reject files that would exceed available memory
+        val fileSize = encryptedFile.length()
+        val maxDecryptSize = 100L * 1024 * 1024 // 100MB max for in-memory decryption
+        if (fileSize > maxDecryptSize) {
+            throw OutOfMemoryError("File too large for in-memory decryption: ${fileSize / 1024 / 1024}MB (max ${maxDecryptSize / 1024 / 1024}MB)")
+        }
+
+        FileInputStream(encryptedFile).use { fis ->
+            // Peek first byte to detect format
+            val firstByte = fis.read()
+            if (firstByte == CHUNKED_VERSION.toInt()) {
+                // Chunked format: read chunks
+                val result = java.io.ByteArrayOutputStream()
+                val ivBuf = ByteArray(GCM_IV_SIZE)
+                val sizeBuf = ByteArray(4)
+                while (fis.read(ivBuf) == GCM_IV_SIZE) {
+                    if (fis.read(sizeBuf) != 4) break
+                    val chunkSize = ((sizeBuf[0].toInt() and 0xFF) shl 24) or
+                            ((sizeBuf[1].toInt() and 0xFF) shl 16) or
+                            ((sizeBuf[2].toInt() and 0xFF) shl 8) or
+                            (sizeBuf[3].toInt() and 0xFF)
+                    // Sanity check: chunk can't be larger than 16MB + GCM tag (16 bytes)
+                    if (chunkSize <= 0 || chunkSize > CHUNK_SIZE + 1024) {
+                        Log.e("CryptoManager", "Invalid chunk size: $chunkSize — file may be corrupt or not chunked format")
+                        throw IllegalStateException("Corrupt chunked file: invalid chunk size $chunkSize")
+                    }
+                    val chunkData = ByteArray(chunkSize)
+                    var read = 0
+                    while (read < chunkSize) {
+                        val n = fis.read(chunkData, read, chunkSize - read)
+                        if (n <= 0) break
+                        read += n
+                    }
+                    val cipher = Cipher.getInstance(AES_GCM)
+                    cipher.init(Cipher.DECRYPT_MODE, dek, GCMParameterSpec(GCM_TAG_SIZE, ivBuf))
+                    result.write(cipher.doFinal(chunkData))
+                }
+                return result.toByteArray()
+            } else {
+                // Original format: first byte is part of IV
+                val ivRest = ByteArray(GCM_IV_SIZE - 1)
+                fis.read(ivRest)
+                val iv = ByteArray(GCM_IV_SIZE)
+                iv[0] = firstByte.toByte()
+                System.arraycopy(ivRest, 0, iv, 1, ivRest.size)
+                val ciphertext = fis.readBytes()
+                val cipher = Cipher.getInstance(AES_GCM)
+                cipher.init(Cipher.DECRYPT_MODE, dek, GCMParameterSpec(GCM_TAG_SIZE, iv))
+                return cipher.doFinal(ciphertext)
+            }
+        }
     }
 
     /**
