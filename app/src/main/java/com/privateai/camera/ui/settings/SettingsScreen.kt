@@ -4,13 +4,18 @@ import android.content.Context
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.NoteAlt
@@ -34,6 +39,8 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.TextButton
@@ -48,12 +55,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -71,6 +84,7 @@ import java.io.File
 @Composable
 fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = null, onDuressClick: (() -> Unit)? = null) {
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     val crypto = remember { CryptoManager(context).also { it.initialize() } }
     val vault = remember { VaultRepository(context, crypto) }
@@ -353,6 +367,143 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             } // end showDevice
+
+            // Camera section
+            val showCamera = matchesSearch("Camera", "Countdown", "Timer", "Self-timer", "Delay")
+            if (showCamera) {
+                SectionHeader(stringResource(R.string.settings_section_camera))
+
+                val cameraPref = remember { context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE) }
+                var countdownSec by remember { mutableIntStateOf(cameraPref.getInt("countdown_seconds", 5)) }
+                val options = listOf(3, 5, 10)
+
+                SettingsItem(
+                    icon = Icons.Default.Timer,
+                    title = stringResource(R.string.settings_countdown_timer),
+                    subtitle = stringResource(R.string.settings_countdown_desc)
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    options.forEach { sec ->
+                        val selected = countdownSec == sec
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .clickable {
+                                    countdownSec = sec
+                                    cameraPref.edit().putInt("countdown_seconds", sec).apply()
+                                }
+                                .padding(horizontal = 20.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                "${sec}s",
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Video auto-record duration
+                var videoDurationSec by remember { mutableIntStateOf(cameraPref.getInt("countdown_video_seconds", 30)) }
+                val videoOptions = listOf(5, 10, 15, 30)
+
+                SettingsItem(
+                    icon = Icons.Default.Videocam,
+                    title = stringResource(R.string.settings_video_duration),
+                    subtitle = stringResource(R.string.settings_video_duration_desc)
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    videoOptions.forEach { sec ->
+                        val selected = videoDurationSec == sec
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .clickable {
+                                    videoDurationSec = sec
+                                    cameraPref.edit().putInt("countdown_video_seconds", sec).apply()
+                                }
+                                .padding(horizontal = 20.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                "${sec}s",
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+
+                // Force re-index all photos
+                var showReindexDialog by remember { mutableStateOf(false) }
+                var isReindexing by remember { mutableStateOf(false) }
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clickable(enabled = !isReindexing) { showReindexDialog = true }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_reindex), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            if (isReindexing) stringResource(R.string.settings_reindex_running)
+                            else stringResource(R.string.settings_reindex_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                if (showReindexDialog) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { showReindexDialog = false },
+                        title = { Text(stringResource(R.string.settings_reindex)) },
+                        text = { Text(stringResource(R.string.settings_reindex_confirm)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showReindexDialog = false
+                                isReindexing = true
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
+                                            val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+                                            val pi = com.privateai.camera.security.PhotoIndex(db)
+                                            pi.clearIndex()
+                                        } catch (_: Exception) {}
+                                    }
+                                    isReindexing = false
+                                    android.widget.Toast.makeText(context, context.getString(R.string.settings_reindex_done), android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }) { Text(stringResource(R.string.settings_reindex_action), color = MaterialTheme.colorScheme.error) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showReindexDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+                        }
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+            }
 
             // Security section
             val showSecurity = matchesSearch("Security", "Encryption", "Screenshot Protection", "Emergency PIN", "Grace period", "Auto-lock")

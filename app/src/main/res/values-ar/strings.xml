@@ -78,6 +78,17 @@
     <string name="settings_benchmark_complete">اكتمل اختبار الأداء</string>
 
     <!-- Settings: Security -->
+    <string name="settings_section_camera">الكاميرا</string>
+    <string name="settings_countdown_timer">مؤقت العد التنازلي</string>
+    <string name="settings_countdown_desc">تأخير قبل الالتقاط (اضغط على أيقونة المؤقت في الكاميرا للتفعيل)</string>
+    <string name="settings_video_duration">مدة التسجيل التلقائي</string>
+    <string name="settings_video_duration_desc">طول الفيديو عند استخدام المؤقت في وضع الفيديو</string>
+    <string name="settings_reindex">إعادة فهرسة جميع الصور</string>
+    <string name="settings_reindex_desc">مسح التصنيفات وإعادة تحليل جميع صور الخزنة</string>
+    <string name="settings_reindex_running">جاري إعادة الفهرسة\u2026</string>
+    <string name="settings_reindex_confirm">سيتم مسح جميع التصنيفات ومجموعات الوجوه. سيتم إعادة بنائها عند فتح الخزنة. متابعة؟</string>
+    <string name="settings_reindex_done">تم مسح الفهرس. افتح الخزنة لإعادة الفهرسة.</string>
+    <string name="settings_reindex_action">مسح وإعادة فهرسة</string>
     <string name="settings_section_security">الأمان</string>
     <string name="settings_encryption">التشفير</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 مفتاح فريد لكل تثبيت \u2022 مدعوم بالعتاد</string>
@@ -343,6 +354,18 @@
     <string name="add_tag">إضافة وسم</string>
     <string name="new_tag">وسم جديد</string>
     <string name="note_label">الملاحظة</string>
+    <string name="note_placeholder">ابدأ بكتابة أفكارك\u2026</string>
+    <string name="attach_media">إرفاق وسائط</string>
+    <string name="image_deleted">تم حذف الصورة</string>
+    <string name="link_to_person">ربط بشخص</string>
+    <string name="no_people_yet">لم تتم إضافة أشخاص بعد. أضف شخصاً في قسم الأشخاص أولاً.</string>
+
+    <!-- Grammar check -->
+    <string name="grammar_check_on">التدقيق النحوي مفعّل</string>
+    <string name="grammar_check_off">التدقيق النحوي معطّل</string>
+    <string name="grammar_ignore">تجاهل</string>
+    <string name="grammar_fix_all">%1$d أخطاء</string>
+    <string name="grammar_fix_all_action">إصلاح الكل</string>
 
     <!-- Home screen -->
     <string name="app_name_home">Privora</string>
@@ -400,6 +423,8 @@
     <string name="cd_switch_camera">تبديل الكاميرا</string>
     <string name="mode_photo">صورة</string>
     <string name="mode_video">فيديو</string>
+    <string name="countdown_photo">جاري التقاط الصورة\u2026</string>
+    <string name="countdown_video">تسجيل فيديو %1$d ثانية\u2026</string>
     <string name="cd_view_last_capture">عرض آخر التقاط</string>
     <string name="cd_last_capture">آخر التقاط</string>
     <string name="cd_stop_recording">إيقاف التسجيل</string>

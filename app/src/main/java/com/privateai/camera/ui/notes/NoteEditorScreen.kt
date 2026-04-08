@@ -11,15 +11,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,55 +35,74 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.FormatBold
+import androidx.compose.material.icons.filled.FormatItalic
+import androidx.compose.material.icons.filled.FormatStrikethrough
+import androidx.compose.material.icons.filled.FormatUnderlined
+import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Spellcheck
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.privateai.camera.R
+import com.privateai.camera.grammar.GrammarError
+import com.privateai.camera.grammar.LocalGrammarChecker
+import com.privateai.camera.grammar.MarkdownTransformation
+import com.privateai.camera.grammar.SystemSpellChecker
 import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.SecureNote
 import com.privateai.camera.security.VaultMediaType
 import com.privateai.camera.security.VaultPhoto
 import com.privateai.camera.security.VaultRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun NoteEditorScreen(
     note: SecureNote?,
@@ -89,7 +114,7 @@ fun NoteEditorScreen(
     val context = LocalContext.current
     val isNew = note == null
     var title by remember { mutableStateOf(note?.title ?: "") }
-    var content by remember { mutableStateOf(note?.content ?: "") }
+    var contentValue by remember { mutableStateOf(TextFieldValue(note?.content ?: "")) }
     var tags by remember { mutableStateOf(note?.tags ?: emptyList()) }
     var newTag by remember { mutableStateOf("") }
     var showTagInput by remember { mutableStateOf(false) }
@@ -101,27 +126,41 @@ fun NoteEditorScreen(
     var showPersonPicker by remember { mutableStateOf(false) }
     var linkedPersonName by remember { mutableStateOf<String?>(null) }
 
+    // Grammar checking state
+    var grammarEnabled by remember { mutableStateOf(true) }
+    var grammarErrors by remember { mutableStateOf<List<GrammarError>>(emptyList()) }
+    val localChecker = remember { LocalGrammarChecker(context) }
+    val systemChecker = remember { SystemSpellChecker(context) }
+
+    val brandColor = MaterialTheme.colorScheme.primary
+    val surfaceTone = MaterialTheme.colorScheme.surfaceContainerLow
+
     // Load linked person name
     LaunchedEffect(linkedPersonId) {
         if (linkedPersonId != null) {
             withContext(Dispatchers.IO) {
                 try {
                     val crypto = CryptoManager(context).also { it.initialize() }
-                    val contactRepo = com.privateai.camera.security.ContactRepository(java.io.File(context.filesDir, "vault/contacts"), crypto, com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto))
+                    val contactRepo = com.privateai.camera.security.ContactRepository(
+                        java.io.File(context.filesDir, "vault/contacts"), crypto,
+                        com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+                    )
                     linkedPersonName = contactRepo.listContacts().find { it.id == linkedPersonId }?.name
                 } catch (_: Exception) {}
             }
         } else linkedPersonName = null
     }
 
-    // Load thumbnails for existing attachments (includes folder items)
+    // Load thumbnails
     LaunchedEffect(attachmentIds) {
         val crypto = CryptoManager(context).also { it.initialize() }
         val vault = VaultRepository(context, crypto)
         val folderManager = com.privateai.camera.security.FolderManager(context, crypto)
         val thumbs = mutableMapOf<String, Bitmap>()
         withContext(Dispatchers.IO) {
-            val folderItems = folderManager.listAllFolders().flatMap { f -> vault.listFolderItems(folderManager.getFolderDir(f.id)) }
+            val folderItems = folderManager.listAllFolders().flatMap { f ->
+                vault.listFolderItems(folderManager.getFolderDir(f.id))
+            }
             val allPhotos = (vault.listAllPhotos() + folderItems).distinctBy { it.id }
             attachmentIds.forEach { id ->
                 allPhotos.find { it.id == id }?.let { photo ->
@@ -132,6 +171,25 @@ fun NoteEditorScreen(
         attachmentThumbnails = thumbs
     }
 
+    // Debounced grammar checking
+    LaunchedEffect(grammarEnabled) {
+        if (!grammarEnabled) { grammarErrors = emptyList(); return@LaunchedEffect }
+        snapshotFlow { contentValue.text }
+            .debounce(1500)
+            .distinctUntilChanged()
+            .collectLatest { text ->
+                if (text.isBlank()) { grammarErrors = emptyList(); return@collectLatest }
+                val localErrors = withContext(Dispatchers.Default) { localChecker.check(text) }
+                val spellErrors = try { systemChecker.check(text) } catch (_: Exception) { emptyList() }
+                val allErrors = localErrors.toMutableList()
+                for (se in spellErrors) {
+                    if (allErrors.none { it.fromPos < se.toPos && it.toPos > se.fromPos }) allErrors.add(se)
+                }
+                grammarErrors = allErrors.sortedBy { it.fromPos }
+            }
+    }
+
+    // Dialogs
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -139,28 +197,31 @@ fun NoteEditorScreen(
             text = { Text(stringResource(R.string.delete_note_message)) },
             confirmButton = {
                 TextButton(onClick = { showDeleteDialog = false; onDelete() }) {
-                    Text(stringResource(R.string.delete), color = Color.Red)
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
-            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) } }
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.cancel)) }
+            }
         )
     }
-
-    // Vault photo picker dialog
     if (showVaultPicker) {
         VaultPhotoPickerDialog(
             alreadyAttached = attachmentIds,
-            onConfirm = { selectedIds ->
-                attachmentIds = (attachmentIds + selectedIds).distinct()
-                showVaultPicker = false
-            },
+            onConfirm = { attachmentIds = (attachmentIds + it).distinct(); showVaultPicker = false },
             onDismiss = { showVaultPicker = false }
         )
     }
-
-    val brandColor = MaterialTheme.colorScheme.primary
+    if (showPersonPicker) {
+        PersonPickerDialog(
+            brandColor = brandColor,
+            onPick = { id, name -> linkedPersonId = id; linkedPersonName = name; showPersonPicker = false },
+            onDismiss = { showPersonPicker = false }
+        )
+    }
 
     Scaffold(
+        // ── Top bar with tonal surface ──
         topBar = {
             TopAppBar(
                 title = {},
@@ -170,22 +231,97 @@ fun NoteEditorScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { grammarEnabled = !grammarEnabled }) {
+                        Icon(
+                            Icons.Default.Spellcheck, null,
+                            tint = if (grammarEnabled) brandColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        )
+                    }
                     if (!isNew) {
                         IconButton(onClick = { showDeleteDialog = true }) {
-                            Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Default.DeleteForever, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
                         }
                     }
-                    IconButton(onClick = { showVaultPicker = true }) {
-                        Icon(Icons.Default.AttachFile, stringResource(R.string.attach_from_vault), tint = brandColor)
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = surfaceTone
+                )
+            )
+        },
+        // ── Bottom toolbar: formatting + grammar ──
+        bottomBar = {
+            Column(
+                Modifier.fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.ime)
+                    .background(surfaceTone)
+            ) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.5.dp)
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FormatButton(Icons.Default.FormatBold, "Bold", brandColor) {
+                        contentValue = wrapSelection(contentValue, "**")
                     }
-                    IconButton(
-                        onClick = { onSave(title, content, tags, attachmentIds, linkedPersonId) },
-                        enabled = title.isNotBlank() || content.isNotBlank()
-                    ) {
-                        Icon(Icons.Default.Check, stringResource(R.string.save), tint = if (title.isNotBlank() || content.isNotBlank()) brandColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+                    FormatButton(Icons.Default.FormatItalic, "Italic", brandColor) {
+                        contentValue = wrapSelection(contentValue, "*")
+                    }
+                    FormatButton(Icons.Default.FormatUnderlined, "Underline", brandColor) {
+                        contentValue = wrapSelection(contentValue, "__")
+                    }
+                    FormatButton(Icons.Default.FormatStrikethrough, "Strike", brandColor) {
+                        contentValue = wrapSelection(contentValue, "~~")
+                    }
+
+                    Spacer(Modifier.weight(1f))
+
+                    // Grammar fix pill
+                    if (grammarEnabled && grammarErrors.isNotEmpty()) {
+                        Row(
+                            Modifier.clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.errorContainer)
+                                .clickable {
+                                    var fixed = contentValue.text
+                                    grammarErrors.sortedByDescending { it.fromPos }.forEach { e ->
+                                        if (e.suggestions.isNotEmpty() && e.fromPos < fixed.length && e.toPos <= fixed.length) {
+                                            fixed = fixed.substring(0, e.fromPos) + e.suggestions.first() + fixed.substring(e.toPos)
+                                        }
+                                    }
+                                    contentValue = TextFieldValue(fixed, TextRange(fixed.length))
+                                    grammarErrors = emptyList()
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Spellcheck, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
+                            Text(
+                                stringResource(R.string.grammar_fix_all_action),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                "${grammarErrors.size}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
                     }
                 }
-            )
+            }
+        },
+        // ── FAB Save button — most prominent element ──
+        floatingActionButton = {
+            if (title.isNotBlank() || contentValue.text.isNotBlank()) {
+                FloatingActionButton(
+                    onClick = { onSave(title, contentValue.text, tags, attachmentIds, linkedPersonId) },
+                    containerColor = brandColor,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Default.Check, stringResource(R.string.save))
+                }
+            }
         }
     ) { padding ->
         Column(
@@ -193,31 +329,43 @@ fun NoteEditorScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+                .padding(horizontal = 20.dp)
         ) {
-            // Title — borderless, large, bold
+            Spacer(Modifier.height(8.dp))
+
+            // ── Title — bold headline ──
             BasicTextField(
                 value = title,
                 onValueChange = { title = it },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth(),
                 textStyle = TextStyle(
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    letterSpacing = (-0.5).sp
                 ),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 cursorBrush = SolidColor(brandColor),
                 decorationBox = { innerTextField ->
                     if (title.isEmpty()) {
-                        Text(stringResource(R.string.title_label), style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+                        Text(
+                            stringResource(R.string.title_label),
+                            style = TextStyle(
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = (-0.5).sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+                        )
                     }
                     innerTextField()
                 }
             )
 
-            // Tags — compact chips
+            Spacer(Modifier.height(12.dp))
+
+            // ── Tags row ──
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -225,33 +373,34 @@ fun NoteEditorScreen(
             ) {
                 tags.forEach { tag ->
                     Box(
-                        Modifier.clip(RoundedCornerShape(16.dp))
-                            .background(brandColor.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+                        Modifier.clip(RoundedCornerShape(20.dp))
+                            .background(brandColor.copy(alpha = 0.1f))
                             .clickable { tags = tags - tag }
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            .padding(horizontal = 12.dp, vertical = 5.dp)
                     ) {
-                        Text("$tag  ✕", style = MaterialTheme.typography.labelSmall, color = brandColor)
+                        Text("#$tag", style = MaterialTheme.typography.labelMedium, color = brandColor)
                     }
                 }
                 allTags.filter { it !in tags }.take(3).forEach { tag ->
                     Box(
-                        Modifier.clip(RoundedCornerShape(16.dp))
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                        Modifier.clip(RoundedCornerShape(20.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
                             .clickable { tags = tags + tag }
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            .padding(horizontal = 12.dp, vertical = 5.dp)
                     ) {
-                        Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("#$tag", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                     }
                 }
                 if (showTagInput) {
                     BasicTextField(
                         value = newTag,
                         onValueChange = { newTag = it },
-                        modifier = Modifier.width(80.dp)
-                            .border(1.dp, brandColor, RoundedCornerShape(16.dp))
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.width(90.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(brandColor.copy(alpha = 0.06f))
+                            .padding(horizontal = 12.dp, vertical = 5.dp),
                         singleLine = true,
-                        textStyle = TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface),
+                        textStyle = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface),
                         cursorBrush = SolidColor(brandColor),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
                     )
@@ -264,142 +413,183 @@ fun NoteEditorScreen(
                 } else {
                     Box(
                         Modifier.size(28.dp).clip(CircleShape)
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), CircleShape)
+                            .background(brandColor.copy(alpha = 0.06f))
                             .clickable { showTagInput = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Add, stringResource(R.string.new_tag), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.Add, stringResource(R.string.new_tag), Modifier.size(14.dp), tint = brandColor)
                     }
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // Attached photos — rounded thumbnails with proper delete overlay
-            if (attachmentIds.isNotEmpty() || true) { // Always show row to allow adding
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // ── Hairline divider ──
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), thickness = 0.5.dp)
+
+            Spacer(Modifier.height(12.dp))
+
+            // ── Person link — rounded avatar style ──
+            Row(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (linkedPersonName != null) brandColor.copy(alpha = 0.06f) else Color.Transparent)
+                    .clickable { if (linkedPersonName != null) { linkedPersonId = null; linkedPersonName = null } else showPersonPicker = true }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Avatar circle
+                Box(
+                    Modifier.size(28.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (linkedPersonName != null) brandColor
+                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    attachmentIds.forEach { id ->
-                        Box(modifier = Modifier.size(72.dp)) {
+                    if (linkedPersonName != null) {
+                        Text(
+                            linkedPersonName!!.firstOrNull()?.uppercase() ?: "?",
+                            color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp
+                        )
+                    } else {
+                        Icon(Icons.Default.PersonAdd, null, Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    }
+                }
+                Text(
+                    linkedPersonName ?: stringResource(R.string.link_to_person),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (linkedPersonName != null) brandColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                )
+                if (linkedPersonName != null) {
+                    Spacer(Modifier.weight(1f))
+                    Icon(Icons.Default.Close, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // ── Attachments — 16:9 wide cards with 24dp radius ──
+            if (attachmentIds.isNotEmpty()) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(attachmentIds) { id ->
+                        Box(
+                            Modifier.width(160.dp).aspectRatio(16f / 9f)
+                                .clip(RoundedCornerShape(24.dp))
+                        ) {
                             val thumb = attachmentThumbnails[id]
                             if (thumb != null) {
                                 Image(
                                     bitmap = thumb.asImageBitmap(),
                                     contentDescription = null,
-                                    modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)),
+                                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)),
                                     contentScale = ContentScale.Crop
                                 )
                             } else {
                                 Box(
-                                    Modifier.size(72.dp).clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    Modifier.fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Image, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(Icons.Default.BrokenImage, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            stringResource(R.string.image_deleted),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
                                 }
                             }
-                            // Delete overlay — semi-transparent circle
+                            // Delete button
                             Box(
-                                Modifier.align(Alignment.TopEnd).padding(2.dp).size(22.dp)
+                                Modifier.align(Alignment.TopEnd).padding(6.dp).size(24.dp)
                                     .clip(CircleShape)
                                     .background(Color.Black.copy(alpha = 0.5f))
                                     .clickable { attachmentIds = attachmentIds - id },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.Close, stringResource(R.string.remove_attachment), Modifier.size(12.dp), tint = Color.White)
+                                Icon(Icons.Default.Close, null, Modifier.size(14.dp), tint = Color.White)
                             }
                         }
                     }
-                    // Add photo button
-                    Box(
-                        Modifier.size(72.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(brandColor.copy(alpha = 0.08f))
-                            .border(1.5.dp, brandColor.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                            .clickable { showVaultPicker = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Add, null, Modifier.size(20.dp), tint = brandColor)
-                            Text("Photo", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = brandColor)
-                        }
-                    }
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(8.dp))
             }
 
-            // Person link — optional, tap to pick from People
-            if (linkedPersonName != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.Person, null, Modifier.size(16.dp), tint = brandColor)
-                    Text(linkedPersonName!!, style = MaterialTheme.typography.bodySmall, color = brandColor)
-                    IconButton(onClick = { linkedPersonId = null; linkedPersonName = null }, Modifier.size(20.dp)) {
-                        Icon(Icons.Default.Close, "Unlink", Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            } else {
-                Row(Modifier.clickable { showPersonPicker = true }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.Person, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    Text("Link to person", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+            // ── Add media button — glassmorphism style ──
+            Box(
+                Modifier.fillMaxWidth()
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                brandColor.copy(alpha = 0.04f),
+                                brandColor.copy(alpha = 0.08f)
+                            )
+                        )
+                    )
+                    .border(1.dp, brandColor.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+                    .clickable { showVaultPicker = true },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.AddPhotoAlternate, null, Modifier.size(20.dp), tint = brandColor.copy(alpha = 0.7f))
+                    Text(
+                        stringResource(R.string.attach_media),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = brandColor.copy(alpha = 0.7f)
+                    )
                 }
             }
 
-            if (showPersonPicker) {
-                val contacts = remember {
-                    try {
-                        val crypto = CryptoManager(context).also { it.initialize() }
-                        com.privateai.camera.security.ContactRepository(java.io.File(context.filesDir, "vault/contacts"), crypto, com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)).listContacts()
-                    } catch (_: Exception) { emptyList() }
-                }
-                AlertDialog(
-                    onDismissRequest = { showPersonPicker = false },
-                    title = { Text("Link to Person") },
-                    text = {
-                        if (contacts.isEmpty()) {
-                            Text("No people added yet. Add someone in People first.")
-                        } else {
-                            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                contacts.forEach { person ->
-                                    Row(
-                                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                                            .clickable { linkedPersonId = person.id; linkedPersonName = person.name; showPersonPicker = false }
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Box(Modifier.size(32.dp).background(brandColor, CircleShape), contentAlignment = Alignment.Center) {
-                                            Text(person.name.firstOrNull()?.uppercase() ?: "?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                        }
-                                        Text(person.name, style = MaterialTheme.typography.bodyMedium)
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {},
-                    dismissButton = { TextButton(onClick = { showPersonPicker = false }) { Text("Cancel") } }
-                )
+            Spacer(Modifier.height(12.dp))
+
+            // ── Hairline divider ──
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), thickness = 0.5.dp)
+
+            Spacer(Modifier.height(8.dp))
+
+            // ── Content — open canvas with Markdown + grammar ──
+            val activeErrors = if (grammarEnabled) grammarErrors else emptyList()
+            // Force re-render when grammar errors change
+            LaunchedEffect(activeErrors) {
+                contentValue = TextFieldValue(contentValue.text, contentValue.selection, contentValue.composition)
             }
-
-            Spacer(Modifier.height(4.dp))
-
-            // Content — borderless, natural text area
             BasicTextField(
-                value = content,
-                onValueChange = { content = it },
-                modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 4.dp),
+                value = contentValue,
+                onValueChange = { contentValue = it },
+                modifier = Modifier.fillMaxWidth().weight(1f),
                 textStyle = TextStyle(
                     fontSize = 16.sp,
-                    lineHeight = 24.sp,
+                    lineHeight = 26.sp,
                     color = MaterialTheme.colorScheme.onSurface
                 ),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 cursorBrush = SolidColor(brandColor),
+                visualTransformation = MarkdownTransformation(
+                    markerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                    grammarErrors = activeErrors,
+                    errorColor = MaterialTheme.colorScheme.error
+                ),
                 decorationBox = { innerTextField ->
-                    if (content.isEmpty()) {
-                        Text(stringResource(R.string.note_label), style = TextStyle(fontSize = 16.sp, lineHeight = 24.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+                    if (contentValue.text.isEmpty()) {
+                        Text(
+                            stringResource(R.string.note_placeholder),
+                            style = TextStyle(fontSize = 16.sp, lineHeight = 26.sp),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                        )
                     }
                     innerTextField()
                 }
@@ -408,6 +598,88 @@ fun NoteEditorScreen(
     }
 }
 
+// ── Format button ──
+@Composable
+private fun FormatButton(icon: ImageVector, desc: String, tint: Color, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(38.dp)) {
+        Icon(icon, desc, Modifier.size(20.dp), tint = tint)
+    }
+}
+
+// ── Markdown wrap helper ──
+private fun wrapSelection(value: TextFieldValue, marker: String): TextFieldValue {
+    val text = value.text
+    val start = value.selection.min
+    val end = value.selection.max
+    val mLen = marker.length
+
+    if (start == end) {
+        val newText = text.substring(0, start) + marker + marker + text.substring(start)
+        return TextFieldValue(newText, TextRange(start + mLen))
+    }
+    val selected = text.substring(start, end)
+    if (start >= mLen && end + mLen <= text.length &&
+        text.substring(start - mLen, start) == marker &&
+        text.substring(end, end + mLen) == marker
+    ) {
+        val newText = text.substring(0, start - mLen) + selected + text.substring(end + mLen)
+        return TextFieldValue(newText, TextRange(start - mLen, end - mLen))
+    }
+    val newText = text.substring(0, start) + marker + selected + marker + text.substring(end)
+    return TextFieldValue(newText, TextRange(start + mLen, end + mLen))
+}
+
+// ── Person picker dialog ──
+@Composable
+private fun PersonPickerDialog(
+    brandColor: Color,
+    onPick: (id: String, name: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val contacts = remember {
+        try {
+            val crypto = CryptoManager(context).also { it.initialize() }
+            com.privateai.camera.security.ContactRepository(
+                java.io.File(context.filesDir, "vault/contacts"), crypto,
+                com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+            ).listContacts()
+        } catch (_: Exception) { emptyList() }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.link_to_person)) },
+        text = {
+            if (contacts.isEmpty()) {
+                Text(stringResource(R.string.no_people_yet))
+            } else {
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    contacts.forEach { person ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                .clickable { onPick(person.id, person.name) }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(Modifier.size(36.dp).background(brandColor, CircleShape), contentAlignment = Alignment.Center) {
+                                Text(person.name.firstOrNull()?.uppercase() ?: "?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            }
+                            Text(person.name, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+    )
+}
+
+// ── Vault photo picker dialog ──
 @Composable
 private fun VaultPhotoPickerDialog(
     alreadyAttached: List<String>,
@@ -420,18 +692,16 @@ private fun VaultPhotoPickerDialog(
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // Load vault photos (only images, not videos/PDFs)
     LaunchedEffect(Unit) {
         val crypto = CryptoManager(context).also { it.initialize() }
         val vault = VaultRepository(context, crypto)
         withContext(Dispatchers.IO) {
             val folderManager = com.privateai.camera.security.FolderManager(context, crypto)
             val folderItems = folderManager.listAllFolders().flatMap { f -> vault.listFolderItems(folderManager.getFolderDir(f.id)) }
-            val photos = (vault.listAllPhotos() + folderItems).distinctBy { it.id }.filter { it.mediaType == VaultMediaType.PHOTO }.sortedByDescending { it.timestamp }
+            val photos = (vault.listAllPhotos() + folderItems).distinctBy { it.id }
+                .filter { it.mediaType == VaultMediaType.PHOTO }.sortedByDescending { it.timestamp }
             val thumbs = mutableMapOf<String, Bitmap>()
-            photos.forEach { photo ->
-                vault.loadThumbnail(photo)?.let { thumbs[photo.id] = it }
-            }
+            photos.forEach { photo -> vault.loadThumbnail(photo)?.let { thumbs[photo.id] = it } }
             vaultPhotos = photos
             thumbnails = thumbs
         }
@@ -457,15 +727,14 @@ private fun VaultPhotoPickerDialog(
                         val isSelected = photo.id in selectedIds
                         val isAlreadyAttached = photo.id in alreadyAttached
                         Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                            modifier = Modifier.size(80.dp)
+                                .clip(RoundedCornerShape(12.dp))
                                 .border(
                                     width = if (isSelected) 3.dp else 1.dp,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary
-                                            else if (isAlreadyAttached) MaterialTheme.colorScheme.outline
-                                            else MaterialTheme.colorScheme.outlineVariant,
-                                    shape = RoundedCornerShape(8.dp)
+                                    else if (isAlreadyAttached) MaterialTheme.colorScheme.outline
+                                    else MaterialTheme.colorScheme.outlineVariant,
+                                    shape = RoundedCornerShape(12.dp)
                                 )
                                 .clickable(enabled = !isAlreadyAttached) {
                                     selectedIds = if (isSelected) selectedIds - photo.id else selectedIds + photo.id
@@ -474,16 +743,13 @@ private fun VaultPhotoPickerDialog(
                             val thumb = thumbnails[photo.id]
                             if (thumb != null) {
                                 Image(
-                                    bitmap = thumb.asImageBitmap(),
-                                    contentDescription = null,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
+                                    bitmap = thumb.asImageBitmap(), contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
                                 )
                             }
                             if (isSelected) {
                                 Icon(
-                                    Icons.Default.CheckCircle,
-                                    contentDescription = null,
+                                    Icons.Default.CheckCircle, null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp)
                                 )
@@ -494,17 +760,10 @@ private fun VaultPhotoPickerDialog(
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = { onConfirm(selectedIds.toList()) },
-                enabled = selectedIds.isNotEmpty()
-            ) {
+            TextButton(onClick = { onConfirm(selectedIds.toList()) }, enabled = selectedIds.isNotEmpty()) {
                 Text(stringResource(R.string.attach_count, selectedIds.size))
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }

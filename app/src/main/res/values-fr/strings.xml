@@ -80,6 +80,17 @@
     <string name="settings_language_system">Par défaut du système</string>
 
     <!-- Settings: Security -->
+    <string name="settings_section_camera">Appareil photo</string>
+    <string name="settings_countdown_timer">Minuterie</string>
+    <string name="settings_countdown_desc">D\u00e9lai avant la capture (appuyez sur l\'ic\u00f4ne minuterie dans l\'appareil photo)</string>
+    <string name="settings_video_duration">Dur\u00e9e d\'enregistrement</string>
+    <string name="settings_video_duration_desc">Dur\u00e9e de la vid\u00e9o avec minuterie en mode vid\u00e9o</string>
+    <string name="settings_reindex">R\u00e9indexer toutes les photos</string>
+    <string name="settings_reindex_desc">Effacer les tags AI et r\u00e9analyser toutes les photos</string>
+    <string name="settings_reindex_running">R\u00e9indexation en cours\u2026</string>
+    <string name="settings_reindex_confirm">Toutes les \u00e9tiquettes et groupes de visages seront effac\u00e9s. Ils seront reconstruits \u00e0 l\'ouverture du coffre. Continuer ?</string>
+    <string name="settings_reindex_done">Index effac\u00e9. Ouvrez le coffre pour r\u00e9indexer.</string>
+    <string name="settings_reindex_action">Effacer et r\u00e9indexer</string>
     <string name="settings_section_security">Sécurité</string>
     <string name="settings_encryption">Chiffrement</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Clé unique par installation \u2022 Matériel sécurisé</string>
@@ -345,6 +356,18 @@
     <string name="add_tag">Ajouter une étiquette</string>
     <string name="new_tag">Nouvelle étiquette</string>
     <string name="note_label">Note</string>
+    <string name="note_placeholder">Commencez \u00e0 \u00e9crire vos pens\u00e9es\u2026</string>
+    <string name="attach_media">Joindre un m\u00e9dia</string>
+    <string name="image_deleted">Image supprim\u00e9e</string>
+    <string name="link_to_person">Lier \u00e0 une personne</string>
+    <string name="no_people_yet">Aucune personne ajout\u00e9e. Ajoutez quelqu\'un dans Personnes d\'abord.</string>
+
+    <!-- Grammar check -->
+    <string name="grammar_check_on">Correcteur activé</string>
+    <string name="grammar_check_off">Correcteur désactivé</string>
+    <string name="grammar_ignore">Ignorer</string>
+    <string name="grammar_fix_all">%1$d erreurs</string>
+    <string name="grammar_fix_all_action">Tout corriger</string>
 
     <!-- Home screen -->
     <string name="app_name_home">Privora</string>
@@ -402,6 +425,8 @@
     <string name="cd_switch_camera">Changer de caméra</string>
     <string name="mode_photo">PHOTO</string>
     <string name="mode_video">VID\u00C9O</string>
+    <string name="countdown_photo">Prise de photo\u2026</string>
+    <string name="countdown_video">Enregistrement %1$ds\u2026</string>
     <string name="cd_view_last_capture">Voir la dernière capture</string>
     <string name="cd_last_capture">Dernière capture</string>
     <string name="cd_stop_recording">Arrêter l\'enregistrement</string>

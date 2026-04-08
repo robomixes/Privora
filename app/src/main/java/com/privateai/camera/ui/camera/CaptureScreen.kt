@@ -13,12 +13,18 @@ import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.video.Recorder
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,6 +47,8 @@ import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.TimerOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -150,6 +158,15 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
     // Long-press-to-record from photo mode (hold shutter = quick video)
     var isHoldRecording by remember { mutableStateOf(false) }
     var longPressJob by remember { mutableStateOf<Job?>(null) }
+
+    // Countdown timer
+    val prefs = remember { context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE) }
+    var countdownEnabled by remember { mutableStateOf(false) }
+    var countdownDuration by remember { mutableIntStateOf(prefs.getInt("countdown_seconds", 5)) }
+    var countdownVideoDuration by remember { mutableIntStateOf(prefs.getInt("countdown_video_seconds", 30)) }
+    var countdownValue by remember { mutableIntStateOf(0) } // 0 = not counting
+    var isCountingDown by remember { mutableStateOf(false) }
+    var countdownForVideo by remember { mutableStateOf(false) } // true = video, false = photo
 
     // Shutter button color animation (photo mode)
     val shutterColor by animateColorAsState(
@@ -303,6 +320,32 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
         activeRecording = null
     }
 
+    // Countdown timer effect
+    LaunchedEffect(isCountingDown) {
+        if (isCountingDown) {
+            countdownValue = countdownDuration
+            while (countdownValue > 0) {
+                delay(1000)
+                countdownValue--
+            }
+            isCountingDown = false
+            countdownEnabled = false
+            if (countdownForVideo) {
+                startRecording()
+                // Auto-stop after configured duration for countdown videos
+                val videoDurationMs = countdownVideoDuration * 1000L
+                scope.launch {
+                    delay(videoDurationMs)
+                    if (isRecording && !isHoldRecording) {
+                        stopRecording()
+                    }
+                }
+            } else {
+                capturePhoto()
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // Camera preview
         CameraPreview(
@@ -355,6 +398,36 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                     .fillMaxSize()
                     .background(Color.White.copy(alpha = 0.6f))
             )
+        }
+
+        // Countdown overlay — big numbers centered on screen, tap to cancel
+        if (isCountingDown || countdownValue > 0) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable {
+                        isCountingDown = false
+                        countdownValue = 0
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = if (countdownValue > 0) "$countdownValue" else "GO",
+                        fontSize = 140.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (countdownValue > 0) Color.White else Color(0xFF4CAF50)
+                    )
+                    if (countdownValue > 0) {
+                        Text(
+                            text = if (countdownForVideo) stringResource(R.string.countdown_video, countdownVideoDuration) else stringResource(R.string.countdown_photo),
+                            fontSize = 16.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
         }
 
         // Recording timer (video mode or hold-to-record)
@@ -437,7 +510,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
             }
 
             // Level indicator + face count (hidden during recording and viewer)
-            if (!isRecording && !showViewer) {
+            if (!isRecording && !showViewer && !isCountingDown) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     LevelIndicator()
                     if (faceCount > 0) {
@@ -470,39 +543,66 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
             }
         }
 
-        // Mode selector: PHOTO / VIDEO (above bottom bar)
-        if (!isRecording) {
+        // Mode selector: PHOTO / VIDEO + Timer toggle (above bottom bar)
+        if (!isRecording && !isCountingDown) {
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 130.dp),
-                horizontalArrangement = Arrangement.spacedBy(32.dp)
+                    .fillMaxWidth()
+                    .padding(bottom = 130.dp, start = 32.dp, end = 32.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    stringResource(R.string.mode_photo),
-                    color = if (!isVideoMode) Color.Yellow else Color.White.copy(alpha = 0.6f),
-                    fontSize = 14.sp,
-                    fontWeight = if (!isVideoMode) FontWeight.Bold else FontWeight.Normal,
-                    modifier = Modifier.clickable {
-                        if (isVideoMode) {
-                            isVideoMode = false
-                        }
+                // Timer toggle — fixed left position
+                Box(
+                    Modifier.size(36.dp)
+                        .background(
+                            if (countdownEnabled) Color.Yellow.copy(alpha = 0.85f) else Color.Black.copy(alpha = 0.5f),
+                            CircleShape
+                        )
+                        .clickable { countdownEnabled = !countdownEnabled },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (countdownEnabled) {
+                        Text("${countdownDuration}s", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    } else {
+                        Icon(Icons.Default.TimerOff, null, Modifier.size(18.dp), tint = Color.White.copy(alpha = 0.7f))
                     }
-                )
-                Text(
-                    stringResource(R.string.mode_video),
-                    color = if (isVideoMode) Color.Yellow else Color.White.copy(alpha = 0.6f),
-                    fontSize = 14.sp,
-                    fontWeight = if (isVideoMode) FontWeight.Bold else FontWeight.Normal,
-                    modifier = Modifier.clickable {
-                        if (!isVideoMode) {
-                            if (!hasAudioPermission) {
-                                audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                // PHOTO / VIDEO
+                Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                    Text(
+                        stringResource(R.string.mode_photo),
+                        color = if (!isVideoMode) Color.Yellow else Color.White.copy(alpha = 0.6f),
+                        fontSize = 14.sp,
+                        fontWeight = if (!isVideoMode) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier.clickable {
+                            if (isVideoMode) isVideoMode = false
+                        }
+                    )
+                    Text(
+                        stringResource(R.string.mode_video),
+                        color = if (isVideoMode) Color.Yellow else Color.White.copy(alpha = 0.6f),
+                        fontSize = 14.sp,
+                        fontWeight = if (isVideoMode) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier.clickable {
+                            if (!isVideoMode) {
+                                if (!hasAudioPermission) {
+                                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
+                                isVideoMode = true
                             }
-                            isVideoMode = true
                         }
-                    }
-                )
+                    )
+                }
+
+                Spacer(Modifier.weight(1f))
+
+                // Spacer to balance the timer button
+                Spacer(Modifier.size(36.dp))
             }
         }
 
@@ -562,7 +662,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
 
             // Shutter / Record button
             if (isVideoMode) {
-                // Video mode: tap to start/stop recording
+                // Video mode: tap to start/stop recording (with optional countdown)
                 Box(
                     modifier = Modifier
                         .size(80.dp)
@@ -570,10 +670,17 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                             contentDescription = if (isRecording) context.getString(R.string.cd_stop_recording) else context.getString(R.string.cd_start_recording)
                             role = Role.Button
                         }
-                        .border(4.dp, Color.White, CircleShape)
+                        .border(4.dp, if (isCountingDown) Color.Yellow else Color.White, CircleShape)
                         .padding(6.dp)
-                        .clickable(enabled = !isSavingVideo) {
-                            if (isRecording) stopRecording() else startRecording()
+                        .clickable(enabled = !isSavingVideo && !isCountingDown) {
+                            if (isRecording) {
+                                stopRecording()
+                            } else if (countdownEnabled) {
+                                countdownForVideo = true
+                                isCountingDown = true
+                            } else {
+                                startRecording()
+                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -592,7 +699,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                     }
                 }
             } else {
-                // Photo mode: tap = photo, hold = quick video recording
+                // Photo mode: tap = photo (with optional countdown), hold = quick video
                 Box(
                     modifier = Modifier
                         .size(80.dp)
@@ -602,41 +709,41 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                         }
                         .border(
                             4.dp,
-                            if (isHoldRecording) Color.Red else Color.White,
+                            if (isHoldRecording) Color.Red else if (isCountingDown) Color.Yellow else Color.White,
                             CircleShape
                         )
                         .padding(6.dp)
-                        .pointerInput(isCapturing, isSavingVideo, videoCapture) {
+                        .pointerInput(isCapturing, isSavingVideo, videoCapture, isCountingDown) {
                             detectTapGestures(
                                 onPress = {
-                                    if (isCapturing || isSavingVideo) return@detectTapGestures
+                                    if (isCapturing || isSavingVideo || isCountingDown) return@detectTapGestures
 
                                     // Start a timer — if held > 500ms, begin recording
                                     longPressJob = scope.launch {
                                         delay(500)
-                                        // Long press detected — start video recording
                                         if (videoCapture != null) {
                                             isHoldRecording = true
                                             startRecording()
                                         }
                                     }
 
-                                    // Wait for finger to lift
                                     val released = tryAwaitRelease()
 
                                     if (released) {
                                         if (isHoldRecording) {
-                                            // Was hold-recording — stop on release
                                             stopRecording()
                                             isHoldRecording = false
                                         } else {
-                                            // Short tap — take photo
                                             longPressJob?.cancel()
                                             longPressJob = null
-                                            capturePhoto()
+                                            if (countdownEnabled) {
+                                                countdownForVideo = false
+                                                isCountingDown = true
+                                            } else {
+                                                capturePhoto()
+                                            }
                                         }
                                     } else {
-                                        // Gesture cancelled
                                         longPressJob?.cancel()
                                         longPressJob = null
                                         if (isHoldRecording) {
