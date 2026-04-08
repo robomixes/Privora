@@ -36,11 +36,14 @@ class MainActivity : AppCompatActivity() {
             AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(savedLang))
         }
 
-        // Block screenshots and screen recording
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        )
+        // Block screenshots and screen recording (respects user setting)
+        val blockScreenshots = getSharedPreferences("privacy_settings", MODE_PRIVATE).getBoolean("block_screenshots", true)
+        if (blockScreenshots) {
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_SECURE,
+                WindowManager.LayoutParams.FLAG_SECURE
+            )
+        }
         enableEdgeToEdge()
 
         // Install crash handler (logs locally, never sends anywhere)

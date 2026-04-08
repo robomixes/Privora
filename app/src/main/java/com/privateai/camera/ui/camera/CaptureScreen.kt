@@ -270,7 +270,7 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                         scope.launch {
                             withContext(Dispatchers.IO) {
                                 try {
-                                    val saved = vault.saveVideo(tempFile)
+                                    val saved = vault.saveVideo(tempFile, com.privateai.camera.security.VaultCategory.CAMERA)
                                     val thumb = vault.loadThumbnail(saved)
                                     withContext(Dispatchers.Main) {
                                         lastThumbnail?.recycle()

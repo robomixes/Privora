@@ -105,14 +105,50 @@ fun PrivateAICameraApp() {
             composable("vault") {
                 VaultScreen(onBack = { navController.popBackStack() })
             }
+            composable("vault?search={query}",
+                arguments = listOf(androidx.navigation.navArgument("query") { defaultValue = ""; type = androidx.navigation.NavType.StringType })
+            ) { backStackEntry ->
+                val query = backStackEntry.arguments?.getString("query") ?: ""
+                VaultScreen(onBack = { navController.popBackStack() }, initialSearchQuery = query)
+            }
             composable("notes") {
                 NotesScreen(onBack = { navController.popBackStack() })
+            }
+            composable("notes?personId={personId}",
+                arguments = listOf(androidx.navigation.navArgument("personId") { defaultValue = ""; type = androidx.navigation.NavType.StringType })
+            ) { backStackEntry ->
+                val personId = backStackEntry.arguments?.getString("personId")?.ifBlank { null }
+                NotesScreen(onBack = { navController.popBackStack() }, filterPersonId = personId)
             }
             composable("insights") {
                 InsightsScreen(onBack = { navController.popBackStack() })
             }
+            composable("insights?personId={personId}&tab={tab}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("personId") { defaultValue = ""; type = androidx.navigation.NavType.StringType },
+                    androidx.navigation.navArgument("tab") { defaultValue = ""; type = androidx.navigation.NavType.StringType }
+                )
+            ) { backStackEntry ->
+                val personId = backStackEntry.arguments?.getString("personId")?.ifBlank { null }
+                val tab = backStackEntry.arguments?.getString("tab") ?: ""
+                InsightsScreen(onBack = { navController.popBackStack() }, initialTab = if (tab == "health") 1 else 0, filterPersonId = personId)
+            }
             composable("tools") {
                 UnitConverterScreen(onBack = { navController.popBackStack() })
+            }
+            composable("contacts") {
+                com.privateai.camera.ui.contacts.ContactsScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToInsights = { personId ->
+                        navController.navigate("insights?personId=${personId ?: ""}&tab=health")
+                    },
+                    onNavigateToNotes = { personId ->
+                        navController.navigate("notes?personId=${personId ?: ""}")
+                    },
+                    onNavigateToVault = { query ->
+                        navController.navigate("vault?search=${query ?: ""}")
+                    }
+                )
             }
             composable("settings") {
                 SettingsScreen(

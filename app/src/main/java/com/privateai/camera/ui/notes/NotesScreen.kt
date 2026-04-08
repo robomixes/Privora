@@ -114,7 +114,7 @@ private enum class NotesPage { LOCKED, LIST, EDITOR }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun NotesScreen(onBack: (() -> Unit)? = null) {
+fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -162,11 +162,14 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
             allTags = emptyList()
             return
         }
-        notes = when {
+        var loadedNotes = when {
             searchQuery.isNotBlank() -> noteRepo.searchNotes(searchQuery)
             selectedTag != null -> noteRepo.listNotes().filter { selectedTag in it.tags }
             else -> noteRepo.listNotes()
         }
+        // Filter by personId if navigating from People profile
+        if (filterPersonId != null) loadedNotes = loadedNotes.filter { it.personId == filterPersonId }
+        notes = loadedNotes
         allTags = noteRepo.getAllTags()
     }
 
@@ -479,11 +482,11 @@ fun NotesScreen(onBack: (() -> Unit)? = null) {
             NoteEditorScreen(
                 note = editingNote,
                 allTags = allTags,
-                onSave = { title, content, tags ->
+                onSave = { title, content, tags, attachments, personId ->
                     if (editingNote != null) {
-                        noteRepo.saveNote(editingNote!!.copy(title = title, content = content, tags = tags))
+                        noteRepo.saveNote(editingNote!!.copy(title = title, content = content, tags = tags, attachments = attachments, personId = personId))
                     } else {
-                        noteRepo.createNote(title, content, tags)
+                        noteRepo.createNote(title, content, tags, attachments, personId)
                     }
                     refreshNotes()
                     page = NotesPage.LIST
@@ -552,6 +555,15 @@ private fun NoteCard(
                                 modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                         }
                     }
+                    Spacer(Modifier.height(4.dp))
+                }
+
+                if (note.attachments.isNotEmpty()) {
+                    Text(
+                        "\uD83D\uDCCE ${note.attachments.size}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Spacer(Modifier.height(4.dp))
                 }
 

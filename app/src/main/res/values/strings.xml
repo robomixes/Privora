@@ -57,6 +57,8 @@
     <string name="feature_insights_desc">Expenses, health, habits</string>
     <string name="feature_tools">Tools</string>
     <string name="feature_tools_desc">Unit converter</string>
+    <string name="feature_contacts">People</string>
+    <string name="feature_contacts_desc">Private Address Book</string>
     <string name="settings_reorder_hint">Use arrows to reorder. Disabled features are hidden from home.</string>
 
     <!-- Settings: AI Detection -->
@@ -97,6 +99,7 @@
     <string name="grace_30_seconds">30 seconds</string>
     <string name="grace_1_minute">1 minute</string>
     <string name="grace_2_minutes">2 minutes</string>
+    <string name="grace_5_minutes">5 minutes</string>
 
     <!-- Settings: Storage -->
     <string name="settings_section_storage">Storage</string>
@@ -431,4 +434,25 @@
     <!-- Health profile dialog -->
     <string name="health_add_profile_title">Add Family Member</string>
     <string name="health_profile_name">Name</string>
+
+    <!-- Note attachments -->
+    <string name="attach_from_vault">Attach from Vault</string>
+    <string name="remove_attachment">Remove attachment</string>
+    <string name="no_vault_photos">No photos in vault</string>
+    <string name="loading">Loading…</string>
+    <string name="attach_count">Attach (%1$d)</string>
+    <!-- Photo Intelligence -->
+    <string name="index_photos">Index Photos</string>
+    <string name="indexing_progress">Indexing… %1$d/%2$d</string>
+    <string name="duplicates">Duplicates</string>
+    <string name="blurry">Blurry</string>
+    <string name="find_similar">Find Similar</string>
+    <string name="no_similar_found">No similar photos found</string>
+    <string name="faces">Faces</string>
+    <string name="no_face_groups">No face groups found</string>
+    <string name="face_groups_hint">Index more photos to detect faces</string>
+    <string name="name_person">Name this person</string>
+    <string name="n_groups_found">%1$d groups found</string>
+    <string name="all_photos">Photos</string>
+    <string name="all_videos">Videos</string>
 </resources>

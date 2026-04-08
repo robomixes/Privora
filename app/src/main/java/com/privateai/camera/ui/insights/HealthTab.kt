@@ -2,6 +2,8 @@ package com.privateai.camera.ui.insights
 
 import android.content.Intent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
@@ -33,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -63,10 +67,15 @@ import java.util.Locale
 private val PROFILE_EMOJIS = listOf("👤", "👶", "👦", "👧", "👨", "👩", "👴", "👵", "🐶", "🐱")
 
 @Composable
-fun HealthTab(repo: InsightsRepository) {
+fun HealthTab(repo: InsightsRepository, filterPersonId: String? = null) {
     val context = LocalContext.current
     var profiles by remember { mutableStateOf(repo.loadProfiles()) }
-    var selectedProfileId by remember { mutableStateOf("self") }
+    // Auto-select profile linked to this person
+    val initialProfileId = remember(filterPersonId) {
+        if (filterPersonId != null) profiles.find { it.personId == filterPersonId }?.id ?: "self"
+        else "self"
+    }
+    var selectedProfileId by remember { mutableStateOf(initialProfileId) }
     var allEntries by remember { mutableStateOf(repo.listHealthEntries()) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
@@ -108,10 +117,42 @@ fun HealthTab(repo: InsightsRepository) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // Profile selector
             item {
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                var profileToDelete by remember { mutableStateOf<HealthProfile?>(null) }
+
+                // Delete profile confirmation
+                profileToDelete?.let { prof ->
+                    AlertDialog(
+                        onDismissRequest = { profileToDelete = null },
+                        title = { Text("Delete Profile") },
+                        text = { Text("Delete \"${prof.name}\" and all their health entries?") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                // Delete all entries for this profile
+                                allEntries.filter { it.profileId == prof.id }.forEach { repo.deleteHealthEntry(it.id) }
+                                profiles = profiles.filter { it.id != prof.id }
+                                repo.saveProfiles(profiles)
+                                allEntries = repo.listHealthEntries()
+                                if (selectedProfileId == prof.id) selectedProfileId = "self"
+                                profileToDelete = null
+                            }) { Text("Delete", color = Color.Red) }
+                        },
+                        dismissButton = { TextButton(onClick = { profileToDelete = null }) { Text("Cancel") } }
+                    )
+                }
+
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = selectedProfileId == "self", onClick = { selectedProfileId = "self" }, label = { Text("👤 ${stringResource(R.string.health_myself)}") })
                     profiles.forEach { p ->
-                        FilterChip(selected = selectedProfileId == p.id, onClick = { selectedProfileId = p.id }, label = { Text("${p.icon} ${p.name}") })
+                        FilterChip(
+                            selected = selectedProfileId == p.id,
+                            onClick = { selectedProfileId = p.id },
+                            label = { Text("${p.icon} ${p.name}") },
+                            trailingIcon = {
+                                if (selectedProfileId == p.id) {
+                                    Icon(Icons.Default.Close, "Delete", Modifier.size(14.dp).clickable { profileToDelete = p })
+                                }
+                            }
+                        )
                     }
                     IconButton(onClick = { showProfileDialog = true }, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.Add, stringResource(R.string.health_add_profile), Modifier.size(18.dp))
@@ -293,6 +334,17 @@ private fun AddHealthDialog(onDismiss: () -> Unit, onSave: (HealthEntry) -> Unit
 private fun AddProfileDialog(onDismiss: () -> Unit, onSave: (HealthProfile) -> Unit) {
     var name by remember { mutableStateOf("") }
     var icon by remember { mutableStateOf("👤") }
+    var linkedPersonId by remember { mutableStateOf<String?>(null) }
+    var linkedPersonName by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+
+    // Load People contacts for linking
+    val contacts = remember {
+        try {
+            val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
+            com.privateai.camera.security.ContactRepository(java.io.File(context.filesDir, "vault/contacts"), crypto, com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)).listContacts()
+        } catch (_: Exception) { emptyList() }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(stringResource(R.string.health_add_profile)) },
@@ -303,9 +355,33 @@ private fun AddProfileDialog(onDismiss: () -> Unit, onSave: (HealthProfile) -> U
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     PROFILE_EMOJIS.forEach { e -> Text(e, fontSize = if (icon == e) 32.sp else 22.sp, modifier = Modifier.clickable { icon = e }.padding(4.dp)) }
                 }
+                // Link to People
+                if (contacts.isNotEmpty()) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                    if (linkedPersonName != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Linked to: $linkedPersonName", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                            TextButton(onClick = { linkedPersonId = null; linkedPersonName = null }) { Text("Remove", style = MaterialTheme.typography.labelSmall) }
+                        }
+                    } else {
+                        Text("Link to Person", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        contacts.take(5).forEach { person ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    linkedPersonId = person.id; linkedPersonName = person.name
+                                    if (name.isBlank()) name = person.name
+                                }.padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(person.name, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
             }
         },
-        confirmButton = { TextButton(onClick = { if (name.isNotBlank()) onSave(HealthProfile(name = name, icon = icon)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.action_add)) } },
+        confirmButton = { TextButton(onClick = { if (name.isNotBlank()) onSave(HealthProfile(name = name, icon = icon, personId = linkedPersonId)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.action_add)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
