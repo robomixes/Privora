@@ -88,6 +88,9 @@
     <string name="settings_video_duration">Auto-Record Duration</string>
     <string name="settings_video_duration_desc">Video length when using countdown timer in video mode</string>
     <string name="importing_files">Importing files\u2026</string>
+    <string name="empty_trash_title">Empty Trash?</string>
+    <string name="empty_trash_message">This will permanently delete %1$d items. This action cannot be undone.</string>
+    <string name="empty_trash_confirm">Delete Permanently</string>
     <string name="analyzing_photos">Analyzing photos\u2026</string>
     <string name="settings_reindex">Re-index All Photos</string>
     <string name="settings_reindex_desc">Clear AI labels and re-analyze all vault photos</string>

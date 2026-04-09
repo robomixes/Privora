@@ -225,6 +225,10 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
     var importTotal by remember { mutableIntStateOf(0) }
     var importErrors by remember { mutableIntStateOf(0) }
     var smartMode by remember { mutableStateOf<String?>(null) } // "duplicates", "blurry", or null
+    // Filter counts (loaded in background)
+    var duplicateGroupCount by remember { mutableIntStateOf(-1) } // -1 = not loaded
+    var blurryCount by remember { mutableIntStateOf(-1) }
+    var faceGroupCount by remember { mutableIntStateOf(-1) }
     var isSmartLoading by remember { mutableStateOf(false) }
     var showFaceGroups by remember { mutableStateOf(false) }
     var faceGroups by remember { mutableStateOf<Map<String, List<Triple<String, Int, PhotoIndex.FaceEntry>>>>(emptyMap()) }
@@ -1056,6 +1060,16 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
             }
             // Start persistent background indexing (survives navigation)
             com.privateai.camera.service.IndexingManager.startIndexing(context)
+            // Load filter counts in background
+            val pi = photoIndex
+            if (pi != null) {
+                scope.launch {
+                    val validIds = withContext(Dispatchers.IO) { getAllVaultItems().map { it.id }.toSet() }
+                    blurryCount = withContext(Dispatchers.IO) { pi.findBlurry(validPhotoIds = validIds).size }
+                    faceGroupCount = withContext(Dispatchers.IO) { pi.getFaceGroups().size }
+                    duplicateGroupCount = withContext(Dispatchers.Default) { pi.findDuplicates(validPhotoIds = validIds).size }
+                }
+            }
         }
     }
 
@@ -1363,7 +1377,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                             isSearching = true
                                             isSmartLoading = true
                                             scope.launch {
-                                                val groups = withContext(Dispatchers.Default) { pi.findDuplicates() }
+                                                val validIds = withContext(Dispatchers.IO) { getAllVaultItems().map { it.id }.toSet() }
+                                                val groups = withContext(Dispatchers.Default) { pi.findDuplicates(validPhotoIds = validIds) }
                                                 duplicateGroups = groups
                                                 val dupIds = groups.flatten().toSet()
                                                 val allPhotos = withContext(Dispatchers.IO) { getAllVaultItems() }
@@ -1377,7 +1392,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                             }
                                         }
                                     },
-                                    label = { Text("Duplicates") }
+                                    label = { Text(if (duplicateGroupCount > 0) "Duplicates ($duplicateGroupCount)" else "Duplicates") }
                                 )
 
                                 FilterChip(
@@ -1406,7 +1421,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                             }
                                         }
                                     },
-                                    label = { Text("Blurry") }
+                                    label = { Text(if (blurryCount > 0) "Blurry ($blurryCount)" else "Blurry") }
                                 )
 
                                 FilterChip(
@@ -1440,7 +1455,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                             }
                                         }
                                     },
-                                    label = { Text("\uD83D\uDC64 Faces") }
+                                    label = { Text(if (faceGroupCount > 0) "\uD83D\uDC64 Faces ($faceGroupCount)" else "\uD83D\uDC64 Faces") }
                                 )
                             }
                         }
@@ -1660,6 +1675,86 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                                 Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
                                                     Icon(Icons.Default.Check, null, Modifier.size(14.dp), tint = Color.White)
                                                 }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if (isSearching && smartMode == "duplicates" && duplicateGroups.isNotEmpty()) {
+                        // === Grouped duplicate review ===
+                        var keepSelection by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+                        var dupThumbs by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
+
+                        // Load thumbnails progressively + set default keep selection
+                        LaunchedEffect(duplicateGroups) {
+                            dupThumbs = emptyMap()
+                            val allVault = withContext(Dispatchers.IO) { getAllVaultItems().associateBy { it.id } }
+                            val allIds = duplicateGroups.flatten().distinct()
+                            val batch = mutableMapOf<String, Bitmap>()
+                            allIds.forEachIndexed { i, pid ->
+                                withContext(Dispatchers.IO) {
+                                    allVault[pid]?.let { photo -> vault.loadThumbnail(photo)?.let { batch[pid] = it } }
+                                }
+                                if ((i + 1) % 20 == 0 || i == allIds.size - 1) { dupThumbs = dupThumbs + batch; batch.clear() }
+                            }
+                            keepSelection = duplicateGroups.associate { it.first() to it.first() }
+                        }
+
+                        Column {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("${duplicateGroups.size} groups", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                                TextButton(onClick = {
+                                    val toDelete = mutableSetOf<String>()
+                                    duplicateGroups.forEach { grp -> val k = keepSelection[grp.first()] ?: grp.first(); toDelete.addAll(grp.filter { it != k }) }
+                                    if (toDelete.isNotEmpty()) deletePhotos(toDelete)
+                                    duplicateGroups = emptyList(); duplicateGroupCount = 0; smartMode = null; isSearching = false
+                                }) { Text("Delete All Duplicates", color = MaterialTheme.colorScheme.error) }
+                            }
+                            LazyColumn(contentPadding = PaddingValues(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                items(duplicateGroups, key = { it.first() }) { group ->
+                                    val gk = group.first()
+                                    val keepId = keepSelection[gk] ?: gk
+                                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                                        Column(Modifier.padding(12.dp)) {
+                                            Text("${group.size} similar photos", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Spacer(Modifier.height(8.dp))
+                                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                group.forEach { pid ->
+                                                    val thumb = dupThumbs[pid]
+                                                    val isKept = pid == keepId
+                                                    Box(
+                                                        Modifier.size(100.dp).clip(RoundedCornerShape(12.dp))
+                                                            .border(if (isKept) 3.dp else 0.dp, if (isKept) Color(0xFF4CAF50) else Color.Transparent, RoundedCornerShape(12.dp))
+                                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                            .clickable { keepSelection = keepSelection + (gk to pid) },
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        if (thumb != null) {
+                                                            Image(thumb.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                                        } else {
+                                                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                                        }
+                                                        if (isKept) {
+                                                            Box(Modifier.align(Alignment.TopStart).padding(4.dp).size(24.dp).background(Color(0xFF4CAF50), CircleShape), contentAlignment = Alignment.Center) {
+                                                                Icon(Icons.Default.Check, null, Modifier.size(16.dp), tint = Color.White)
+                                                            }
+                                                            Text("KEEP", Modifier.align(Alignment.BottomCenter).background(Color(0xFF4CAF50).copy(alpha = 0.8f), RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)).fillMaxWidth().padding(2.dp), color = Color.White, fontSize = 10.sp, textAlign = TextAlign.Center)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Spacer(Modifier.height(8.dp))
+                                            TextButton(onClick = {
+                                                val toDelete = group.filter { it != keepId }.toSet()
+                                                if (toDelete.isNotEmpty()) deletePhotos(toDelete)
+                                                duplicateGroups = duplicateGroups.filter { it.first() != gk }
+                                                duplicateGroupCount = duplicateGroups.size
+                                                if (duplicateGroups.isEmpty()) { smartMode = null; isSearching = false }
+                                            }, modifier = Modifier.align(Alignment.End)) {
+                                                Icon(Icons.Default.Delete, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                                                Spacer(Modifier.width(4.dp))
+                                                Text("Delete ${group.size - 1} others", color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                                             }
                                         }
                                     }
@@ -2642,14 +2737,31 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             }) { Icon(Icons.Default.Delete, "Delete forever", tint = MaterialTheme.colorScheme.error) }
                             IconButton(onClick = { selectedIds = emptySet(); isSelectionMode = false }) { Icon(Icons.Default.Close, stringResource(R.string.action_cancel)) }
                         } else if (trashItems.isNotEmpty()) {
-                            TextButton(onClick = {
-                                vault.emptyTrash()
-                                trashItems = emptyList()
-                                trashThumbnails = emptyMap()
-                                trashCount = 0
-                                Toast.makeText(context, "Trash emptied", Toast.LENGTH_SHORT).show()
-                                page = VaultPage.CATEGORIES
-                            }) { Text("Empty Trash", color = MaterialTheme.colorScheme.error) }
+                            var showEmptyTrashConfirm by remember { mutableStateOf(false) }
+                            TextButton(onClick = { showEmptyTrashConfirm = true }) {
+                                Text("Empty Trash", color = MaterialTheme.colorScheme.error)
+                            }
+                            if (showEmptyTrashConfirm) {
+                                AlertDialog(
+                                    onDismissRequest = { showEmptyTrashConfirm = false },
+                                    title = { Text(stringResource(R.string.empty_trash_title)) },
+                                    text = { Text(stringResource(R.string.empty_trash_message, trashItems.size)) },
+                                    confirmButton = {
+                                        TextButton(onClick = {
+                                            showEmptyTrashConfirm = false
+                                            vault.emptyTrash()
+                                            trashItems = emptyList()
+                                            trashThumbnails = emptyMap()
+                                            trashCount = 0
+                                            Toast.makeText(context, "Trash emptied", Toast.LENGTH_SHORT).show()
+                                            page = VaultPage.CATEGORIES
+                                        }) { Text(stringResource(R.string.empty_trash_confirm), color = MaterialTheme.colorScheme.error) }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showEmptyTrashConfirm = false }) { Text(stringResource(R.string.cancel)) }
+                                    }
+                                )
+                            }
                         }
                     }
                 )

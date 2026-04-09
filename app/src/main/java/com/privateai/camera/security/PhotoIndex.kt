@@ -391,15 +391,19 @@ class PhotoIndex(private val database: PrivoraDatabase) {
     /**
      * Find groups of duplicate/near-identical photos.
      */
-    fun findDuplicates(threshold: Float = 0.90f): List<List<String>> {
-        // Load all photo IDs and feature vectors
+    fun findDuplicates(threshold: Float = 0.90f, validPhotoIds: Set<String>? = null): List<List<String>> {
+        // Load all photo IDs and feature vectors (skip trashed/deleted photos)
         val entries = mutableListOf<Pair<String, FloatArray>>()
         db.rawQuery(
             "SELECT photo_id, feature_vector FROM photo_index WHERE feature_vector IS NOT NULL",
             null
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                entries.add(cursor.getString(0) to cursor.getBlob(1).toFloatArray())
+                val id = cursor.getString(0)
+                if (validPhotoIds != null && id !in validPhotoIds) continue
+                val fv = cursor.getBlob(1).toFloatArray()
+                if (fv.isEmpty()) continue
+                entries.add(id to fv)
             }
         }
 
@@ -449,14 +453,15 @@ class PhotoIndex(private val database: PrivoraDatabase) {
     /**
      * Find blurry photos. Returns photo IDs with blur score below threshold.
      */
-    fun findBlurry(threshold: Double = 100.0): List<String> {
+    fun findBlurry(threshold: Double = 100.0, validPhotoIds: Set<String>? = null): List<String> {
         val results = mutableListOf<String>()
         db.rawQuery(
-            "SELECT photo_id FROM photo_index WHERE blur_score < ?",
+            "SELECT photo_id FROM photo_index WHERE blur_score < ? AND blur_score >= 0",
             arrayOf(threshold.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                results.add(cursor.getString(0))
+                val id = cursor.getString(0)
+                if (validPhotoIds == null || id in validPhotoIds) results.add(id)
             }
         }
         return results
