@@ -87,6 +87,8 @@
     <string name="settings_countdown_desc">Delay before capture (tap timer icon in camera to enable)</string>
     <string name="settings_video_duration">Auto-Record Duration</string>
     <string name="settings_video_duration_desc">Video length when using countdown timer in video mode</string>
+    <string name="importing_files">Importing files\u2026</string>
+    <string name="analyzing_photos">Analyzing photos\u2026</string>
     <string name="settings_reindex">Re-index All Photos</string>
     <string name="settings_reindex_desc">Clear AI labels and re-analyze all vault photos</string>
     <string name="settings_reindex_running">Re-indexing in progress\u2026</string>

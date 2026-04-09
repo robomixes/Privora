@@ -50,6 +50,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Add
@@ -77,6 +78,8 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -101,6 +104,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -212,9 +216,16 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
     // Photo Intelligence
     var photoIndex by remember { mutableStateOf<PhotoIndex?>(null) }
     var classifier by remember { mutableStateOf<ImageClassifier?>(null) }
+    var objectDetector by remember { mutableStateOf<com.privateai.camera.bridge.OnnxDetector?>(null) }
     var isIndexing by remember { mutableStateOf(false) }
     var indexProgress by remember { mutableStateOf(0 to 0) }  // (done, total)
+    // Import progress
+    var isImporting by remember { mutableStateOf(false) }
+    var importProgress by remember { mutableIntStateOf(0) }
+    var importTotal by remember { mutableIntStateOf(0) }
+    var importErrors by remember { mutableIntStateOf(0) }
     var smartMode by remember { mutableStateOf<String?>(null) } // "duplicates", "blurry", or null
+    var isSmartLoading by remember { mutableStateOf(false) }
     var showFaceGroups by remember { mutableStateOf(false) }
     var faceGroups by remember { mutableStateOf<Map<String, List<Triple<String, Int, PhotoIndex.FaceEntry>>>>(emptyMap()) }
     var selectedFaceGroup by remember { mutableStateOf<String?>(null) }
@@ -264,35 +275,34 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
         contract = ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        isImporting = true
+        importTotal = uris.size
+        importProgress = 0
+        importErrors = 0
         scope.launch {
             var importedImages = 0
             var importedPdfs = 0
             var importedVideos = 0
             var skippedLarge = 0
-            // Keep vault unlocked during import
             VaultLockManager.markUnlocked()
             withContext(Dispatchers.IO) {
-                uris.forEach { uri ->
-                    VaultLockManager.markUnlocked() // Keep alive during long imports
+                uris.forEachIndexed { idx, uri ->
+                    VaultLockManager.markUnlocked()
                     try {
                         val mimeType = context.contentResolver.getType(uri)
-
-                        // Import to custom folder if in FOLDER_VIEW, else system categories
                         val folderDir = if (page == VaultPage.FOLDER_VIEW) {
                             currentFolder?.let { folderManager.getFolderDir(it.id) }
                         } else null
 
                         if (mimeType?.startsWith("video/") == true) {
                             val size = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
-                            if (size > 150L * 1024 * 1024) { skippedLarge++; return@forEach }
+                            if (size > 150L * 1024 * 1024) { skippedLarge++; importErrors++; withContext(Dispatchers.Main) { importProgress = idx + 1 }; return@forEachIndexed }
                             val tempFile = java.io.File(context.cacheDir, "import_vid_${System.currentTimeMillis()}.mp4")
                             context.contentResolver.openInputStream(uri)?.use { input ->
                                 tempFile.outputStream().use { output -> input.copyTo(output) }
                             }
                             if (folderDir != null) {
-                                // Save video to custom folder
                                 vault.saveVideo(tempFile, VaultCategory.VIDEO)
-                                // Move the just-saved video to folder
                                 val videoItems = vault.listPhotos(VaultCategory.VIDEO)
                                 videoItems.firstOrNull()?.let { vault.moveToFolder(it, folderDir) }
                             } else {
@@ -300,9 +310,11 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             }
                             importedVideos++
                         } else {
-                            val bytes = context.contentResolver.openInputStream(uri)?.readBytes() ?: return@forEach
+                            val bytes = context.contentResolver.openInputStream(uri)?.readBytes()
+                            if (bytes == null) { importErrors++; withContext(Dispatchers.Main) { importProgress = idx + 1 }; return@forEachIndexed }
                             if (mimeType?.startsWith("image/") == true) {
-                                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@forEach
+                                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                if (bitmap == null) { importErrors++; withContext(Dispatchers.Main) { importProgress = idx + 1 }; return@forEachIndexed }
                                 if (folderDir != null) {
                                     vault.savePhotoToFolder(bitmap, folderDir)
                                 } else {
@@ -313,7 +325,6 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             } else if (mimeType == "application/pdf") {
                                 if (folderDir != null) {
                                     vault.saveFile(bytes, "import_${System.currentTimeMillis()}.pdf", VaultCategory.FILES)
-                                    // Move PDF to folder
                                     val pdfFile = File(folderDir, "import_${System.currentTimeMillis()}.pdf.enc")
                                     crypto.encryptToFile(bytes, pdfFile)
                                 } else {
@@ -322,9 +333,11 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                 importedPdfs++
                             }
                         }
-                    } catch (_: Exception) {}
+                    } catch (_: Exception) { importErrors++ }
+                    withContext(Dispatchers.Main) { importProgress = idx + 1 }
                 }
             }
+            isImporting = false
             if (!isDuressActive) { categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders(); trashCount = vault.trashCount() }
             // Refresh folder view if importing into a folder
             val refreshFolder = currentFolder
@@ -368,8 +381,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             unindexed.forEachIndexed { i, photo ->
                                 val bmp = vault.loadFullPhoto(photo) ?: vault.loadThumbnail(photo)
                                 bmp?.let { img ->
-                                    try { pi.indexPhoto(photo.id, img, cl, faceEmbedder = fe) } catch (_: Exception) {}
-                                    img.recycle()
+                                    try { pi.indexPhoto(photo.id, img, cl, faceEmbedder = fe, detector = objectDetector) } catch (_: Exception) {}
+                                    if (!img.isRecycled) img.recycle()
                                 }
                                 indexProgress = i + 1 to unindexed.size
                             }
@@ -681,6 +694,27 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
             VaultMediaType.PDF -> context.getString(R.string.type_pdf_document)
         }
 
+        // Import progress dialog
+        if (isImporting) {
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text(stringResource(R.string.importing_files)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        LinearProgressIndicator(
+                            progress = { if (importTotal > 0) importProgress.toFloat() / importTotal else 0f },
+                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))
+                        )
+                        Text("$importProgress / $importTotal", style = MaterialTheme.typography.bodyLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        if (importErrors > 0) {
+                            Text("${importErrors} skipped", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+
         AlertDialog(
             onDismissRequest = { showDetailsDialog = false },
             title = { Text(stringResource(R.string.file_details)) },
@@ -936,6 +970,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
             categoryCounts = VaultCategory.entries.associateWith { 0 }
             photos = emptyList()
             thumbnails = emptyMap()
+            trashCount = 0
+            rootFolders = emptyList()
             page = VaultPage.CATEGORIES
             pinInput = ""
             pinError = null
@@ -969,6 +1005,22 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
 
     val currentAuthMode = remember { getAuthMode(context) }
 
+    // Handle back gesture — return to vault categories instead of leaving vault
+    BackHandler(
+        enabled = showFaceGroups || selectedFaceGroup != null || isSearching || smartMode != null ||
+                page == VaultPage.GALLERY || page == VaultPage.VIEWER || page == VaultPage.FOLDER_VIEW || page == VaultPage.TRASH
+    ) {
+        when {
+            selectedFaceGroup != null -> { selectedFaceGroup = null; searchResults = emptyList() }
+            showFaceGroups -> { showFaceGroups = false; isSmartLoading = false }
+            isSearching || smartMode != null -> { isSearching = false; smartMode = null; isSmartLoading = false; searchResults = emptyList() }
+            page == VaultPage.VIEWER -> page = VaultPage.GALLERY
+            page == VaultPage.GALLERY -> page = VaultPage.CATEGORIES
+            page == VaultPage.FOLDER_VIEW -> page = VaultPage.CATEGORIES
+            page == VaultPage.TRASH -> page = VaultPage.CATEGORIES
+        }
+    }
+
     // Auto-authenticate if phone lock mode
     LaunchedEffect(Unit) {
         if (page == VaultPage.LOCKED) {
@@ -987,54 +1039,33 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
         }
     }
 
-    // Initialize Photo Intelligence index + classifier, then auto-index new photos
+    // Initialize Photo Intelligence index + classifier, then auto-index in background
     LaunchedEffect(Unit) {
         if (!isDuressActive) {
             withContext(Dispatchers.IO) {
                 try {
                     val c = ImageClassifier(context)
                     classifier = c
-                    val fe = try { FaceEmbedder(context) } catch (_: Exception) { null }
+                    val det = try { com.privateai.camera.bridge.OnnxDetector(context) } catch (_: Exception) { null }
+                    objectDetector = det
                     val pi = PhotoIndex(PrivoraDatabase.getInstance(context, crypto))
                     photoIndex = pi
-
-                    // Auto-index any unindexed photos in background
-                    val allPhotos = getAllVaultItems().filter { it.mediaType == VaultMediaType.PHOTO }
-                    val unindexed = allPhotos.filter { !pi.isIndexed(it.id) }
-                    if (unindexed.isNotEmpty()) {
-                        isIndexing = true
-                        unindexed.forEachIndexed { i, photo ->
-                            // Try full photo for face detection, fall back to thumbnail if OOM
-                            val bmp = try {
-                                // Skip full photo if encrypted file > 10MB (likely to OOM)
-                                if (photo.encryptedFile.length() > 10 * 1024 * 1024) vault.loadThumbnail(photo)
-                                else vault.loadFullPhoto(photo) ?: vault.loadThumbnail(photo)
-                            } catch (_: OutOfMemoryError) { vault.loadThumbnail(photo) }
-                            bmp?.let { img ->
-                                try {
-                                    pi.indexPhoto(photo.id, img, c, faceEmbedder = fe)
-                                } catch (_: Exception) {}
-                                img.recycle()
-                            }
-                            indexProgress = i + 1 to unindexed.size
-                        }
-                        isIndexing = false
-                    }
-                    // Auto-name face groups from People profile photos
-                    if (fe != null) {
-                        try {
-                            val contactRepo = com.privateai.camera.security.ContactRepository(
-                                java.io.File(context.filesDir, "vault/contacts"), crypto, com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
-                            )
-                            pi.autoNameFromContacts(contactRepo, fe)
-                        } catch (_: Exception) {}
-                    }
-                    fe?.release()
                 } catch (e: Exception) {
                     Log.e("VaultScreen", "Failed to init photo index: ${e.message}")
                 }
             }
+            // Start persistent background indexing (survives navigation)
+            com.privateai.camera.service.IndexingManager.startIndexing(context)
         }
+    }
+
+    // Observe IndexingManager progress
+    val indexingRunning by com.privateai.camera.service.IndexingManager.isRunning.collectAsState()
+    val indexingProgress by com.privateai.camera.service.IndexingManager.progress.collectAsState()
+    // Sync to local state for UI
+    LaunchedEffect(indexingRunning, indexingProgress) {
+        isIndexing = indexingRunning
+        indexProgress = indexingProgress
     }
 
     // Auto-search when opened with a search query (e.g., from People → Photos)
@@ -1288,8 +1319,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                                 if (!pi.isIndexed(photo.id)) {
                                                     val bmp = vault.loadFullPhoto(photo) ?: vault.loadThumbnail(photo)
                                                     bmp?.let { img ->
-                                                        pi.indexPhoto(photo.id, img, cl, faceEmbedder = fe)
-                                                        img.recycle()
+                                                        try { pi.indexPhoto(photo.id, img, cl, faceEmbedder = fe, detector = objectDetector) } catch (_: Exception) {}
+                                                        if (!img.isRecycled) img.recycle()
                                                     }
                                                 }
                                                 indexProgress = i + 1 to allPhotos.size
@@ -1309,6 +1340,13 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                     label = { Text("Indexing... ${indexProgress.first}/${indexProgress.second}") }
                                 )
                             }
+                            if (isImporting) {
+                                FilterChip(
+                                    selected = true,
+                                    onClick = {},
+                                    label = { Text("Importing... $importProgress/$importTotal${if (importErrors > 0) " ($importErrors errors)" else ""}") }
+                                )
+                            }
 
                             if (indexedCount > 0) {
                                 FilterChip(
@@ -1318,14 +1356,19 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                         if (smartMode == "duplicates") {
                                             smartMode = null
                                             isSearching = false
+                                            isSmartLoading = false
                                         } else {
+                                            searchResults = emptyList()
                                             smartMode = "duplicates"
-                                            duplicateGroups = pi.findDuplicates()
-                                            val dupIds = duplicateGroups.flatten().toSet()
-                                            val allPhotos = getAllVaultItems()
-                                            searchResults = allPhotos.filter { it.id in dupIds }
                                             isSearching = true
+                                            isSmartLoading = true
                                             scope.launch {
+                                                val groups = withContext(Dispatchers.Default) { pi.findDuplicates() }
+                                                duplicateGroups = groups
+                                                val dupIds = groups.flatten().toSet()
+                                                val allPhotos = withContext(Dispatchers.IO) { getAllVaultItems() }
+                                                searchResults = allPhotos.filter { it.id in dupIds }
+                                                isSmartLoading = false
                                                 val thumbMap = mutableMapOf<String, Bitmap>()
                                                 withContext(Dispatchers.IO) {
                                                     searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
@@ -1344,13 +1387,17 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                         if (smartMode == "blurry") {
                                             smartMode = null
                                             isSearching = false
+                                            isSmartLoading = false
                                         } else {
+                                            searchResults = emptyList()
                                             smartMode = "blurry"
-                                            val blurryIds = pi.findBlurry().toSet()
-                                            val allPhotos = getAllVaultItems()
-                                            searchResults = allPhotos.filter { it.id in blurryIds }
                                             isSearching = true
+                                            isSmartLoading = true
                                             scope.launch {
+                                                val blurryIds = withContext(Dispatchers.IO) { pi.findBlurry().toSet() }
+                                                val allPhotos = withContext(Dispatchers.IO) { getAllVaultItems() }
+                                                searchResults = allPhotos.filter { it.id in blurryIds }
+                                                isSmartLoading = false
                                                 val thumbMap = mutableMapOf<String, Bitmap>()
                                                 withContext(Dispatchers.IO) {
                                                     searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
@@ -1368,12 +1415,17 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                         if (showFaceGroups) {
                                             showFaceGroups = false
                                             selectedFaceGroup = null
+                                            isSmartLoading = false
                                         } else {
                                             val pi = photoIndex ?: return@FilterChip
+                                            faceGroups = emptyMap()
+                                            showFaceGroups = true
+                                            isSearching = false
+                                            smartMode = null
+                                            isSmartLoading = true
                                             scope.launch {
                                                 withContext(Dispatchers.IO) {
                                                     val groups = pi.getFaceGroups()
-                                                    // Auto-name groups from People profile photos
                                                     try {
                                                         val contactRepo = com.privateai.camera.security.ContactRepository(
                                                             java.io.File(context.filesDir, "vault/contacts"), crypto, com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
@@ -1384,9 +1436,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                                     } catch (_: Exception) {}
                                                     faceGroups = groups
                                                 }
-                                                showFaceGroups = true
-                                                isSearching = false
-                                                smartMode = null
+                                                isSmartLoading = false
                                             }
                                         }
                                     },
@@ -1402,10 +1452,14 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                         LaunchedEffect(faceGroups) {
                             val thumbs = mutableMapOf<String, Bitmap>()
                             withContext(Dispatchers.IO) {
+                                val allItems = getAllVaultItems().associateBy { it.id }
                                 faceGroups.forEach { (groupId, members) ->
-                                    val firstPhotoId = members.firstOrNull()?.first ?: return@forEach
-                                    val photo = getAllVaultItems().find { it.id == firstPhotoId } ?: return@forEach
-                                    vault.loadThumbnail(photo)?.let { thumbs[groupId] = it }
+                                    // Try each member until we find a loadable thumbnail
+                                    for (member in members) {
+                                        val photo = allItems[member.first] ?: continue
+                                        val thumb = vault.loadThumbnail(photo)
+                                        if (thumb != null) { thumbs[groupId] = thumb; break }
+                                    }
                                 }
                             }
                             faceGroupThumbs = thumbs
@@ -1413,8 +1467,14 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                         // Show face groups grid
                         if (faceGroups.isEmpty()) {
                             Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                Text("No face groups found", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("Index more photos to detect faces", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (isSmartLoading) {
+                                    CircularProgressIndicator(Modifier.size(32.dp))
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(stringResource(R.string.analyzing_photos), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                } else {
+                                    Text("No face groups found", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("Index more photos to detect faces", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         } else {
                             if (mergeSourceGroup != null) {
@@ -1426,7 +1486,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                 Text("${faceGroups.size} groups  •  Long press to merge", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             LazyVerticalGrid(
-                                columns = GridCells.Fixed(3),
+                                columns = GridCells.Fixed(2),
                                 contentPadding = PaddingValues(4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1440,7 +1500,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                         Card(
                                             Modifier
                                                 .fillMaxWidth()
-                                                .height(120.dp)
+                                                .height(180.dp)
                                                 .then(if (mergeSourceGroup == groupId) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier)
                                                 .combinedClickable(
                                                     onClick = {
@@ -1487,10 +1547,10 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                                         firstThumb.asImageBitmap(),
                                                         "Face group",
                                                         contentScale = ContentScale.Crop,
-                                                        modifier = Modifier.size(48.dp).clip(CircleShape)
+                                                        modifier = Modifier.size(88.dp).clip(CircleShape)
                                                     )
                                                 } else {
-                                                    Icon(Icons.Default.Face, "Face group", Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                                                    Icon(Icons.Default.Face, "Face group", Modifier.size(88.dp), tint = MaterialTheme.colorScheme.primary)
                                                 }
                                                 Spacer(Modifier.height(4.dp))
                                                 Text(
@@ -1614,7 +1674,13 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
-                                Text(stringResource(R.string.no_results_found), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (isSmartLoading) {
+                                    CircularProgressIndicator(Modifier.size(32.dp))
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(stringResource(R.string.analyzing_photos), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                } else {
+                                    Text(stringResource(R.string.no_results_found), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         } else {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -1796,8 +1862,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                         }
                         } // end FlowRow
 
-                        // Trash section
-                        if (trashCount > 0) {
+                        // Trash section (hidden in duress mode)
+                        if (trashCount > 0 && !isDuressActive) {
                             Spacer(Modifier.height(16.dp))
                             Card(
                                 Modifier.fillMaxWidth().clickable {
@@ -2185,15 +2251,16 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
 
                 // AI labels (above action bar, pass-through touches)
                 viewerPhoto?.let { vp ->
-                    photoIndex?.getLabels(vp.id)?.let { labels ->
-                        if (labels.isNotEmpty()) {
+                    photoIndex?.getLabelsWithScores(vp.id)?.let { labelsWithScores ->
+                        if (labelsWithScores.isNotEmpty()) {
                             Row(
                                 Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp)
                                     .horizontalScroll(rememberScrollState())
                                     .padding(horizontal = 16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                labels.forEach { label ->
+                                labelsWithScores.forEach { (label, score) ->
+                                    val pct = (score * 100).toInt()
                                     SuggestionChip(onClick = {
                                         searchQuery = label
                                         searchFromViewer = true
@@ -2210,7 +2277,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                             }
                                             searchThumbnails = thumbMap
                                         }
-                                    }, label = { Text(label, style = MaterialTheme.typography.labelSmall) })
+                                    }, label = { Text("$label $pct%", style = MaterialTheme.typography.labelSmall) })
                                 }
                             }
                         }
@@ -2558,7 +2625,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                                     if (photo.encryptedFile.length() > 10 * 1024 * 1024) vault.loadThumbnail(photo)
                                                     else vault.loadFullPhoto(photo) ?: vault.loadThumbnail(photo)
                                                 } catch (_: OutOfMemoryError) { vault.loadThumbnail(photo) }
-                                                bmp?.let { img -> try { pi.indexPhoto(photo.id, img, cl, faceEmbedder = fe) } catch (_: Exception) {}; img.recycle() }
+                                                bmp?.let { img -> try { pi.indexPhoto(photo.id, img, cl, faceEmbedder = fe, detector = objectDetector) } catch (_: Exception) {}; if (!img.isRecycled) img.recycle() }
                                             }
                                         }
                                         fe?.release()

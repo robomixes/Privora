@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.util.Log
 import com.privateai.camera.bridge.FaceEmbedder
 import com.privateai.camera.bridge.ImageClassifier
+import com.privateai.camera.bridge.OnnxDetector
 import com.privateai.camera.util.BlurDetector
 import net.zetetic.database.sqlcipher.SQLiteDatabase
 import org.json.JSONArray
@@ -116,32 +117,53 @@ class PhotoIndex(private val database: PrivoraDatabase) {
         bitmap: Bitmap,
         classifier: ImageClassifier,
         blurDetector: BlurDetector = BlurDetector,
-        faceEmbedder: FaceEmbedder? = null
+        faceEmbedder: FaceEmbedder? = null,
+        detector: OnnxDetector? = null
     ): PhotoIndexEntry {
-        // 1. Classify the image
-        val classifications = classifier.classify(bitmap)
-        val labels = classifications.map { it.first }
-        val scores = classifications.map { it.second }
+        if (bitmap.isRecycled) return PhotoIndexEntry(emptyList(), emptyList(), null, -1.0, emptyList())
 
-        // 2. Get the feature vector for similarity search
-        val featureVector = classifier.getFeatureVector(bitmap)
+        // 1. Detect objects with YOLOv8n (COCO 80 — optional, skipped in batch mode)
+        val detections = if (detector != null && !bitmap.isRecycled) {
+            try { detector.detect(bitmap, minConfidence = 0.45f) }
+            catch (_: Throwable) { emptyList() }
+        } else emptyList()
 
-        // 3. Get the blur score
-        val blurScore = blurDetector.getBlurScore(bitmap)
+        // 2. Classify + get embedding in ONE inference (fused — saves ~150ms per photo)
+        val (classifications, featureVector) = if (!bitmap.isRecycled) {
+            classifier.classifyWithEmbedding(bitmap)
+        } else emptyList<Pair<String, Float>>() to FloatArray(0)
 
-        // 4. Detect faces and compute embeddings
-        val faces = faceEmbedder?.detectAndEmbed(bitmap)?.map { (box, emb) ->
-            FaceEntry(floatArrayOf(box.left, box.top, box.width(), box.height()), emb)
-        } ?: emptyList()
+        // 3. Merge: detector labels first, then classifier
+        val merged = mutableListOf<Pair<String, Float>>()
+        val seen = mutableSetOf<String>()
+        for (det in detections.distinctBy { it.className }) {
+            val label = det.className.replaceFirstChar { it.uppercase() }
+            if (label.lowercase() !in seen) { seen.add(label.lowercase()); merged.add(label to det.confidence) }
+        }
+        for ((label, score) in classifications) {
+            if (label.lowercase() !in seen) { seen.add(label.lowercase()); merged.add(label to score) }
+        }
+        val labels = merged.take(8).map { it.first }
+        val scores = merged.take(8).map { it.second }
 
-        // 4b. Create face identities for new faces that don't match any existing identity
+        // 4. Blur score
+        val blurScore = if (!bitmap.isRecycled) blurDetector.getBlurScore(bitmap) else -1.0
+
+        // 5. Detect faces and compute embeddings
+        val faces = if (!bitmap.isRecycled) {
+            faceEmbedder?.detectAndEmbed(bitmap)?.map { (box, emb) ->
+                FaceEntry(floatArrayOf(box.left, box.top, box.width(), box.height()), emb)
+            } ?: emptyList()
+        } else emptyList()
+
+        // 5b. Create face identities for new faces that don't match any existing identity
         if (faces.isNotEmpty()) {
             val existingIdentities = loadFaceIdentitiesList()
             db.beginTransaction()
             try {
                 for (face in faces) {
                     val matchesExisting = existingIdentities.any { identity ->
-                        cosineSimilarity(face.embedding, identity.centroid) > 0.55f
+                        cosineSimilarity(face.embedding, identity.centroid) > 0.70f
                     }
                     if (!matchesExisting) {
                         val newId = java.util.UUID.randomUUID().toString()
@@ -159,7 +181,7 @@ class PhotoIndex(private val database: PrivoraDatabase) {
             }
         }
 
-        // 5. Store in database
+        // 6. Store in database
         db.beginTransaction()
         try {
             val cv = ContentValues().apply {
@@ -464,6 +486,24 @@ class PhotoIndex(private val database: PrivoraDatabase) {
         return emptyList()
     }
 
+    fun getLabelsWithScores(photoId: String): List<Pair<String, Float>> {
+        db.rawQuery(
+            "SELECT labels, scores FROM photo_index WHERE photo_id = ?",
+            arrayOf(photoId)
+        ).use { cursor ->
+            if (cursor.moveToFirst()) {
+                val labels = parseJsonStringArray(cursor.getString(0))
+                val scoresJson = cursor.getString(1)
+                val scores = try {
+                    val arr = JSONArray(scoresJson)
+                    (0 until arr.length()).map { arr.getDouble(it).toFloat() }
+                } catch (_: Exception) { emptyList() }
+                return labels.zip(scores)
+            }
+        }
+        return emptyList()
+    }
+
     /**
      * Get all unique labels across all indexed photos (for auto-suggest).
      */
@@ -583,7 +623,9 @@ class PhotoIndex(private val database: PrivoraDatabase) {
             val excludedSet = excluded[id] ?: emptySet()
             members.filter { it.first !in excludedSet }
         }
+        // Sort by group size descending (largest groups first)
         return filtered.filter { it.value.size >= 2 }
+            .toSortedMap(compareByDescending { filtered[it]?.size ?: 0 })
     }
 
     /**
