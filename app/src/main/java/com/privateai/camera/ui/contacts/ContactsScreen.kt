@@ -167,7 +167,7 @@ fun ContactsScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
-    val crypto = remember { CryptoManager(context) }
+    val crypto = remember { CryptoManager(context).also { it.initialize() } }
     val database = remember { PrivoraDatabase.getInstance(context, crypto) }
     val contactRepo = remember { ContactRepository(File(context.filesDir, "vault/contacts"), crypto, database) }
 
@@ -1719,17 +1719,20 @@ private fun LinkFaceGroupDialog(
         kotlinx.coroutines.withContext(Dispatchers.IO) {
             try {
                 val crypto = CryptoManager(context).also { it.initialize() }
+                val vault = VaultRepository(context, crypto)
+                val folderManager = com.privateai.camera.security.FolderManager(context, crypto)
                 val pi = com.privateai.camera.security.PhotoIndex(com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto))
                 val groups = pi.getFaceGroups()
                 faceGroups = groups
 
-                // Load first photo thumbnail for each group
-                val vault = VaultRepository(context, crypto)
+                // Load thumbnails — include folder items, try multiple members
+                val allItems = (vault.listAllPhotos() + folderManager.listAllFolders().flatMap { f -> vault.listFolderItems(folderManager.getFolderDir(f.id)) }).distinctBy { it.id }.associateBy { it.id }
                 val thumbs = mutableMapOf<String, Bitmap>()
                 groups.forEach { (gId, members) ->
-                    val firstPhotoId = members.firstOrNull()?.first ?: return@forEach
-                    vault.listAllPhotos().find { it.id == firstPhotoId }?.let { photo ->
-                        vault.loadThumbnail(photo)?.let { thumbs[gId] = it }
+                    for (m in members) {
+                        allItems[m.first]?.let { photo ->
+                            vault.loadThumbnail(photo)?.let { thumbs[gId] = it; return@forEach }
+                        }
                     }
                 }
                 groupThumbs = thumbs
@@ -1790,11 +1793,11 @@ private fun LinkFaceGroupDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Box(Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(72.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
                                 if (thumb != null) {
                                     Image(thumb.asImageBitmap(), "Face", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().clip(CircleShape))
                                 } else {
-                                    Icon(Icons.Default.Person, null, Modifier.size(24.dp), tint = Color.White)
+                                    Icon(Icons.Default.Person, null, Modifier.size(32.dp), tint = Color.White)
                                 }
                             }
                             Column(Modifier.weight(1f)) {
