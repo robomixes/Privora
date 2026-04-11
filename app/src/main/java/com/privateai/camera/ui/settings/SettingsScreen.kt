@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DocumentScanner
@@ -38,6 +40,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Timer
@@ -710,6 +714,183 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             } // end showBackup
+
+            // Device Transfer section (selling/changing phone)
+            val showTransfer = matchesSearch("Transfer", "Sell", "Wipe", "New Device", "Change Phone", "Delete All", "Reset")
+            if (showTransfer) {
+                SectionHeader("Device Transfer")
+
+                // Transfer instructions
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(Icons.Default.PhoneAndroid, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f)) {
+                        Text("Transfer to New Device", fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
+                        Spacer(Modifier.height(4.dp))
+                        Text("1. Create an encrypted backup below", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("2. Transfer the .paicbackup file to your new device", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("3. Install Privora on new device → Import backup", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(8.dp))
+                        androidx.compose.material3.Button(
+                            onClick = { onBackupClick?.invoke() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.CloudSync, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Create Backup")
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Wipe section
+                var showWipeDialog by remember { mutableStateOf(false) }
+                var showWipeConfirm by remember { mutableStateOf(false) }
+                var wipePin by remember { mutableStateOf("") }
+                var wipePinError by remember { mutableStateOf<String?>(null) }
+
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(Icons.Default.DeleteForever, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.error)
+                    Column(Modifier.weight(1f)) {
+                        Text("Wipe This Device", fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.height(4.dp))
+
+                        // Data summary
+                        val photoCount = vault.listAllPhotos().size
+                        val noteCount = noteRepo.noteCount()
+                        val vaultSize = vault.getVaultSize()
+                        val sizeMb = "%.1f MB".format(vaultSize / (1024.0 * 1024.0))
+                        Text("$photoCount photos/videos • $noteCount notes • $sizeMb", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                        Spacer(Modifier.height(4.dp))
+                        Text("Permanently deletes ALL data including encryption keys. Data becomes unrecoverable.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
+
+                        Spacer(Modifier.height(8.dp))
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { showWipeDialog = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(Icons.Default.DeleteForever, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Wipe Everything")
+                        }
+                    }
+                }
+
+                // First confirmation dialog
+                if (showWipeDialog) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { showWipeDialog = false },
+                        title = { Text("Wipe All Data?") },
+                        text = {
+                            Column {
+                                Text("This will permanently delete:")
+                                Spacer(Modifier.height(8.dp))
+                                Text("• All encrypted photos & videos", style = MaterialTheme.typography.bodySmall)
+                                Text("• All notes & voice recordings", style = MaterialTheme.typography.bodySmall)
+                                Text("• All contacts & profile photos", style = MaterialTheme.typography.bodySmall)
+                                Text("• Face recognition data", style = MaterialTheme.typography.bodySmall)
+                                Text("• Encryption keys (unrecoverable)", style = MaterialTheme.typography.bodySmall)
+                                Text("• All app settings", style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(8.dp))
+                                Text("Have you created a backup?", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showWipeDialog = false; showWipeConfirm = true }) {
+                                Text("Continue", color = MaterialTheme.colorScheme.error)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showWipeDialog = false }) { Text("Cancel") }
+                        }
+                    )
+                }
+
+                // PIN confirmation dialog
+                if (showWipeConfirm) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { showWipeConfirm = false; wipePin = ""; wipePinError = null },
+                        title = { Text("Enter PIN to Confirm") },
+                        text = {
+                            Column {
+                                Text("Enter your app PIN to confirm the wipe.", style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(12.dp))
+                                OutlinedTextField(
+                                    value = wipePin,
+                                    onValueChange = { wipePin = it; wipePinError = null },
+                                    label = { Text("PIN") },
+                                    singleLine = true,
+                                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword),
+                                    isError = wipePinError != null,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                if (wipePinError != null) {
+                                    Text(wipePinError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                // Verify PIN
+                                val authMode = com.privateai.camera.ui.onboarding.getAuthMode(context)
+                                val storedPin = context.getSharedPreferences("privateai_prefs", android.content.Context.MODE_PRIVATE).getString("app_pin", null)
+                                if (authMode == com.privateai.camera.ui.onboarding.AuthMode.PHONE_LOCK || storedPin == null || wipePin == storedPin) {
+                                    showWipeConfirm = false
+                                    // Execute full wipe
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            try {
+                                                // 1. Destroy encryption keys
+                                                com.privateai.camera.security.KeyManager.deleteKEK()
+                                                crypto.wipeAll()
+                                                // 2. Delete all vault data
+                                                java.io.File(context.filesDir, "vault").deleteRecursively()
+                                                // 3. Delete database
+                                                context.getDatabasePath("privora.db")?.delete()
+                                                // 4. Clear ALL preferences
+                                                listOf("app_settings", "privacy_settings", "feature_toggles", "duress_settings", "privateai_prefs", "device_profile").forEach { name ->
+                                                    context.getSharedPreferences(name, android.content.Context.MODE_PRIVATE).edit().clear().apply()
+                                                }
+                                                // 5. Clear cache
+                                                context.cacheDir.deleteRecursively()
+                                                // 6. Create fresh keys
+                                                crypto.initialize()
+                                            } catch (_: Exception) {}
+                                        }
+                                        // Navigate to onboarding
+                                        android.widget.Toast.makeText(context, "All data wiped. App reset to fresh state.", android.widget.Toast.LENGTH_LONG).show()
+                                        // Force restart by clearing task
+                                        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                                        intent?.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        context.startActivity(intent)
+                                    }
+                                } else {
+                                    wipePinError = "Incorrect PIN"
+                                }
+                            }) {
+                                Text("WIPE ALL DATA", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showWipeConfirm = false; wipePin = ""; wipePinError = null }) { Text("Cancel") }
+                        }
+                    )
+                }
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end showTransfer
 
             // About section
             val showAbout = matchesSearch("About", "Privora", "Version", "Crash Logs", "Privacy Policy", "Privacy Promise")

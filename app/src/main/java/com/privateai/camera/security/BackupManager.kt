@@ -111,7 +111,8 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
         val totalFiles = allFiles.size
 
         // 3. Create zip
-        val backupFile = File(context.cacheDir, "backup_${System.currentTimeMillis()}.paicbackup")
+        val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd_HHmm", java.util.Locale.US).format(java.util.Date())
+        val backupFile = File(context.cacheDir, "privora_backup_${dateStr}.paicbackup")
         val zos = ZipOutputStream(BufferedOutputStream(FileOutputStream(backupFile)))
 
         // Write key entry first
