@@ -201,6 +201,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
 
     // Duress mode — blocks all data access when active
     var isDuressActive by remember { mutableStateOf(VaultLockManager.isDuressActive) }
+    val faceThreshold = remember { context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE).getFloat("face_threshold", 0.55f) }
 
     // Search
     var searchQuery by remember { mutableStateOf(initialSearchQuery) }
@@ -919,7 +920,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                     val pi = photoIndex
                     if (pi != null) {
                         scope.launch {
-                            val groups = withContext(Dispatchers.IO) { pi.getFaceGroups() }
+                            val groups = withContext(Dispatchers.IO) { pi.getFaceGroups(faceThreshold) }
                             faceGroups = groups
                         }
                     }
@@ -976,6 +977,16 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
             thumbnails = emptyMap()
             trashCount = 0
             rootFolders = emptyList()
+            faceGroups = emptyMap()
+            faceGroupCount = 0
+            showFaceGroups = false
+            selectedFaceGroup = null
+            duplicateGroups = emptyList()
+            duplicateGroupCount = 0
+            blurryCount = 0
+            searchResults = emptyList()
+            isSearching = false
+            smartMode = null
             page = VaultPage.CATEGORIES
             pinInput = ""
             pinError = null
@@ -1066,7 +1077,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                 scope.launch {
                     val validIds = withContext(Dispatchers.IO) { getAllVaultItems().map { it.id }.toSet() }
                     blurryCount = withContext(Dispatchers.IO) { pi.findBlurry(validPhotoIds = validIds).size }
-                    faceGroupCount = withContext(Dispatchers.IO) { pi.getFaceGroups().size }
+                    faceGroupCount = withContext(Dispatchers.IO) { pi.getFaceGroups(faceThreshold).size }
                     duplicateGroupCount = withContext(Dispatchers.Default) { pi.findDuplicates(validPhotoIds = validIds).size }
                 }
             }
@@ -1089,16 +1100,23 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
             isSearching = true
             scope.launch {
                 val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
-                var matchedIds = withContext(Dispatchers.IO) { pi.searchByLabel(initialSearchQuery).toSet() }
+                var matchedIds = emptySet<String>()
 
-                // If no results from label/name search, try profile photo face matching
-                if (matchedIds.isEmpty()) {
-                    withContext(Dispatchers.IO) {
-                        try {
-                            // initialSearchQuery contains "name contactId" — extract contactId
-                            val parts = initialSearchQuery.split(" ")
-                            val contactId = parts.lastOrNull()?.takeIf { it.length > 10 } // UUIDs are long
-                            if (contactId != null) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        val parts = initialSearchQuery.split(" ")
+                        val contactId = parts.lastOrNull()?.takeIf { it.length > 10 }
+                        if (contactId != null) {
+                            // 1. FIRST: Check linked face group — most accurate
+                            val groups = pi.getFaceGroups(faceThreshold)
+                            val identities = pi.loadFaceIdentitiesList()
+                            val linkedIdentity = identities.find { it.personId == contactId }
+                            if (linkedIdentity != null && groups.containsKey(linkedIdentity.id)) {
+                                matchedIds = groups[linkedIdentity.id]!!.map { it.first }.distinct().toSet()
+                            }
+
+                            // 2. If no linked group, try profile photo face matching
+                            if (matchedIds.isEmpty()) {
                                 val contactRepo = com.privateai.camera.security.ContactRepository(java.io.File(context.filesDir, "vault/contacts"), crypto, com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto))
                                 val profileBmp = contactRepo.loadProfilePhoto(contactId)
                                 if (profileBmp != null) {
@@ -1106,13 +1124,18 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                     val embeddings = fe.detectAndEmbed(profileBmp)
                                     profileBmp.recycle()
                                     if (embeddings.isNotEmpty()) {
-                                        matchedIds = pi.findPhotosByFaceEmbedding(embeddings[0].second).toSet()
+                                        matchedIds = pi.findPhotosByFaceEmbedding(embeddings[0].second, faceThreshold).toSet()
                                     }
                                     fe.release()
                                 }
                             }
-                        } catch (_: Exception) {}
-                    }
+                        }
+
+                        // 3. Fallback: label search
+                        if (matchedIds.isEmpty()) {
+                            matchedIds = pi.searchByLabel(initialSearchQuery).toSet()
+                        }
+                    } catch (_: Exception) {}
                 }
 
                 searchResults = allItems.filter { it.id in matchedIds }
@@ -1440,7 +1463,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                             isSmartLoading = true
                                             scope.launch {
                                                 withContext(Dispatchers.IO) {
-                                                    val groups = pi.getFaceGroups()
+                                                    val groups = pi.getFaceGroups(faceThreshold)
                                                     try {
                                                         val contactRepo = com.privateai.camera.security.ContactRepository(
                                                             java.io.File(context.filesDir, "vault/contacts"), crypto, com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
@@ -1606,7 +1629,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                             val pi = photoIndex
                                             if (pi != null) {
                                                 scope.launch {
-                                                    faceGroups = withContext(Dispatchers.IO) { pi.getFaceGroups() }
+                                                    faceGroups = withContext(Dispatchers.IO) { pi.getFaceGroups(faceThreshold) }
                                                 }
                                             }
                                         }

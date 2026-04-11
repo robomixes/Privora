@@ -43,6 +43,13 @@ fun PrivateAICameraApp() {
         }
     }
 
+    // Safe back navigation — prevents white screen on double-tap
+    val safeBack: () -> Unit = {
+        if (navController.currentBackStackEntry != null && navController.previousBackStackEntry != null) {
+            navController.popBackStack()
+        }
+    }
+
     Surface(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
@@ -86,42 +93,42 @@ fun PrivateAICameraApp() {
             }
             composable("camera") {
                 CaptureScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = safeBack,
                     onPhotoTap = { navController.navigate("vault") }
                 )
             }
             composable("detect") {
-                CameraScreen(onBack = { navController.popBackStack() })
+                CameraScreen(onBack = safeBack)
             }
             composable("scan") {
-                ScannerScreen(onBack = { navController.popBackStack() })
+                ScannerScreen(onBack = safeBack)
             }
             composable("qrscanner") {
-                QrScannerScreen(onBack = { navController.popBackStack() })
+                QrScannerScreen(onBack = safeBack)
             }
             composable("translate") {
-                TranslateScreen(onBack = { navController.popBackStack() })
+                TranslateScreen(onBack = safeBack)
             }
             composable("vault") {
-                VaultScreen(onBack = { navController.popBackStack() })
+                VaultScreen(onBack = safeBack)
             }
             composable("vault?search={query}",
                 arguments = listOf(androidx.navigation.navArgument("query") { defaultValue = ""; type = androidx.navigation.NavType.StringType })
             ) { backStackEntry ->
                 val query = backStackEntry.arguments?.getString("query") ?: ""
-                VaultScreen(onBack = { navController.popBackStack() }, initialSearchQuery = query)
+                VaultScreen(onBack = safeBack, initialSearchQuery = query)
             }
             composable("notes") {
-                NotesScreen(onBack = { navController.popBackStack() })
+                NotesScreen(onBack = safeBack)
             }
             composable("notes?personId={personId}",
                 arguments = listOf(androidx.navigation.navArgument("personId") { defaultValue = ""; type = androidx.navigation.NavType.StringType })
             ) { backStackEntry ->
                 val personId = backStackEntry.arguments?.getString("personId")?.ifBlank { null }
-                NotesScreen(onBack = { navController.popBackStack() }, filterPersonId = personId)
+                NotesScreen(onBack = safeBack, filterPersonId = personId)
             }
             composable("insights") {
-                InsightsScreen(onBack = { navController.popBackStack() })
+                InsightsScreen(onBack = safeBack)
             }
             composable("insights?personId={personId}&tab={tab}",
                 arguments = listOf(
@@ -131,14 +138,14 @@ fun PrivateAICameraApp() {
             ) { backStackEntry ->
                 val personId = backStackEntry.arguments?.getString("personId")?.ifBlank { null }
                 val tab = backStackEntry.arguments?.getString("tab") ?: ""
-                InsightsScreen(onBack = { navController.popBackStack() }, initialTab = if (tab == "health") 1 else 0, filterPersonId = personId)
+                InsightsScreen(onBack = safeBack, initialTab = if (tab == "health") 1 else 0, filterPersonId = personId)
             }
             composable("tools") {
-                UnitConverterScreen(onBack = { navController.popBackStack() })
+                UnitConverterScreen(onBack = safeBack)
             }
             composable("contacts") {
                 com.privateai.camera.ui.contacts.ContactsScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = safeBack,
                     onNavigateToInsights = { personId ->
                         navController.navigate("insights?personId=${personId ?: ""}&tab=health")
                     },
@@ -152,20 +159,20 @@ fun PrivateAICameraApp() {
             }
             composable("settings") {
                 SettingsScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = safeBack,
                     onBackupClick = { navController.navigate("backup") },
                     onDuressClick = { navController.navigate("duress_setup") }
                 )
             }
             composable("duress_setup") {
-                DuressSetupScreen(onBack = { navController.popBackStack() })
+                DuressSetupScreen(onBack = safeBack)
             }
             composable("backup") {
-                BackupScreen(onBack = { navController.popBackStack() })
+                BackupScreen(onBack = safeBack)
             }
             composable("backup/onboarding") {
                 BackupScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = safeBack,
                     onImportComplete = { summary ->
                         // Go back to onboarding to complete auth mode setup
                         // Store summary to show later on home

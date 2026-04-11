@@ -452,6 +452,29 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 }
                 Spacer(Modifier.height(8.dp))
 
+                // Face grouping threshold slider
+                var faceThreshold by remember { mutableStateOf(cameraPref.getFloat("face_threshold", 0.60f)) }
+                SettingsItem(
+                    icon = Icons.Default.Person,
+                    title = "Face Grouping Sensitivity",
+                    subtitle = "Lower = more faces per group, Higher = stricter matching (${(faceThreshold * 100).toInt()}%)"
+                )
+                androidx.compose.material3.Slider(
+                    value = faceThreshold,
+                    onValueChange = { faceThreshold = it },
+                    onValueChangeFinished = {
+                        cameraPref.edit().putFloat("face_threshold", faceThreshold).apply()
+                    },
+                    valueRange = 0.40f..0.80f,
+                    steps = 7,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                )
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("More groups", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Fewer groups", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(12.dp))
+
                 // Force re-index all photos
                 var showReindexDialog by remember { mutableStateOf(false) }
                 var isReindexing by remember { mutableStateOf(false) }
@@ -483,6 +506,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                 showReindexDialog = false
                                 isReindexing = true
                                 scope.launch {
+                                    // Stop any running background indexing
+                                    com.privateai.camera.service.IndexingManager.stop()
                                     withContext(Dispatchers.IO) {
                                         try {
                                             val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
@@ -492,6 +517,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                         } catch (_: Exception) {}
                                     }
                                     isReindexing = false
+                                    // Restart indexing from zero
+                                    com.privateai.camera.service.IndexingManager.startIndexing(context)
                                     android.widget.Toast.makeText(context, context.getString(R.string.settings_reindex_done), android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             }) { Text(stringResource(R.string.settings_reindex_action), color = MaterialTheme.colorScheme.error) }

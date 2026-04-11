@@ -163,7 +163,7 @@ class PhotoIndex(private val database: PrivoraDatabase) {
             try {
                 for (face in faces) {
                     val matchesExisting = existingIdentities.any { identity ->
-                        cosineSimilarity(face.embedding, identity.centroid) > 0.70f
+                        cosineSimilarity(face.embedding, identity.centroid) > 0.40f
                     }
                     if (!matchesExisting) {
                         val newId = java.util.UUID.randomUUID().toString()
@@ -542,95 +542,95 @@ class PhotoIndex(private val database: PrivoraDatabase) {
      * Returns map of identity ID -> list of (photoId, faceIndex, FaceEntry).
      * Photos with multiple faces appear in multiple groups.
      */
-    fun getFaceGroups(threshold: Float = 0.78f): Map<String, List<Triple<String, Int, FaceEntry>>> {
-        val identities = loadFaceIdentitiesList().toMutableList()
-
-        // Load all face entries from DB
+    /**
+     * Direct centroid clustering. READ-ONLY — does not modify the database.
+     * Deterministic: same data always produces same groups.
+     * No transitivity — each face matched directly to cluster centroid.
+     */
+    fun getFaceGroups(threshold: Float = 0.55f): Map<String, List<Triple<String, Int, FaceEntry>>> {
+        // Load all face entries in deterministic order
         val allFaces = mutableListOf<Triple<String, Int, FaceEntry>>()
         db.rawQuery(
-            "SELECT photo_id, face_index, box, embedding FROM face_entries",
+            "SELECT photo_id, face_index, box, embedding FROM face_entries ORDER BY photo_id, face_index",
             null
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                val photoId = cursor.getString(0)
-                val faceIndex = cursor.getInt(1)
-                val box = cursor.getBlob(2).toFloatArray()
                 val emb = cursor.getBlob(3).toFloatArray()
-                allFaces.add(Triple(photoId, faceIndex, FaceEntry(box, emb)))
+                if (emb.isEmpty()) continue
+                allFaces.add(Triple(
+                    cursor.getString(0), cursor.getInt(1),
+                    FaceEntry(cursor.getBlob(2).toFloatArray(), emb)
+                ))
             }
         }
         if (allFaces.isEmpty()) return emptyMap()
+        Log.d(TAG, "Direct clustering: ${allFaces.size} faces, threshold=$threshold")
 
-        // Match each face to an existing identity or create a new one
-        val groups = mutableMapOf<String, MutableList<Triple<String, Int, FaceEntry>>>()
-        val updatedIdentities = identities.toMutableList()
+        // Build clusters from scratch — no identity table dependency
+        data class Cluster(val members: MutableList<Int>, var centroid: FloatArray)
+        val clusters = mutableListOf<Cluster>()
 
-        for (face in allFaces) {
-            var bestId: String? = null
+        for (i in allFaces.indices) {
+            val emb = allFaces[i].third.embedding
+            var bestIdx = -1
             var bestSim = threshold
 
-            for (identity in updatedIdentities) {
-                val sim = cosineSimilarity(face.third.embedding, identity.centroid)
+            for (c in clusters.indices) {
+                val sim = cosineSimilarity(emb, clusters[c].centroid)
                 if (sim > bestSim) {
                     bestSim = sim
-                    bestId = identity.id
+                    bestIdx = c
                 }
             }
 
-            if (bestId != null) {
-                groups.getOrPut(bestId) { mutableListOf() }.add(face)
-                // Update centroid (running average)
-                val members = groups[bestId]!!
-                val idx = updatedIdentities.indexOfFirst { it.id == bestId }
-                if (idx >= 0) {
-                    val newCentroid = FloatArray(updatedIdentities[idx].centroid.size)
-                    for (m in members) for (i in newCentroid.indices) newCentroid[i] += m.third.embedding[i]
-                    for (i in newCentroid.indices) newCentroid[i] /= members.size
-                    updatedIdentities[idx] = updatedIdentities[idx].copy(centroid = newCentroid)
+            if (bestIdx >= 0) {
+                // Add to existing cluster and update centroid
+                val cluster = clusters[bestIdx]
+                cluster.members.add(i)
+                val n = cluster.members.size
+                val dim = cluster.centroid.size
+                val newCentroid = FloatArray(dim)
+                for (m in cluster.members) {
+                    val me = allFaces[m].third.embedding
+                    for (d in 0 until dim) newCentroid[d] += me[d]
                 }
+                for (d in 0 until dim) newCentroid[d] /= n
+                cluster.centroid = newCentroid
             } else {
-                // No match at strict threshold -- try softer match
-                var softId: String? = null
-                var softSim = threshold * 0.7f
-                for (identity in updatedIdentities) {
-                    val sim = cosineSimilarity(face.third.embedding, identity.centroid)
-                    if (sim > softSim) { softSim = sim; softId = identity.id }
-                }
-                if (softId != null) {
-                    groups.getOrPut(softId) { mutableListOf() }.add(face)
-                }
+                // Create new cluster
+                clusters.add(Cluster(mutableListOf(i), emb.copyOf()))
             }
         }
 
-        // Update centroids of existing identities in DB
-        val existingIds = identities.map { it.id }.toSet()
-        db.beginTransaction()
-        try {
-            for (updated in updatedIdentities) {
-                if (updated.id in existingIds) {
-                    val original = identities.find { it.id == updated.id }
-                    if (original != null && !original.centroid.contentEquals(updated.centroid)) {
-                        val cv = ContentValues().apply {
-                            put("centroid", updated.centroid.toBlob())
-                        }
-                        db.update("face_identities", cv, "id = ?", arrayOf(updated.id))
-                    }
-                }
-            }
-            db.setTransactionSuccessful()
-        } finally {
-            db.endTransaction()
-        }
-
-        // Filter out excluded photos and return groups with 2+ faces
+        // Map clusters to existing face_identities to preserve names/person links
+        val identities = loadFaceIdentitiesList()
         val excluded = loadAllExclusions()
-        val filtered = groups.mapValues { (id, members) ->
-            val excludedSet = excluded[id] ?: emptySet()
-            members.filter { it.first !in excludedSet }
+        val result = mutableMapOf<String, MutableList<Triple<String, Int, FaceEntry>>>()
+
+        for (cluster in clusters) {
+            if (cluster.members.size < 2) continue
+            val members = cluster.members.map { allFaces[it] }
+
+            // Find best matching identity
+            var bestIdentity: FaceIdentity? = null
+            var bestSim = 0.3f
+            for (id in identities) {
+                if (id.centroid.size != cluster.centroid.size) continue
+                val sim = cosineSimilarity(cluster.centroid, id.centroid)
+                if (sim > bestSim) { bestSim = sim; bestIdentity = id }
+            }
+
+            val groupId = bestIdentity?.id ?: "cluster_${cluster.members[0]}"
+
+            val excludedSet = excluded[groupId] ?: emptySet()
+            val filtered = members.filter { it.first !in excludedSet }
+            if (filtered.size >= 2) {
+                result[groupId] = filtered.toMutableList()
+            }
         }
-        // Sort by group size descending (largest groups first)
-        return filtered.filter { it.value.size >= 2 }
-            .toSortedMap(compareByDescending { filtered[it]?.size ?: 0 })
+
+        Log.d(TAG, "Direct clustering: ${result.size} groups from ${clusters.size} clusters")
+        return result.toSortedMap(compareByDescending { result[it]?.size ?: 0 })
     }
 
     /**
@@ -719,7 +719,7 @@ class PhotoIndex(private val database: PrivoraDatabase) {
     fun autoNameFromContacts(
         contactRepo: ContactRepository,
         faceEmbedder: com.privateai.camera.bridge.FaceEmbedder,
-        threshold: Float = 0.70f
+        threshold: Float = 0.40f
     ) {
         val identities = loadFaceIdentitiesList().toMutableList()
         val contacts = contactRepo.listContacts()
@@ -849,7 +849,7 @@ class PhotoIndex(private val database: PrivoraDatabase) {
      * Find photos by matching a face embedding against all indexed faces.
      * Used when profile photo exists but no face group is linked.
      */
-    fun findPhotosByFaceEmbedding(embedding: FloatArray, threshold: Float = 0.55f): List<String> {
+    fun findPhotosByFaceEmbedding(embedding: FloatArray, threshold: Float = 0.40f): List<String> {
         val results = mutableSetOf<String>()
         db.rawQuery("SELECT photo_id, embedding FROM face_entries", null).use { cursor ->
             while (cursor.moveToNext()) {
@@ -891,7 +891,7 @@ class PhotoIndex(private val database: PrivoraDatabase) {
     /**
      * Load all face identities from DB.
      */
-    private fun loadFaceIdentitiesList(): List<FaceIdentity> {
+    fun loadFaceIdentitiesList(): List<FaceIdentity> {
         val result = mutableListOf<FaceIdentity>()
         db.rawQuery("SELECT id, name, centroid, person_id FROM face_identities", null).use { cursor ->
             while (cursor.moveToNext()) {
@@ -959,6 +959,7 @@ class PhotoIndex(private val database: PrivoraDatabase) {
      * Compute cosine similarity between two float arrays.
      */
     private fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
+        if (a.isEmpty() || b.isEmpty() || a.size != b.size) return 0f
         var dot = 0f
         var normA = 0f
         var normB = 0f
