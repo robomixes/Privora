@@ -16,7 +16,13 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,7 +46,15 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.FormatBold
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
@@ -63,6 +77,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -81,7 +96,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -107,7 +124,7 @@ import kotlinx.coroutines.withContext
 fun NoteEditorScreen(
     note: SecureNote?,
     allTags: List<String>,
-    onSave: (title: String, content: String, tags: List<String>, attachments: List<String>, personId: String?) -> Unit,
+    onSave: (title: String, content: String, tags: List<String>, attachments: List<String>, audioAttachments: List<String>, personId: String?) -> Unit,
     onDelete: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -123,6 +140,21 @@ fun NoteEditorScreen(
     var attachmentThumbnails by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
     var showVaultPicker by remember { mutableStateOf(false) }
     var linkedPersonId by remember { mutableStateOf(note?.personId) }
+
+    // Audio attachments
+    var audioIds by remember { mutableStateOf(note?.audioAttachments ?: emptyList()) }
+    var isRecording by remember { mutableStateOf(false) }
+    var recordingDuration by remember { mutableIntStateOf(0) }
+    var playingAudioId by remember { mutableStateOf<String?>(null) }
+    val audioDir = remember { java.io.File(context.filesDir, "vault/notes/audio").also { it.mkdirs() } }
+    var mediaRecorder by remember { mutableStateOf<android.media.MediaRecorder?>(null) }
+    var currentRecordingFile by remember { mutableStateOf<java.io.File?>(null) }
+    var mediaPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+
+    // Checklist mode
+    var isChecklistMode by remember {
+        mutableStateOf(note?.content?.trimStart()?.startsWith("- [") == true)
+    }
     var showPersonPicker by remember { mutableStateOf(false) }
     var linkedPersonName by remember { mutableStateOf<String?>(null) }
 
@@ -248,65 +280,68 @@ fun NoteEditorScreen(
                 )
             )
         },
-        // ── Bottom toolbar: formatting + grammar ──
+        // ── Toolbar above keyboard ──
         bottomBar = {
-            Column(
+            Row(
                 Modifier.fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.ime)
                     .background(surfaceTone)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.5.dp)
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    FormatButton(Icons.Default.FormatBold, "Bold", brandColor) {
-                        contentValue = wrapSelection(contentValue, "**")
+                FormatButton(Icons.Default.Checklist, "Checklist", if (isChecklistMode) brandColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) {
+                    isChecklistMode = !isChecklistMode
+                    if (isChecklistMode && !contentValue.text.trimStart().startsWith("- [")) {
+                        val lines = contentValue.text.lines()
+                        val cl = lines.joinToString("\n") { l -> if (l.isBlank()) "" else "- [ ] $l" }
+                        contentValue = TextFieldValue(cl, TextRange(cl.length))
+                    } else if (!isChecklistMode && contentValue.text.trimStart().startsWith("- [")) {
+                        val t = contentValue.text.lines().joinToString("\n") { l -> l.removePrefix("- [x] ").removePrefix("- [ ] ") }
+                        contentValue = TextFieldValue(t, TextRange(t.length))
                     }
-                    FormatButton(Icons.Default.FormatItalic, "Italic", brandColor) {
-                        contentValue = wrapSelection(contentValue, "*")
+                }
+                FormatButton(Icons.Default.FormatBold, "Bold", brandColor) { contentValue = wrapSelection(contentValue, "**") }
+                FormatButton(Icons.Default.FormatItalic, "Italic", brandColor) { contentValue = wrapSelection(contentValue, "*") }
+                FormatButton(Icons.Default.FormatUnderlined, "Underline", brandColor) { contentValue = wrapSelection(contentValue, "__") }
+                FormatButton(Icons.Default.FormatStrikethrough, "Strike", brandColor) { contentValue = wrapSelection(contentValue, "~~") }
+                FormatButton(if (isRecording) Icons.Default.Stop else Icons.Default.Mic, "Voice", if (isRecording) MaterialTheme.colorScheme.error else brandColor) {
+                    if (isRecording) {
+                        try { mediaRecorder?.stop(); mediaRecorder?.release(); mediaRecorder = null } catch (_: Exception) {}
+                        isRecording = false
+                        currentRecordingFile?.let { file ->
+                            val audioId = "audio_${java.util.UUID.randomUUID()}"
+                            val encFile = java.io.File(audioDir, "$audioId.enc")
+                            val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
+                            crypto.encryptFile(file, encFile); file.delete()
+                            audioIds = audioIds + audioId
+                        }; currentRecordingFile = null
+                    } else {
+                        val tempFile = java.io.File(context.cacheDir, "voice_${System.currentTimeMillis()}.m4a")
+                        try {
+                            val rec = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) android.media.MediaRecorder(context) else @Suppress("DEPRECATION") android.media.MediaRecorder()
+                            rec.setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+                            rec.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+                            rec.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+                            rec.setAudioSamplingRate(44100); rec.setAudioEncodingBitRate(128000)
+                            rec.setOutputFile(tempFile.absolutePath); rec.prepare(); rec.start()
+                            mediaRecorder = rec; currentRecordingFile = tempFile; isRecording = true; recordingDuration = 0
+                        } catch (_: Exception) {}
                     }
-                    FormatButton(Icons.Default.FormatUnderlined, "Underline", brandColor) {
-                        contentValue = wrapSelection(contentValue, "__")
-                    }
-                    FormatButton(Icons.Default.FormatStrikethrough, "Strike", brandColor) {
-                        contentValue = wrapSelection(contentValue, "~~")
-                    }
-
-                    Spacer(Modifier.weight(1f))
-
-                    // Grammar fix pill
-                    if (grammarEnabled && grammarErrors.isNotEmpty()) {
-                        Row(
-                            Modifier.clip(RoundedCornerShape(16.dp))
-                                .background(MaterialTheme.colorScheme.errorContainer)
-                                .clickable {
-                                    var fixed = contentValue.text
-                                    grammarErrors.sortedByDescending { it.fromPos }.forEach { e ->
-                                        if (e.suggestions.isNotEmpty() && e.fromPos < fixed.length && e.toPos <= fixed.length) {
-                                            fixed = fixed.substring(0, e.fromPos) + e.suggestions.first() + fixed.substring(e.toPos)
-                                        }
-                                    }
-                                    contentValue = TextFieldValue(fixed, TextRange(fixed.length))
-                                    grammarErrors = emptyList()
-                                }
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Spellcheck, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
-                            Text(
-                                stringResource(R.string.grammar_fix_all_action),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                            Text(
-                                "${grammarErrors.size}",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        }
+                }
+                if (isRecording) {
+                    LaunchedEffect(isRecording) { while (isRecording) { kotlinx.coroutines.delay(1000); recordingDuration++ } }
+                    Text("%d:%02d".format(recordingDuration / 60, recordingDuration % 60), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
+                Spacer(Modifier.weight(1f))
+                if (grammarEnabled && grammarErrors.isNotEmpty()) {
+                    Row(Modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.errorContainer).clickable {
+                        var fixed = contentValue.text
+                        grammarErrors.sortedByDescending { it.fromPos }.forEach { e -> if (e.suggestions.isNotEmpty() && e.fromPos < fixed.length && e.toPos <= fixed.length) fixed = fixed.substring(0, e.fromPos) + e.suggestions.first() + fixed.substring(e.toPos) }
+                        contentValue = TextFieldValue(fixed, TextRange(fixed.length)); grammarErrors = emptyList()
+                    }.padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Spellcheck, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
+                        Text("${grammarErrors.size}", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onErrorContainer)
                     }
                 }
             }
@@ -315,7 +350,7 @@ fun NoteEditorScreen(
         floatingActionButton = {
             if (title.isNotBlank() || contentValue.text.isNotBlank()) {
                 FloatingActionButton(
-                    onClick = { onSave(title, contentValue.text, tags, attachmentIds, linkedPersonId) },
+                    onClick = { onSave(title, contentValue.text, tags, attachmentIds, audioIds, linkedPersonId) },
                     containerColor = brandColor,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {
@@ -324,11 +359,13 @@ fun NoteEditorScreen(
             }
         }
     ) { padding ->
+        // Detect keyboard visibility
+        val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(Modifier.height(8.dp))
@@ -363,6 +400,8 @@ fun NoteEditorScreen(
                 }
             )
 
+            // Hide metadata when keyboard is open to give space to content
+            if (!imeVisible) {
             Spacer(Modifier.height(12.dp))
 
             // ── Tags row ──
@@ -554,46 +593,227 @@ fun NoteEditorScreen(
                 }
             }
 
+            // ── Audio attachments with seek bar ──
+            if (audioIds.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                audioIds.forEach { audioId ->
+                    val isPlaying = playingAudioId == audioId
+                    var audioDuration by remember { mutableIntStateOf(0) }
+                    var audioPosition by remember { mutableIntStateOf(0) }
+
+                    // Update position while playing
+                    if (isPlaying && mediaPlayer != null) {
+                        LaunchedEffect(isPlaying) {
+                            while (isPlaying && mediaPlayer?.isPlaying == true) {
+                                audioPosition = mediaPlayer?.currentPosition ?: 0
+                                audioDuration = mediaPlayer?.duration ?: 0
+                                kotlinx.coroutines.delay(200)
+                            }
+                        }
+                    }
+
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Play/Pause
+                        IconButton(onClick = {
+                            if (isPlaying) {
+                                mediaPlayer?.pause()
+                                playingAudioId = null
+                            } else {
+                                mediaPlayer?.release()
+                                try {
+                                    val encFile = java.io.File(audioDir, "$audioId.enc")
+                                    if (encFile.exists()) {
+                                        val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
+                                        val decrypted = crypto.decryptFile(encFile)
+                                        val tempFile = java.io.File(context.cacheDir, "play_${audioId}.m4a")
+                                        tempFile.writeBytes(decrypted)
+                                        val mp = android.media.MediaPlayer()
+                                        mp.setDataSource(tempFile.absolutePath)
+                                        mp.prepare()
+                                        audioDuration = mp.duration
+                                        mp.start()
+                                        mp.setOnCompletionListener { playingAudioId = null; audioPosition = 0; tempFile.delete() }
+                                        mediaPlayer = mp
+                                        playingAudioId = audioId
+                                    }
+                                } catch (_: Exception) { playingAudioId = null }
+                            }
+                        }, modifier = Modifier.size(32.dp)) {
+                            Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, Modifier.size(20.dp), tint = brandColor)
+                        }
+
+                        // Seek bar + duration
+                        Column(Modifier.weight(1f)) {
+                            Slider(
+                                value = if (audioDuration > 0) audioPosition.toFloat() / audioDuration else 0f,
+                                onValueChange = { pct ->
+                                    if (mediaPlayer != null && audioDuration > 0) {
+                                        val pos = (pct * audioDuration).toInt()
+                                        mediaPlayer?.seekTo(pos)
+                                        audioPosition = pos
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(16.dp),
+                                colors = SliderDefaults.colors(thumbColor = brandColor, activeTrackColor = brandColor)
+                            )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(formatMs(audioPosition), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(formatMs(audioDuration), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        // Delete
+                        Icon(Icons.Default.Close, null, Modifier.size(18.dp).clickable {
+                            if (isPlaying) { mediaPlayer?.release(); playingAudioId = null }
+                            java.io.File(audioDir, "$audioId.enc").delete()
+                            audioIds = audioIds - audioId
+                        }, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+            }
+
             Spacer(Modifier.height(12.dp))
+            } // end !imeVisible
 
-            // ── Hairline divider ──
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), thickness = 0.5.dp)
-
-            Spacer(Modifier.height(8.dp))
-
-            // ── Content — open canvas with Markdown + grammar ──
+            // ── Content — checklist or text canvas ──
             val activeErrors = if (grammarEnabled) grammarErrors else emptyList()
-            // Force re-render when grammar errors change
             LaunchedEffect(activeErrors) {
                 contentValue = TextFieldValue(contentValue.text, contentValue.selection, contentValue.composition)
             }
-            BasicTextField(
-                value = contentValue,
-                onValueChange = { contentValue = it },
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                textStyle = TextStyle(
-                    fontSize = 16.sp,
-                    lineHeight = 26.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                ),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                cursorBrush = SolidColor(brandColor),
-                visualTransformation = MarkdownTransformation(
-                    markerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
-                    grammarErrors = activeErrors,
-                    errorColor = MaterialTheme.colorScheme.error
-                ),
-                decorationBox = { innerTextField ->
-                    if (contentValue.text.isEmpty()) {
-                        Text(
-                            stringResource(R.string.note_placeholder),
-                            style = TextStyle(fontSize = 16.sp, lineHeight = 26.sp),
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+
+            if (isChecklistMode) {
+                // ── Checklist view ──
+                val lines = contentValue.text.lines()
+                val checkedCount = lines.count { it.startsWith("- [x]") }
+                val totalCount = lines.count { it.startsWith("- [") }
+
+                if (totalCount > 0) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { if (totalCount > 0) checkedCount.toFloat() / totalCount else 0f },
+                            modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)),
+                            color = brandColor
+                        )
+                        Text("$checkedCount/$totalCount", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                Column(
+                    Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    lines.forEachIndexed { idx, line ->
+                        if (line.startsWith("- [x] ") || line.startsWith("- [ ] ")) {
+                            val isChecked = line.startsWith("- [x]")
+                            val itemText = line.removePrefix("- [x] ").removePrefix("- [ ] ")
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    // Toggle check
+                                    val newLines = lines.toMutableList()
+                                    newLines[idx] = if (isChecked) "- [ ] $itemText" else "- [x] $itemText"
+                                    contentValue = TextFieldValue(newLines.joinToString("\n"), TextRange(contentValue.text.length))
+                                }.padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    if (isChecked) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                                    null, Modifier.size(22.dp),
+                                    tint = if (isChecked) brandColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                                Text(
+                                    itemText,
+                                    style = TextStyle(
+                                        fontSize = 16.sp,
+                                        color = if (isChecked) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface,
+                                        textDecoration = if (isChecked) TextDecoration.LineThrough else null
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                // Delete item
+                                Icon(
+                                    Icons.Default.Close, null, Modifier.size(16.dp).clickable {
+                                        val newLines = lines.toMutableList()
+                                        newLines.removeAt(idx)
+                                        contentValue = TextFieldValue(newLines.joinToString("\n"), TextRange(0))
+                                    },
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                                )
+                            }
+                        }
+                    }
+                    // Add new item
+                    var newItemText by remember { mutableStateOf("") }
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Add, null, Modifier.size(22.dp), tint = brandColor.copy(alpha = 0.5f))
+                        BasicTextField(
+                            value = newItemText,
+                            onValueChange = { newItemText = it },
+                            modifier = Modifier.weight(1f),
+                            textStyle = TextStyle(fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = {
+                                if (newItemText.isNotBlank()) {
+                                    val newContent = contentValue.text + (if (contentValue.text.isNotEmpty()) "\n" else "") + "- [ ] $newItemText"
+                                    contentValue = TextFieldValue(newContent, TextRange(newContent.length))
+                                    newItemText = ""
+                                }
+                            }),
+                            cursorBrush = SolidColor(brandColor),
+                            decorationBox = { innerTextField ->
+                                if (newItemText.isEmpty()) Text("Add item...", style = TextStyle(fontSize = 16.sp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
+                                innerTextField()
+                            }
                         )
                     }
-                    innerTextField()
                 }
-            )
+            } else {
+                // ── Text canvas with Markdown + grammar ──
+                BasicTextField(
+                    value = contentValue,
+                    onValueChange = { contentValue = it },
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    textStyle = TextStyle(
+                        fontSize = 16.sp,
+                        lineHeight = 26.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    cursorBrush = SolidColor(brandColor),
+                    visualTransformation = MarkdownTransformation(
+                        markerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                        grammarErrors = activeErrors,
+                        errorColor = MaterialTheme.colorScheme.error
+                    ),
+                    decorationBox = { innerTextField ->
+                        if (contentValue.text.isEmpty()) {
+                            Text(
+                                stringResource(R.string.note_placeholder),
+                                style = TextStyle(fontSize = 16.sp, lineHeight = 26.sp),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                            )
+                        }
+                        innerTextField()
+                    }
+                )
+            }
         }
     }
 }
@@ -601,12 +821,17 @@ fun NoteEditorScreen(
 // ── Format button ──
 @Composable
 private fun FormatButton(icon: ImageVector, desc: String, tint: Color, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(38.dp)) {
-        Icon(icon, desc, Modifier.size(20.dp), tint = tint)
+    IconButton(onClick = onClick, modifier = Modifier.size(46.dp)) {
+        Icon(icon, desc, Modifier.size(26.dp), tint = tint)
     }
 }
 
 // ── Markdown wrap helper ──
+private fun formatMs(ms: Int): String {
+    val s = ms / 1000
+    return "%d:%02d".format(s / 60, s % 60)
+}
+
 private fun wrapSelection(value: TextFieldValue, marker: String): TextFieldValue {
     val text = value.text
     val start = value.selection.min

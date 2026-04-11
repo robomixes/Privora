@@ -482,11 +482,11 @@ fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null) {
             NoteEditorScreen(
                 note = editingNote,
                 allTags = allTags,
-                onSave = { title, content, tags, attachments, personId ->
+                onSave = { title, content, tags, attachments, audioAttachments, personId ->
                     if (editingNote != null) {
-                        noteRepo.saveNote(editingNote!!.copy(title = title, content = content, tags = tags, attachments = attachments, personId = personId))
+                        noteRepo.saveNote(editingNote!!.copy(title = title, content = content, tags = tags, attachments = attachments, audioAttachments = audioAttachments, personId = personId))
                     } else {
-                        noteRepo.createNote(title, content, tags, attachments, personId)
+                        noteRepo.createNote(title, content, tags, attachments, audioAttachments, personId)
                     }
                     refreshNotes()
                     page = NotesPage.LIST
@@ -558,12 +558,16 @@ private fun NoteCard(
                     Spacer(Modifier.height(4.dp))
                 }
 
-                if (note.attachments.isNotEmpty()) {
-                    Text(
-                        "\uD83D\uDCCE ${note.attachments.size}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                // Indicators row: attachments, voice, person
+                val hasAttachments = note.attachments.isNotEmpty()
+                val hasAudio = note.audioAttachments.isNotEmpty()
+                val hasPerson = note.personId != null
+                if (hasAttachments || hasAudio || hasPerson) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (hasAttachments) Text("\uD83D\uDCCE ${note.attachments.size}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (hasAudio) Text("\uD83C\uDFA4 ${note.audioAttachments.size}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (hasPerson) Text("\uD83D\uDC64", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    }
                     Spacer(Modifier.height(4.dp))
                 }
 
