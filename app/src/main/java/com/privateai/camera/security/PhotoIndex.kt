@@ -620,17 +620,39 @@ class PhotoIndex(private val database: PrivoraDatabase) {
                 if (sim > bestSim) { bestSim = sim; bestIdentity = id }
             }
 
-            val groupId = bestIdentity?.id ?: "cluster_${cluster.members[0]}"
+            val groupId = if (bestIdentity != null) {
+                bestIdentity.id
+            } else {
+                // Create new identity so merge/remove/rename work
+                val newId = java.util.UUID.randomUUID().toString()
+                try {
+                    val cv = ContentValues().apply {
+                        put("id", newId)
+                        put("name", "")
+                        put("centroid", cluster.centroid.toBlob())
+                    }
+                    db.insertWithOnConflict("face_identities", null, cv, SQLiteDatabase.CONFLICT_IGNORE)
+                } catch (_: Exception) {}
+                newId
+            }
 
             val excludedSet = excluded[groupId] ?: emptySet()
             val filtered = members.filter { it.first !in excludedSet }
-            if (filtered.size >= 2) {
-                result[groupId] = filtered.toMutableList()
+            if (filtered.isNotEmpty()) {
+                // If two clusters map to same identity (after merge), combine them
+                val existing = result[groupId]
+                if (existing != null) {
+                    existing.addAll(filtered)
+                } else {
+                    result[groupId] = filtered.toMutableList()
+                }
             }
         }
 
-        Log.d(TAG, "Direct clustering: ${result.size} groups from ${clusters.size} clusters")
-        return result.toSortedMap(compareByDescending { result[it]?.size ?: 0 })
+        // Filter to groups with 2+ members after combining
+        val final2 = result.filter { it.value.size >= 2 }
+        Log.d(TAG, "Direct clustering: ${final2.size} groups from ${clusters.size} clusters")
+        return final2.toSortedMap(compareByDescending { final2[it]?.size ?: 0 })
     }
 
     /**
