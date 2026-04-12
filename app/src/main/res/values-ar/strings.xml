@@ -45,8 +45,8 @@
     <string name="feature_detect_desc">كشف الأجسام بالذكاء الاصطناعي</string>
     <string name="feature_scan">المسح</string>
     <string name="feature_scan_desc">ماسح المستندات + التعرف على النصوص</string>
-    <string name="feature_qr_scan">مسح QR</string>
-    <string name="feature_qr_scan_desc">ماسح رموز QR والباركود</string>
+    <string name="feature_qr_scan">رمز QR</string>
+    <string name="feature_qr_scan_desc">مسح وإنشاء رموز QR</string>
     <string name="feature_translate">الترجمة</string>
     <string name="feature_translate_desc">ترجمة محلية</string>
     <string name="feature_vault">الخزنة</string>
@@ -247,6 +247,7 @@
     <string name="video">فيديو</string>
     <string name="enter_pin">أدخل رمز PIN</string>
     <string name="incorrect_pin">رمز PIN غير صحيح</string>
+    <string name="pin_locked_out">محاولات كثيرة. حاول مجددًا خلال %1$s</string>
     <string name="n_selected">%d محدد</string>
 
     <!-- Vault screen -->

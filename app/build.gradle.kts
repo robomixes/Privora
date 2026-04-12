@@ -107,6 +107,9 @@ dependencies {
     implementation(libs.sqlcipher)
     implementation(libs.sqlite.ktx)
 
+    // ZXing (QR code generation)
+    implementation(libs.zxing.core)
+
     // ML Kit
     implementation(libs.mlkit.document.scanner)
     implementation(libs.mlkit.text.recognition)

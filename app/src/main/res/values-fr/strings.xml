@@ -45,8 +45,8 @@
     <string name="feature_detect_desc">Détection d\'objets par IA</string>
     <string name="feature_scan">Scanner</string>
     <string name="feature_scan_desc">Scanner de documents + OCR</string>
-    <string name="feature_qr_scan">Scanner QR</string>
-    <string name="feature_qr_scan_desc">Scanner QR &amp; codes-barres</string>
+    <string name="feature_qr_scan">Code QR</string>
+    <string name="feature_qr_scan_desc">Scanner &amp; générer des codes QR</string>
     <string name="feature_translate">Traduction</string>
     <string name="feature_translate_desc">Traduction locale</string>
     <string name="feature_vault">Coffre-fort</string>
@@ -249,6 +249,7 @@
     <string name="video">Vidéo</string>
     <string name="enter_pin">Saisir le PIN</string>
     <string name="incorrect_pin">PIN incorrect</string>
+    <string name="pin_locked_out">Trop de tentatives. Réessayez dans %1$s</string>
     <string name="n_selected">%d sélectionné(s)</string>
 
     <!-- Vault screen -->

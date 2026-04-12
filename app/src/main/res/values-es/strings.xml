@@ -45,8 +45,8 @@
     <string name="feature_detect_desc">Detección de objetos con IA</string>
     <string name="feature_scan">Escanear</string>
     <string name="feature_scan_desc">Escáner de documentos + OCR</string>
-    <string name="feature_qr_scan">Escanear QR</string>
-    <string name="feature_qr_scan_desc">Escáner de QR y códigos de barras</string>
+    <string name="feature_qr_scan">Código QR</string>
+    <string name="feature_qr_scan_desc">Escanear y generar códigos QR</string>
     <string name="feature_translate">Traducir</string>
     <string name="feature_translate_desc">Traducción local</string>
     <string name="feature_vault">Bóveda</string>
@@ -247,6 +247,7 @@
     <string name="video">Video</string>
     <string name="enter_pin">Ingresa el PIN</string>
     <string name="incorrect_pin">PIN incorrecto</string>
+    <string name="pin_locked_out">Demasiados intentos. Inténtalo en %1$s</string>
     <string name="n_selected">%d seleccionados</string>
 
     <!-- Vault screen -->

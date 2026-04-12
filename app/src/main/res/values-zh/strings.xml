@@ -45,8 +45,8 @@
     <string name="feature_detect_desc">AI 物体检测</string>
     <string name="feature_scan">扫描</string>
     <string name="feature_scan_desc">文档扫描 + OCR</string>
-    <string name="feature_qr_scan">QR 扫描</string>
-    <string name="feature_qr_scan_desc">QR 和条形码扫描</string>
+    <string name="feature_qr_scan">QR 码</string>
+    <string name="feature_qr_scan_desc">扫描和生成 QR 码</string>
     <string name="feature_translate">翻译</string>
     <string name="feature_translate_desc">本地翻译</string>
     <string name="feature_vault">保险库</string>
@@ -249,6 +249,7 @@
     <string name="video">视频</string>
     <string name="enter_pin">输入 PIN</string>
     <string name="incorrect_pin">PIN 不正确</string>
+    <string name="pin_locked_out">尝试次数过多，请在 %1$s 后重试</string>
     <string name="n_selected">已选择 %d 项</string>
 
     <!-- Vault screen -->

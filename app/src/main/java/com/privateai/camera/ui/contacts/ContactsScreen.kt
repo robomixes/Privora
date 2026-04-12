@@ -106,6 +106,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -116,7 +117,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.privateai.camera.security.ContactRepository
 import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.PrivoraDatabase
+import com.privateai.camera.R
 import com.privateai.camera.security.DuressManager
+import com.privateai.camera.security.PinRateLimiter
 import com.privateai.camera.security.PrivateContact
 import com.privateai.camera.security.VaultLockManager
 import com.privateai.camera.ui.onboarding.AuthMode
@@ -500,6 +503,19 @@ fun ContactsScreen(
     // PIN input state for lock screen
     var pinInput by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
+    var isLockedOut by remember { mutableStateOf(PinRateLimiter.remainingLockoutMs(context) > 0) }
+    var lockoutRemainingMs by remember { mutableStateOf(PinRateLimiter.remainingLockoutMs(context)) }
+
+    LaunchedEffect(isLockedOut) {
+        if (isLockedOut) {
+            while (true) {
+                val remaining = PinRateLimiter.remainingLockoutMs(context)
+                if (remaining <= 0) { isLockedOut = false; lockoutRemainingMs = 0L; break }
+                lockoutRemainingMs = remaining
+                kotlinx.coroutines.delay(1000L)
+            }
+        }
+    }
 
     fun checkPin(enteredPin: String) {
         if (DuressManager.isEnabled(context) && DuressManager.isDuressPin(context, enteredPin)) {
@@ -511,14 +527,20 @@ fun ContactsScreen(
             page = ContactsPage.LIST
             pinInput = ""
             pinError = null
-            scope.launch(Dispatchers.IO) {
-                DuressManager.executeDuress(context, crypto)
-            }
+            scope.launch(Dispatchers.IO) { DuressManager.executeDuress(context, crypto) }
+            return
+        }
+
+        if (!PinRateLimiter.canAttempt(context)) {
+            pinInput = ""
+            isLockedOut = true
+            lockoutRemainingMs = PinRateLimiter.remainingLockoutMs(context)
             return
         }
 
         val appPin = getAppPin(context)
         if (appPin != null && enteredPin == appPin) {
+            PinRateLimiter.recordSuccess(context)
             if (crypto.initialize()) {
                 isDuressActive = false
                 VaultLockManager.clearDuress()
@@ -531,7 +553,15 @@ fun ContactsScreen(
             return
         }
 
-        pinError = "Incorrect PIN"
+        PinRateLimiter.recordFailure(context)
+        val remaining = PinRateLimiter.remainingLockoutMs(context)
+        if (remaining > 0) {
+            isLockedOut = true
+            lockoutRemainingMs = remaining
+            pinError = null
+        } else {
+            pinError = context.getString(R.string.incorrect_pin)
+        }
         pinInput = ""
     }
 
@@ -573,39 +603,49 @@ fun ContactsScreen(
                     Spacer(Modifier.height(24.dp))
 
                     if (currentAuthMode == AuthMode.APP_PIN) {
-                        OutlinedTextField(
-                            value = pinInput,
-                            onValueChange = {
-                                if (it.length <= 8 && it.all { c -> c.isDigit() }) {
-                                    pinInput = it
-                                    pinError = null
+                        if (isLockedOut) {
+                            val seconds = (lockoutRemainingMs / 1000).toInt()
+                            Text(
+                                stringResource(R.string.pin_locked_out, "%d:%02d".format(seconds / 60, seconds % 60)),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        } else {
+                            OutlinedTextField(
+                                value = pinInput,
+                                onValueChange = {
+                                    if (it.length <= 8 && it.all { c -> c.isDigit() }) {
+                                        pinInput = it
+                                        pinError = null
+                                    }
+                                },
+                                label = { Text(stringResource(R.string.enter_pin)) },
+                                modifier = Modifier.width(200.dp),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.NumberPassword,
+                                    imeAction = ImeAction.Done
+                                ),
+                                keyboardActions = KeyboardActions(onDone = { if (pinInput.length >= 4) checkPin(pinInput) }),
+                                visualTransformation = PasswordVisualTransformation(),
+                                isError = pinError != null,
+                                supportingText = {
+                                    if (pinError != null) Text(pinError!!, color = MaterialTheme.colorScheme.error)
                                 }
-                            },
-                            label = { Text("Enter PIN") },
-                            modifier = Modifier.width(200.dp),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.NumberPassword,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(onDone = { if (pinInput.length >= 4) checkPin(pinInput) }),
-                            visualTransformation = PasswordVisualTransformation(),
-                            isError = pinError != null,
-                            supportingText = {
-                                if (pinError != null) Text(pinError!!, color = MaterialTheme.colorScheme.error)
-                            }
-                        )
+                            )
 
-                        Button(
-                            onClick = { if (pinInput.length >= 4) checkPin(pinInput) },
-                            enabled = pinInput.length >= 4,
-                            modifier = Modifier.width(200.dp)
-                        ) { Text("Unlock") }
+                            Button(
+                                onClick = { if (pinInput.length >= 4) checkPin(pinInput) },
+                                enabled = pinInput.length >= 4,
+                                modifier = Modifier.width(200.dp)
+                            ) { Text(stringResource(R.string.unlock)) }
+                        }
                     } else {
                         Button(
                             onClick = { authenticate() },
                             modifier = Modifier.width(200.dp)
-                        ) { Text("Unlock") }
+                        ) { Text(stringResource(R.string.unlock)) }
                     }
                 }
             }

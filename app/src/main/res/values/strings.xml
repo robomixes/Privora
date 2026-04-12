@@ -45,8 +45,8 @@
     <string name="feature_detect_desc">AI object detection</string>
     <string name="feature_scan">Scan</string>
     <string name="feature_scan_desc">Document scanner + OCR</string>
-    <string name="feature_qr_scan">QR Scan</string>
-    <string name="feature_qr_scan_desc">QR &amp; barcode scanner</string>
+    <string name="feature_qr_scan">QR Code</string>
+    <string name="feature_qr_scan_desc">Scan &amp; generate QR codes</string>
     <string name="feature_translate">Translate</string>
     <string name="feature_translate_desc">Local translation</string>
     <string name="feature_vault">Vault</string>
@@ -257,6 +257,7 @@
     <string name="video">Video</string>
     <string name="enter_pin">Enter PIN</string>
     <string name="incorrect_pin">Incorrect PIN</string>
+    <string name="pin_locked_out">Too many attempts. Try again in %1$s</string>
     <string name="n_selected">%d selected</string>
 
     <!-- Vault screen -->
