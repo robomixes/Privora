@@ -45,8 +45,8 @@
     <string name="feature_detect_desc">AI 物体检测</string>
     <string name="feature_scan">扫描</string>
     <string name="feature_scan_desc">文档扫描 + OCR</string>
-    <string name="feature_qr_scan">QR 扫描</string>
-    <string name="feature_qr_scan_desc">QR 和条形码扫描</string>
+    <string name="feature_qr_scan">QR 码</string>
+    <string name="feature_qr_scan_desc">扫描和生成 QR 码</string>
     <string name="feature_translate">翻译</string>
     <string name="feature_translate_desc">本地翻译</string>
     <string name="feature_vault">保险库</string>
@@ -80,6 +80,17 @@
     <string name="settings_language_system">系统默认</string>
 
     <!-- Settings: Security -->
+    <string name="settings_section_camera">相机</string>
+    <string name="settings_countdown_timer">倒计时</string>
+    <string name="settings_countdown_desc">拍摄前延迟（在相机中点击计时器图标启用）</string>
+    <string name="settings_video_duration">自动录制时长</string>
+    <string name="settings_video_duration_desc">视频模式下使用倒计时时的录制时长</string>
+    <string name="settings_reindex">重新索引所有照片</string>
+    <string name="settings_reindex_desc">清除AI标签并重新分析所有照片</string>
+    <string name="settings_reindex_running">正在重新索引\u2026</string>
+    <string name="settings_reindex_confirm">将清除所有AI标签和人脸分组。打开保险库时将重新构建。继续？</string>
+    <string name="settings_reindex_done">索引已清除。打开保险库重新索引。</string>
+    <string name="settings_reindex_action">清除并重新索引</string>
     <string name="settings_section_security">安全</string>
     <string name="settings_encryption">加密</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 每次安装独立密钥 \u2022 硬件支持</string>
@@ -238,6 +249,7 @@
     <string name="video">视频</string>
     <string name="enter_pin">输入 PIN</string>
     <string name="incorrect_pin">PIN 不正确</string>
+    <string name="pin_locked_out">尝试次数过多，请在 %1$s 后重试</string>
     <string name="n_selected">已选择 %d 项</string>
 
     <!-- Vault screen -->
@@ -345,6 +357,18 @@
     <string name="add_tag">添加标签</string>
     <string name="new_tag">新标签</string>
     <string name="note_label">笔记</string>
+    <string name="note_placeholder">开始写下你的想法\u2026</string>
+    <string name="attach_media">添加媒体</string>
+    <string name="image_deleted">图片已删除</string>
+    <string name="link_to_person">关联到联系人</string>
+    <string name="no_people_yet">还没有添加联系人。请先在联系人中添加。</string>
+
+    <!-- Grammar check -->
+    <string name="grammar_check_on">语法检查已开启</string>
+    <string name="grammar_check_off">语法检查已关闭</string>
+    <string name="grammar_ignore">忽略</string>
+    <string name="grammar_fix_all">发现 %1$d 个问题</string>
+    <string name="grammar_fix_all_action">全部修复</string>
 
     <!-- Home screen -->
     <string name="app_name_home">Privora</string>
@@ -402,6 +426,8 @@
     <string name="cd_switch_camera">切换相机</string>
     <string name="mode_photo">拍照</string>
     <string name="mode_video">录像</string>
+    <string name="countdown_photo">正在拍照\u2026</string>
+    <string name="countdown_video">录制%1$d秒视频\u2026</string>
     <string name="cd_view_last_capture">查看上次拍摄</string>
     <string name="cd_last_capture">上次拍摄</string>
     <string name="cd_stop_recording">停止录制</string>

@@ -192,7 +192,7 @@ class OnnxDetector(context: Context) {
         // Draw scaled image centered
         val scaled = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
         canvas.drawBitmap(scaled, padLeft, padTop, null)
-        scaled.recycle()
+        if (scaled !== bitmap) scaled.recycle() // Don't recycle original if no scaling needed
 
         return result
     }

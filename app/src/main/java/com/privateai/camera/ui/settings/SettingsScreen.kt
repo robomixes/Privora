@@ -4,13 +4,20 @@ import android.content.Context
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.NoteAlt
@@ -33,7 +40,11 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.TextButton
@@ -48,29 +59,44 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.privateai.camera.R
 import com.privateai.camera.security.CryptoManager
+import com.privateai.camera.security.PinRateLimiter
 import com.privateai.camera.security.VaultCategory
+import com.privateai.camera.security.VaultLockManager
 import com.privateai.camera.security.VaultRepository
 import com.privateai.camera.security.NoteRepository
 import com.privateai.camera.service.DeviceProfiler
 import com.privateai.camera.service.StorageManager
+import com.privateai.camera.ui.onboarding.AuthMode
+import com.privateai.camera.ui.onboarding.getAppPin
+import com.privateai.camera.ui.onboarding.getAuthMode
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = null, onDuressClick: (() -> Unit)? = null) {
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     val crypto = remember { CryptoManager(context).also { it.initialize() } }
     val vault = remember { VaultRepository(context, crypto) }
@@ -354,6 +380,114 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             } // end showDevice
 
+            // Camera section
+            val showCamera = matchesSearch("Camera", "Countdown", "Timer", "Self-timer", "Delay")
+            if (showCamera) {
+                SectionHeader(stringResource(R.string.settings_section_camera))
+
+                val cameraPref = remember { context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE) }
+                var countdownSec by remember { mutableIntStateOf(cameraPref.getInt("countdown_seconds", 5)) }
+                val options = listOf(3, 5, 10)
+
+                SettingsItem(
+                    icon = Icons.Default.Timer,
+                    title = stringResource(R.string.settings_countdown_timer),
+                    subtitle = stringResource(R.string.settings_countdown_desc)
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    options.forEach { sec ->
+                        val selected = countdownSec == sec
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .clickable {
+                                    countdownSec = sec
+                                    cameraPref.edit().putInt("countdown_seconds", sec).apply()
+                                }
+                                .padding(horizontal = 20.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                "${sec}s",
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Video auto-record duration
+                var videoDurationSec by remember { mutableIntStateOf(cameraPref.getInt("countdown_video_seconds", 30)) }
+                val videoOptions = listOf(5, 10, 15, 30)
+
+                SettingsItem(
+                    icon = Icons.Default.Videocam,
+                    title = stringResource(R.string.settings_video_duration),
+                    subtitle = stringResource(R.string.settings_video_duration_desc)
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    videoOptions.forEach { sec ->
+                        val selected = videoDurationSec == sec
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .clickable {
+                                    videoDurationSec = sec
+                                    cameraPref.edit().putInt("countdown_video_seconds", sec).apply()
+                                }
+                                .padding(horizontal = 20.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                "${sec}s",
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+
+                // Face grouping threshold slider
+                var faceThreshold by remember { mutableStateOf(cameraPref.getFloat("face_threshold", 0.60f)) }
+                SettingsItem(
+                    icon = Icons.Default.Person,
+                    title = "Face Grouping Sensitivity",
+                    subtitle = "Lower = more faces per group, Higher = stricter matching (${(faceThreshold * 100).toInt()}%)"
+                )
+                androidx.compose.material3.Slider(
+                    value = faceThreshold,
+                    onValueChange = { faceThreshold = it },
+                    onValueChangeFinished = {
+                        cameraPref.edit().putFloat("face_threshold", faceThreshold).apply()
+                    },
+                    valueRange = 0.40f..0.80f,
+                    steps = 7,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                )
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("More groups", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Fewer groups", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
             // Security section
             val showSecurity = matchesSearch("Security", "Encryption", "Screenshot Protection", "Emergency PIN", "Grace period", "Auto-lock")
             if (showSecurity) {
@@ -404,25 +538,6 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             }
 
             GracePeriodSetting(context)
-
-            if (!com.privateai.camera.security.VaultLockManager.isDuressActive &&
-                com.privateai.camera.ui.onboarding.getAuthMode(context) == com.privateai.camera.ui.onboarding.AuthMode.APP_PIN) {
-                if (com.privateai.camera.security.DuressManager.isEnabled(context)) {
-                    SettingsItem(
-                        icon = Icons.Default.Security,
-                        title = stringResource(R.string.settings_emergency_pin),
-                        subtitle = stringResource(R.string.settings_emergency_pin_active),
-                        onClick = { onDuressClick?.invoke() }
-                    )
-                } else {
-                    SettingsItem(
-                        icon = Icons.Default.Security,
-                        title = stringResource(R.string.settings_set_emergency_pin),
-                        subtitle = stringResource(R.string.settings_set_emergency_pin_desc),
-                        onClick = { onDuressClick?.invoke() }
-                    )
-                }
-            }
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             } // end showSecurity
@@ -511,27 +626,9 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             } // end showPrivacy
 
-            // Backup & Migration section
-            val showBackup = matchesSearch("Backup", "Migration", "Export", "Import", "Transfer")
-            if (showBackup) {
-            SectionHeader(stringResource(R.string.settings_section_backup))
+            // (Backup & Migration moved to Advanced section)
 
-            SettingsItem(
-                icon = Icons.Default.CloudSync,
-                title = stringResource(R.string.settings_export_import),
-                subtitle = stringResource(R.string.settings_export_import_desc),
-                onClick = { onBackupClick?.invoke() }
-            )
-
-            Text(
-                stringResource(R.string.settings_backup_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            } // end showBackup
+            // (Device Transfer moved to Advanced section)
 
             // About section
             val showAbout = matchesSearch("About", "Privora", "Version", "Crash Logs", "Privacy Policy", "Privacy Promise")
@@ -655,6 +752,304 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 }
             }
             } // end showAbout
+
+            // ─── Advanced Section (auth-gated, hidden during duress) ──────────
+            if (!VaultLockManager.isDuressActive) {
+                val showAdvanced = matchesSearch("Advanced", "Backup", "Emergency", "Transfer", "Wipe", "Re-index", "Export", "Import")
+                if (showAdvanced) {
+                    var advancedUnlocked by remember { mutableStateOf(false) }
+                    var showAdvancedPinDialog by remember { mutableStateOf(false) }
+                    var advPin by remember { mutableStateOf("") }
+                    var advPinError by remember { mutableStateOf<String?>(null) }
+
+                    val currentAuthMode = remember { getAuthMode(context) }
+
+                    // Biometric auth for phone lock mode
+                    val activity = context as? androidx.fragment.app.FragmentActivity
+                    fun authenticateAdvanced() {
+                        if (activity == null) return
+                        val prompt = androidx.biometric.BiometricPrompt(activity, object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                            override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                                advancedUnlocked = true
+                            }
+                        })
+                        prompt.authenticate(
+                            androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+                                .setTitle("Unlock Advanced Settings")
+                                .setSubtitle("Authenticate to access critical settings")
+                                .setAllowedAuthenticators(
+                                    androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                                    androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                                ).build()
+                        )
+                    }
+
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    SectionHeader("Advanced")
+
+                    if (!advancedUnlocked) {
+                        // Locked state — tap to authenticate
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (currentAuthMode == AuthMode.APP_PIN) {
+                                        showAdvancedPinDialog = true
+                                    } else {
+                                        authenticateAdvanced()
+                                    }
+                                }
+                                .padding(horizontal = 16.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(Icons.Default.Lock, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                            Column(Modifier.weight(1f)) {
+                                Text("Tap to unlock", style = MaterialTheme.typography.bodyLarge)
+                                Text("Backup, Emergency PIN, Device Transfer, Re-index", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        // PIN dialog for APP_PIN mode
+                        if (showAdvancedPinDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showAdvancedPinDialog = false; advPin = ""; advPinError = null },
+                                title = { Text("Unlock Advanced Settings") },
+                                text = {
+                                    Column {
+                                        Text("Enter your PIN to access critical settings.", style = MaterialTheme.typography.bodySmall)
+                                        Spacer(Modifier.height(12.dp))
+                                        OutlinedTextField(
+                                            value = advPin,
+                                            onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) { advPin = it; advPinError = null } },
+                                            label = { Text(stringResource(R.string.enter_pin)) },
+                                            singleLine = true,
+                                            visualTransformation = PasswordVisualTransformation(),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                            isError = advPinError != null,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        if (advPinError != null) {
+                                            Text(advPinError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        // Duress PIN check first
+                                        if (com.privateai.camera.security.DuressManager.isEnabled(context) &&
+                                            com.privateai.camera.security.DuressManager.isDuressPin(context, advPin)) {
+                                            showAdvancedPinDialog = false
+                                            advPin = ""
+                                            VaultLockManager.activateDuress()
+                                            scope.launch(Dispatchers.IO) {
+                                                com.privateai.camera.security.DuressManager.executeDuress(context, crypto)
+                                            }
+                                            return@TextButton
+                                        }
+                                        // Rate limit check
+                                        if (!PinRateLimiter.canAttempt(context)) {
+                                            val remaining = PinRateLimiter.remainingLockoutMs(context)
+                                            val seconds = (remaining / 1000).toInt()
+                                            advPinError = context.getString(R.string.pin_locked_out, "%d:%02d".format(seconds / 60, seconds % 60))
+                                            return@TextButton
+                                        }
+                                        val storedPin = getAppPin(context)
+                                        if (storedPin != null && advPin == storedPin) {
+                                            PinRateLimiter.recordSuccess(context)
+                                            advancedUnlocked = true
+                                            showAdvancedPinDialog = false
+                                            advPin = ""
+                                            advPinError = null
+                                        } else {
+                                            PinRateLimiter.recordFailure(context)
+                                            advPinError = context.getString(R.string.incorrect_pin)
+                                            advPin = ""
+                                        }
+                                    }, enabled = advPin.length >= 4) { Text(stringResource(R.string.unlock)) }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showAdvancedPinDialog = false; advPin = ""; advPinError = null }) { Text(stringResource(R.string.action_cancel)) }
+                                }
+                            )
+                        }
+                    } else {
+                        // ─── Unlocked: show all critical settings ───
+
+                        // Emergency PIN
+                        if (getAuthMode(context) == AuthMode.APP_PIN) {
+                            if (com.privateai.camera.security.DuressManager.isEnabled(context)) {
+                                SettingsItem(
+                                    icon = Icons.Default.Security,
+                                    title = stringResource(R.string.settings_emergency_pin),
+                                    subtitle = stringResource(R.string.settings_emergency_pin_active),
+                                    onClick = { onDuressClick?.invoke() }
+                                )
+                            } else {
+                                SettingsItem(
+                                    icon = Icons.Default.Security,
+                                    title = stringResource(R.string.settings_set_emergency_pin),
+                                    subtitle = stringResource(R.string.settings_set_emergency_pin_desc),
+                                    onClick = { onDuressClick?.invoke() }
+                                )
+                            }
+                        }
+
+                        // Backup
+                        SettingsItem(
+                            icon = Icons.Default.CloudSync,
+                            title = stringResource(R.string.settings_export_import),
+                            subtitle = stringResource(R.string.settings_export_import_desc),
+                            onClick = { onBackupClick?.invoke() }
+                        )
+
+                        Text(
+                            stringResource(R.string.settings_backup_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+
+                        // Device Transfer
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Icon(Icons.Default.PhoneAndroid, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                            Column(Modifier.weight(1f)) {
+                                Text("Transfer to New Device", fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
+                                Spacer(Modifier.height(4.dp))
+                                Text("1. Create an encrypted backup above", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("2. Transfer the .paicbackup file to your new device", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("3. Install Privora on new device → Import backup", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+
+                        // Wipe
+                        var showWipeDialog by remember { mutableStateOf(false) }
+                        Row(
+                            Modifier.fillMaxWidth().clickable { showWipeDialog = true }.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteForever, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.error)
+                            Column(Modifier.weight(1f)) {
+                                Text("Wipe Everything", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+                                Text("Permanently delete ALL data including encryption keys", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
+                            }
+                        }
+
+                        if (showWipeDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showWipeDialog = false },
+                                title = { Text("Wipe All Data?") },
+                                text = {
+                                    Column {
+                                        Text("This will permanently delete:")
+                                        Spacer(Modifier.height(8.dp))
+                                        Text("• All encrypted photos & videos", style = MaterialTheme.typography.bodySmall)
+                                        Text("• All notes & voice recordings", style = MaterialTheme.typography.bodySmall)
+                                        Text("• All contacts & profile photos", style = MaterialTheme.typography.bodySmall)
+                                        Text("• Face recognition data", style = MaterialTheme.typography.bodySmall)
+                                        Text("• Encryption keys (unrecoverable)", style = MaterialTheme.typography.bodySmall)
+                                        Text("• All app settings", style = MaterialTheme.typography.bodySmall)
+                                        Spacer(Modifier.height(8.dp))
+                                        Text("Have you created a backup?", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        showWipeDialog = false
+                                        scope.launch {
+                                            withContext(Dispatchers.IO) {
+                                                try {
+                                                    com.privateai.camera.security.KeyManager.deleteKEK()
+                                                    crypto.wipeAll()
+                                                    File(context.filesDir, "vault").deleteRecursively()
+                                                    context.getDatabasePath("privora.db")?.delete()
+                                                    listOf("app_settings", "privacy_settings", "feature_toggles", "duress_settings", "privateai_prefs", "device_profile", "pin_rate_limiter", "qr_history").forEach { name ->
+                                                        context.getSharedPreferences(name, android.content.Context.MODE_PRIVATE).edit().clear().apply()
+                                                    }
+                                                    context.cacheDir.deleteRecursively()
+                                                    crypto.initialize()
+                                                } catch (_: Exception) {}
+                                            }
+                                            Toast.makeText(context, "All data wiped. App reset to fresh state.", Toast.LENGTH_LONG).show()
+                                            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                                            intent?.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            context.startActivity(intent)
+                                        }
+                                    }) { Text("WIPE ALL DATA", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showWipeDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+                                }
+                            )
+                        }
+
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+
+                        // Re-index
+                        var showReindexDialog by remember { mutableStateOf(false) }
+                        var isReindexing by remember { mutableStateOf(false) }
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable(enabled = !isReindexing) { showReindexDialog = true }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.settings_reindex), style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    if (isReindexing) stringResource(R.string.settings_reindex_running)
+                                    else stringResource(R.string.settings_reindex_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        if (showReindexDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showReindexDialog = false },
+                                title = { Text(stringResource(R.string.settings_reindex)) },
+                                text = { Text(stringResource(R.string.settings_reindex_confirm)) },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        showReindexDialog = false
+                                        isReindexing = true
+                                        scope.launch {
+                                            com.privateai.camera.service.IndexingManager.stop()
+                                            withContext(Dispatchers.IO) {
+                                                try {
+                                                    val c = CryptoManager(context).also { it.initialize() }
+                                                    val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, c)
+                                                    com.privateai.camera.security.PhotoIndex(db).clearIndex()
+                                                } catch (_: Exception) {}
+                                            }
+                                            isReindexing = false
+                                            com.privateai.camera.service.IndexingManager.startIndexing(context)
+                                            Toast.makeText(context, context.getString(R.string.settings_reindex_done), Toast.LENGTH_SHORT).show()
+                                        }
+                                    }) { Text(stringResource(R.string.settings_reindex_action), color = MaterialTheme.colorScheme.error) }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showReindexDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+                                }
+                            )
+                        }
+                    }
+                } // end showAdvanced
+            } // end !isDuressActive
+
+            Spacer(Modifier.height(16.dp))
             } // end inner scrollable Column
         } // end outer Column
     }

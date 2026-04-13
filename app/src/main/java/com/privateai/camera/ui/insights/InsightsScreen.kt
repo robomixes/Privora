@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.privateai.camera.R
 import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.DuressManager
+import com.privateai.camera.security.PinRateLimiter
 import com.privateai.camera.security.InsightsRepository
 import com.privateai.camera.security.VaultLockManager
 import com.privateai.camera.ui.onboarding.AuthMode
@@ -111,6 +112,20 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL).build())
     }
 
+    var isLockedOut by remember { mutableStateOf(PinRateLimiter.remainingLockoutMs(context) > 0) }
+    var lockoutRemainingMs by remember { mutableStateOf(PinRateLimiter.remainingLockoutMs(context)) }
+
+    LaunchedEffect(isLockedOut) {
+        if (isLockedOut) {
+            while (true) {
+                val remaining = PinRateLimiter.remainingLockoutMs(context)
+                if (remaining <= 0) { isLockedOut = false; lockoutRemainingMs = 0L; break }
+                lockoutRemainingMs = remaining
+                kotlinx.coroutines.delay(1000L)
+            }
+        }
+    }
+
     fun checkPin(pin: String) {
         if (DuressManager.isEnabled(context) && DuressManager.isDuressPin(context, pin)) {
             isDuressActive = true
@@ -119,12 +134,31 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
             Thread { DuressManager.executeDuress(context, crypto) }.start()
             return
         }
+
+        if (!PinRateLimiter.canAttempt(context)) {
+            pinInput = ""
+            isLockedOut = true
+            lockoutRemainingMs = PinRateLimiter.remainingLockoutMs(context)
+            return
+        }
+
         val appPin = com.privateai.camera.ui.onboarding.getAppPin(context)
         if (appPin != null && pin == appPin) {
+            PinRateLimiter.recordSuccess(context)
             if (crypto.initialize()) { isDuressActive = false; VaultLockManager.clearDuress(); VaultLockManager.markUnlocked(); isLocked = false; pinInput = ""; pinError = null }
             return
         }
-        pinError = context.getString(R.string.insights_incorrect_pin); pinInput = ""
+
+        PinRateLimiter.recordFailure(context)
+        val remaining = PinRateLimiter.remainingLockoutMs(context)
+        if (remaining > 0) {
+            isLockedOut = true
+            lockoutRemainingMs = remaining
+            pinError = null
+        } else {
+            pinError = context.getString(R.string.insights_incorrect_pin)
+        }
+        pinInput = ""
     }
 
     LaunchedEffect(Unit) {
@@ -142,15 +176,25 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
                 Text(stringResource(R.string.insights_locked), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
                 Spacer(Modifier.height(24.dp))
                 if (currentAuthMode == AuthMode.APP_PIN) {
-                    OutlinedTextField(
-                        value = pinInput, onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) { pinInput = it; pinError = null } },
-                        label = { Text(stringResource(R.string.insights_enter_pin)) }, modifier = Modifier.width(200.dp), singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { if (pinInput.length >= 4) checkPin(pinInput) }),
-                        visualTransformation = PasswordVisualTransformation(), isError = pinError != null,
-                        supportingText = { pinError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
-                    )
-                    Button(onClick = { if (pinInput.length >= 4) checkPin(pinInput) }, enabled = pinInput.length >= 4, modifier = Modifier.width(200.dp)) { Text(stringResource(R.string.action_unlock)) }
+                    if (isLockedOut) {
+                        val seconds = (lockoutRemainingMs / 1000).toInt()
+                        Text(
+                            stringResource(R.string.pin_locked_out, "%d:%02d".format(seconds / 60, seconds % 60)),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    } else {
+                        OutlinedTextField(
+                            value = pinInput, onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) { pinInput = it; pinError = null } },
+                            label = { Text(stringResource(R.string.insights_enter_pin)) }, modifier = Modifier.width(200.dp), singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { if (pinInput.length >= 4) checkPin(pinInput) }),
+                            visualTransformation = PasswordVisualTransformation(), isError = pinError != null,
+                            supportingText = { pinError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
+                        )
+                        Button(onClick = { if (pinInput.length >= 4) checkPin(pinInput) }, enabled = pinInput.length >= 4, modifier = Modifier.width(200.dp)) { Text(stringResource(R.string.action_unlock)) }
+                    }
                 } else {
                     Button(onClick = { authenticate() }, modifier = Modifier.width(200.dp)) { Text(stringResource(R.string.action_unlock)) }
                 }

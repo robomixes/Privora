@@ -52,6 +52,9 @@ mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning"
 mlkit-translate = { group = "com.google.mlkit", name = "translate", version = "17.0.3" }
 mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", version = "16.1.7" }
 
+# ZXing (QR code generation)
+zxing-core = { group = "com.google.zxing", name = "core", version = "3.5.3" }
+
 # SQLCipher (encrypted SQLite)
 sqlcipher = { group = "net.zetetic", name = "sqlcipher-android", version = "4.6.1" }
 sqlite-ktx = { group = "androidx.sqlite", name = "sqlite-ktx", version = "2.4.0" }

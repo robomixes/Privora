@@ -45,8 +45,8 @@
     <string name="feature_detect_desc">AI object detection</string>
     <string name="feature_scan">Scan</string>
     <string name="feature_scan_desc">Document scanner + OCR</string>
-    <string name="feature_qr_scan">QR Scan</string>
-    <string name="feature_qr_scan_desc">QR &amp; barcode scanner</string>
+    <string name="feature_qr_scan">QR Code</string>
+    <string name="feature_qr_scan_desc">Scan &amp; generate QR codes</string>
     <string name="feature_translate">Translate</string>
     <string name="feature_translate_desc">Local translation</string>
     <string name="feature_vault">Vault</string>
@@ -82,6 +82,22 @@
     <string name="settings_language_system">System Default</string>
 
     <!-- Settings: Security -->
+    <string name="settings_section_camera">Camera</string>
+    <string name="settings_countdown_timer">Countdown Timer</string>
+    <string name="settings_countdown_desc">Delay before capture (tap timer icon in camera to enable)</string>
+    <string name="settings_video_duration">Auto-Record Duration</string>
+    <string name="settings_video_duration_desc">Video length when using countdown timer in video mode</string>
+    <string name="importing_files">Importing files\u2026</string>
+    <string name="empty_trash_title">Empty Trash?</string>
+    <string name="empty_trash_message">This will permanently delete %1$d items. This action cannot be undone.</string>
+    <string name="empty_trash_confirm">Delete Permanently</string>
+    <string name="analyzing_photos">Analyzing photos\u2026</string>
+    <string name="settings_reindex">Re-index All Photos</string>
+    <string name="settings_reindex_desc">Clear AI labels and re-analyze all vault photos</string>
+    <string name="settings_reindex_running">Re-indexing in progress\u2026</string>
+    <string name="settings_reindex_confirm">This will clear all AI labels, face groups, and photo tags. They will be rebuilt when you open the vault. Continue?</string>
+    <string name="settings_reindex_done">Index cleared. Open Vault to re-index.</string>
+    <string name="settings_reindex_action">Clear &amp; Re-index</string>
     <string name="settings_section_security">Security</string>
     <string name="settings_encryption">Encryption</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Per-install key \u2022 Hardware-backed</string>
@@ -241,6 +257,7 @@
     <string name="video">Video</string>
     <string name="enter_pin">Enter PIN</string>
     <string name="incorrect_pin">Incorrect PIN</string>
+    <string name="pin_locked_out">Too many attempts. Try again in %1$s</string>
     <string name="n_selected">%d selected</string>
 
     <!-- Vault screen -->
@@ -348,6 +365,18 @@
     <string name="add_tag">Add tag</string>
     <string name="new_tag">New tag</string>
     <string name="note_label">Note</string>
+    <string name="note_placeholder">Start typing your thoughts\u2026</string>
+    <string name="attach_media">Attach Media</string>
+    <string name="image_deleted">Image deleted</string>
+    <string name="link_to_person">Link to person</string>
+    <string name="no_people_yet">No people added yet. Add someone in People first.</string>
+
+    <!-- Grammar check -->
+    <string name="grammar_check_on">Grammar check on</string>
+    <string name="grammar_check_off">Grammar check off</string>
+    <string name="grammar_ignore">Ignore</string>
+    <string name="grammar_fix_all">%1$d issues found</string>
+    <string name="grammar_fix_all_action">Fix All</string>
 
     <!-- Home screen -->
     <string name="app_name_home">Privora</string>
@@ -405,6 +434,8 @@
     <string name="cd_switch_camera">Switch Camera</string>
     <string name="mode_photo">PHOTO</string>
     <string name="mode_video">VIDEO</string>
+    <string name="countdown_photo">Taking photo\u2026</string>
+    <string name="countdown_video">Recording %1$ds video\u2026</string>
     <string name="cd_view_last_capture">View last capture</string>
     <string name="cd_last_capture">Last capture</string>
     <string name="cd_stop_recording">Stop recording</string>

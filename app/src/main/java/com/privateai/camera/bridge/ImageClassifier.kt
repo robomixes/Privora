@@ -56,11 +56,9 @@ class ImageClassifier(context: Context) {
     /**
      * Classify an image and return top-N labels with confidence.
      */
-    fun classify(bitmap: Bitmap, topN: Int = 5, minConfidence: Float = 0.05f): List<Pair<String, Float>> {
-        val session = ortSession ?: run {
-            Log.e(TAG, "Model not loaded")
-            return emptyList()
-        }
+    fun classify(bitmap: Bitmap, topN: Int = 5, minConfidence: Float = 0.60f): List<Pair<String, Float>> {
+        val session = ortSession ?: return emptyList()
+        if (bitmap.isRecycled) return emptyList()
 
         try {
             val resized = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
@@ -106,14 +104,64 @@ class ImageClassifier(context: Context) {
     }
 
     /**
+     * Single inference: returns both labels AND embedding. Saves one full ONNX run.
+     */
+    fun classifyWithEmbedding(bitmap: Bitmap, topN: Int = 5, minConfidence: Float = 0.60f): Pair<List<Pair<String, Float>>, FloatArray> {
+        val session = ortSession ?: return emptyList<Pair<String, Float>>() to FloatArray(0)
+        if (bitmap.isRecycled) return emptyList<Pair<String, Float>>() to FloatArray(0)
+
+        try {
+            val resized = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)
+            val inputBuffer = preprocessBitmap(resized)
+            if (resized !== bitmap) resized.recycle()
+
+            val inputTensor = OnnxTensor.createTensor(
+                ortEnv, inputBuffer,
+                longArrayOf(1, 3, inputSize.toLong(), inputSize.toLong())
+            )
+            val results = session.run(mapOf("input" to inputTensor))
+            inputTensor.close()
+
+            // Output 0: logits → labels
+            val logitsTensor = results[0] as? OnnxTensor
+            val labels = if (logitsTensor != null) {
+                val rawOutput = (logitsTensor.value as Array<FloatArray>)[0]
+                val probabilities = softmax(rawOutput)
+                probabilities.mapIndexed { index, conf -> index to conf }
+                    .filter { it.second >= minConfidence }
+                    .sortedByDescending { it.second }
+                    .take(topN)
+                    .map { (index, conf) -> (this.labels.getOrElse(index) { "unknown" }) to conf }
+            } else emptyList()
+
+            // Output 1: embedding
+            val embeddingTensor = results[1] as? OnnxTensor
+            val embedding = if (embeddingTensor != null) {
+                val emb = (embeddingTensor.value as Array<FloatArray>)[0]
+                var norm = 0f
+                for (v in emb) norm += v * v
+                norm = Math.sqrt(norm.toDouble()).toFloat()
+                if (norm > 0) FloatArray(emb.size) { emb[it] / norm } else emb.copyOf()
+            } else {
+                // Fallback: use logits as feature vector
+                if (logitsTensor != null) (logitsTensor.value as Array<FloatArray>)[0].copyOf() else FloatArray(0)
+            }
+
+            results.close()
+            return labels to embedding
+        } catch (e: Exception) {
+            Log.e(TAG, "classifyWithEmbedding failed", e)
+            return emptyList<Pair<String, Float>>() to FloatArray(0)
+        }
+    }
+
+    /**
      * Get the 576-dim embedding vector from the penultimate layer for similarity comparison.
      * Much better than classification logits for finding visually similar images.
      */
     fun getFeatureVector(bitmap: Bitmap): FloatArray {
-        val session = ortSession ?: run {
-            Log.e(TAG, "Model not loaded")
-            return FloatArray(0)
-        }
+        val session = ortSession ?: return FloatArray(0)
+        if (bitmap.isRecycled) return FloatArray(0)
 
         try {
             val resized = Bitmap.createScaledBitmap(bitmap, inputSize, inputSize, true)

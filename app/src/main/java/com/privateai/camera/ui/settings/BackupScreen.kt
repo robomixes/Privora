@@ -305,6 +305,29 @@ fun BackupScreen(onBack: (() -> Unit)? = null, onImportComplete: ((String) -> Un
                                                 progressLabel = label
                                             }
                                         }
+                                        // Save to Downloads folder via MediaStore (works on Android 10+)
+                                        var savedToDownloads = false
+                                        withContext(Dispatchers.IO) {
+                                            try {
+                                                val values = android.content.ContentValues().apply {
+                                                    put(android.provider.MediaStore.Downloads.DISPLAY_NAME, backupFile.name)
+                                                    put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
+                                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                                        put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                                                    }
+                                                }
+                                                val resolver = context.contentResolver
+                                                val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                                                if (uri != null) {
+                                                    resolver.openOutputStream(uri)?.use { out ->
+                                                        backupFile.inputStream().use { inp -> inp.copyTo(out) }
+                                                    }
+                                                    savedToDownloads = true
+                                                }
+                                            } catch (_: Exception) {}
+                                        }
+
+                                        // Also share via intent
                                         val uri = FileProvider.getUriForFile(
                                             context, "${context.packageName}.fileprovider", backupFile
                                         )
@@ -316,11 +339,11 @@ fun BackupScreen(onBack: (() -> Unit)? = null, onImportComplete: ((String) -> Un
                                             }, "Save Backup"
                                         ))
                                         isWorking = false
-                                        Toast.makeText(
-                                            context,
-                                            "Backup created (${StorageManager.formatSize(backupFile.length())})",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                        val msg = if (savedToDownloads)
+                                            "Backup saved to Downloads (${StorageManager.formatSize(backupFile.length())})"
+                                        else
+                                            "Backup created (${StorageManager.formatSize(backupFile.length())})"
+                                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                                     } catch (e: Exception) {
                                         isWorking = false
                                         Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()

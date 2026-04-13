@@ -45,8 +45,8 @@
     <string name="feature_detect_desc">Detección de objetos con IA</string>
     <string name="feature_scan">Escanear</string>
     <string name="feature_scan_desc">Escáner de documentos + OCR</string>
-    <string name="feature_qr_scan">Escanear QR</string>
-    <string name="feature_qr_scan_desc">Escáner de QR y códigos de barras</string>
+    <string name="feature_qr_scan">Código QR</string>
+    <string name="feature_qr_scan_desc">Escanear y generar códigos QR</string>
     <string name="feature_translate">Traducir</string>
     <string name="feature_translate_desc">Traducción local</string>
     <string name="feature_vault">Bóveda</string>
@@ -78,6 +78,17 @@
     <string name="settings_benchmark_complete">Prueba completada</string>
 
     <!-- Settings: Security -->
+    <string name="settings_section_camera">C\u00e1mara</string>
+    <string name="settings_countdown_timer">Temporizador</string>
+    <string name="settings_countdown_desc">Retraso antes de capturar (toca el icono de temporizador en la c\u00e1mara)</string>
+    <string name="settings_video_duration">Duraci\u00f3n de grabaci\u00f3n</string>
+    <string name="settings_video_duration_desc">Duraci\u00f3n del video con temporizador en modo video</string>
+    <string name="settings_reindex">Reindexar todas las fotos</string>
+    <string name="settings_reindex_desc">Borrar etiquetas AI y reanalizar todas las fotos</string>
+    <string name="settings_reindex_running">Reindexando\u2026</string>
+    <string name="settings_reindex_confirm">Se borrar\u00e1n todas las etiquetas y grupos de caras. Se reconstruir\u00e1n al abrir la b\u00f3veda. \u00bfContinuar?</string>
+    <string name="settings_reindex_done">\u00cdndice borrado. Abre la B\u00f3veda para reindexar.</string>
+    <string name="settings_reindex_action">Borrar y reindexar</string>
     <string name="settings_section_security">Seguridad</string>
     <string name="settings_encryption">Cifrado</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Clave por instalación \u2022 Respaldada por hardware</string>
@@ -236,6 +247,7 @@
     <string name="video">Video</string>
     <string name="enter_pin">Ingresa el PIN</string>
     <string name="incorrect_pin">PIN incorrecto</string>
+    <string name="pin_locked_out">Demasiados intentos. Inténtalo en %1$s</string>
     <string name="n_selected">%d seleccionados</string>
 
     <!-- Vault screen -->
@@ -343,6 +355,18 @@
     <string name="add_tag">Agregar etiqueta</string>
     <string name="new_tag">Nueva etiqueta</string>
     <string name="note_label">Nota</string>
+    <string name="note_placeholder">Empieza a escribir tus ideas\u2026</string>
+    <string name="attach_media">Adjuntar multimedia</string>
+    <string name="image_deleted">Imagen eliminada</string>
+    <string name="link_to_person">Vincular a persona</string>
+    <string name="no_people_yet">No hay personas. Agrega a alguien en Personas primero.</string>
+
+    <!-- Grammar check -->
+    <string name="grammar_check_on">Corrector activado</string>
+    <string name="grammar_check_off">Corrector desactivado</string>
+    <string name="grammar_ignore">Ignorar</string>
+    <string name="grammar_fix_all">%1$d errores</string>
+    <string name="grammar_fix_all_action">Corregir todo</string>
 
     <!-- Home screen -->
     <string name="app_name_home">Privora</string>
@@ -400,6 +424,8 @@
     <string name="cd_switch_camera">Cambiar cámara</string>
     <string name="mode_photo">FOTO</string>
     <string name="mode_video">VIDEO</string>
+    <string name="countdown_photo">Tomando foto\u2026</string>
+    <string name="countdown_video">Grabando video %1$ds\u2026</string>
     <string name="cd_view_last_capture">Ver última captura</string>
     <string name="cd_last_capture">Última captura</string>
     <string name="cd_stop_recording">Detener grabación</string>

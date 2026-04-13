@@ -14,6 +14,7 @@ data class SecureNote(
     val color: Int = 0,       // 0=default, 1-8 = color presets
     val pinned: Boolean = false,
     val attachments: List<String> = emptyList(), // vault photo IDs
+    val audioAttachments: List<String> = emptyList(), // encrypted audio file IDs
     val personId: String? = null,
     val createdAt: Long,
     val modifiedAt: Long
@@ -43,7 +44,7 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
         return updated
     }
 
-    fun createNote(title: String, content: String, tags: List<String> = emptyList(), attachments: List<String> = emptyList(), personId: String? = null): SecureNote {
+    fun createNote(title: String, content: String, tags: List<String> = emptyList(), attachments: List<String> = emptyList(), audioAttachments: List<String> = emptyList(), personId: String? = null): SecureNote {
         val now = System.currentTimeMillis()
         val note = SecureNote(
             id = UUID.randomUUID().toString(),
@@ -121,6 +122,7 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
             put("color", note.color)
             put("pinned", note.pinned)
             put("attachments", JSONArray(note.attachments))
+            put("audioAttachments", JSONArray(note.audioAttachments))
             put("personId", note.personId ?: "")
             put("createdAt", note.createdAt)
             put("modifiedAt", note.modifiedAt)
@@ -135,6 +137,10 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
             val arr = obj.getJSONArray("attachments")
             (0 until arr.length()).map { arr.getString(it) }
         } else emptyList()
+        val audioAttachments = if (obj.has("audioAttachments")) {
+            val arr = obj.getJSONArray("audioAttachments")
+            (0 until arr.length()).map { arr.getString(it) }
+        } else emptyList()
         return SecureNote(
             id = obj.getString("id"),
             title = obj.getString("title"),
@@ -143,6 +149,7 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
             color = obj.optInt("color", 0),
             pinned = obj.optBoolean("pinned", false),
             attachments = attachments,
+            audioAttachments = audioAttachments,
             personId = obj.optString("personId", "").ifEmpty { null },
             createdAt = obj.getLong("createdAt"),
             modifiedAt = obj.getLong("modifiedAt")
