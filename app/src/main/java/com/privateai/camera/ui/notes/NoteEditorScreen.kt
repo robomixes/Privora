@@ -46,6 +46,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -68,8 +69,11 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Spellcheck
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -119,6 +123,7 @@ import com.privateai.camera.security.VaultPhoto
 import com.privateai.camera.security.VaultRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -169,6 +174,14 @@ fun NoteEditorScreen(
     var grammarErrors by remember { mutableStateOf<List<GrammarError>>(emptyList()) }
     val localChecker = remember { LocalGrammarChecker(context) }
     val systemChecker = remember { SystemSpellChecker(context) }
+
+    // AI Assistant state
+    val aiAvailable = remember { com.privateai.camera.bridge.GemmaRunner.isAvailable(context) }
+    var showAiSheet by remember { mutableStateOf(false) }
+    var aiProcessing by remember { mutableStateOf(false) }
+    var aiResult by remember { mutableStateOf<String?>(null) }
+    var aiAction by remember { mutableStateOf("") } // tracks which action produced the result
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     val brandColor = MaterialTheme.colorScheme.primary
     val surfaceTone = MaterialTheme.colorScheme.surfaceContainerLow
@@ -287,6 +300,145 @@ fun NoteEditorScreen(
         )
     }
 
+    // ── AI Actions bottom sheet ──
+    if (showAiSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAiSheet = false; aiResult = null },
+            sheetState = rememberModalBottomSheetState()
+        ) {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                Text("AI Assistant", style = MaterialTheme.typography.titleMedium, color = brandColor)
+                Spacer(Modifier.height(12.dp))
+
+                if (aiProcessing) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(Modifier.size(24.dp), color = brandColor, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Thinking…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else if (aiResult != null) {
+                    // Show result with accept/reject
+                    Text(aiResult!!, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 16.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { aiResult = null }) { Text("Discard") }
+                        Spacer(Modifier.weight(1f))
+                        androidx.compose.material3.Button(onClick = {
+                            val result = aiResult ?: return@Button
+                            when (aiAction) {
+                                "continue" -> {
+                                    // Append to existing content
+                                    val newContent = contentValue.text + "\n" + result
+                                    contentValue = TextFieldValue(newContent, TextRange(newContent.length))
+                                }
+                                "summarize" -> {
+                                    // Prepend summary above existing content
+                                    val newContent = result + "\n\n" + contentValue.text
+                                    contentValue = TextFieldValue(newContent, TextRange(newContent.length))
+                                }
+                                "extract_tasks" -> {
+                                    isChecklistMode = true
+                                    contentValue = TextFieldValue(result, TextRange(result.length))
+                                }
+                                else -> {
+                                    // Rewrite, grammar fix, shorten, formal — replace content
+                                    contentValue = TextFieldValue(result, TextRange(result.length))
+                                }
+                            }
+                            aiResult = null
+                            aiAction = ""
+                            showAiSheet = false
+                        }) { Text("Apply") }
+                    }
+                } else {
+                    // Action list
+                    AiActionItem("Summarize", "Create bullet-point summary") {
+                        aiAction = "summarize"; aiProcessing = true
+                        scope.launch {
+                            val result = com.privateai.camera.bridge.GemmaRunner.complete(
+                                context, com.privateai.camera.bridge.GemmaPrompts.summarize(contentValue.text),
+                                com.privateai.camera.bridge.GemmaPrompts.NOTES_SYSTEM
+                            )
+                            aiResult = result
+                            aiProcessing = false
+                        }
+                    }
+                    AiActionItem("Generate Title", "Suggest a title from content") {
+                        aiProcessing = true
+                        scope.launch {
+                            val result = com.privateai.camera.bridge.GemmaRunner.complete(
+                                context, com.privateai.camera.bridge.GemmaPrompts.generateTitle(contentValue.text),
+                                com.privateai.camera.bridge.GemmaPrompts.NOTES_SYSTEM
+                            )
+                            result?.let { title = it.trim().removeSurrounding("\"") }
+                            aiProcessing = false
+                            showAiSheet = false
+                        }
+                    }
+                    AiActionItem("Extract Tasks", "Convert text to checklist") {
+                        aiAction = "extract_tasks"; aiProcessing = true
+                        scope.launch {
+                            val result = com.privateai.camera.bridge.GemmaRunner.complete(
+                                context, com.privateai.camera.bridge.GemmaPrompts.extractChecklist(contentValue.text),
+                                com.privateai.camera.bridge.GemmaPrompts.NOTES_SYSTEM
+                            )
+                            aiResult = result
+                            aiProcessing = false
+                        }
+                    }
+                    AiActionItem("Fix Grammar", "Correct spelling and grammar") {
+                        aiAction = "fix_grammar"; aiProcessing = true
+                        scope.launch {
+                            val result = com.privateai.camera.bridge.GemmaRunner.complete(
+                                context, com.privateai.camera.bridge.GemmaPrompts.rewrite(contentValue.text, com.privateai.camera.bridge.RewriteStyle.FIX_GRAMMAR),
+                                com.privateai.camera.bridge.GemmaPrompts.NOTES_SYSTEM
+                            )
+                            aiResult = result
+                            aiProcessing = false
+                        }
+                    }
+                    AiActionItem("Make Shorter", "Condense the text") {
+                        aiAction = "shorten"; aiProcessing = true
+                        scope.launch {
+                            val result = com.privateai.camera.bridge.GemmaRunner.complete(
+                                context, com.privateai.camera.bridge.GemmaPrompts.rewrite(contentValue.text, com.privateai.camera.bridge.RewriteStyle.SHORTEN),
+                                com.privateai.camera.bridge.GemmaPrompts.NOTES_SYSTEM
+                            )
+                            aiResult = result
+                            aiProcessing = false
+                        }
+                    }
+                    AiActionItem("Make Formal", "Professional tone") {
+                        aiAction = "formal"; aiProcessing = true
+                        scope.launch {
+                            val result = com.privateai.camera.bridge.GemmaRunner.complete(
+                                context, com.privateai.camera.bridge.GemmaPrompts.rewrite(contentValue.text, com.privateai.camera.bridge.RewriteStyle.FORMAL),
+                                com.privateai.camera.bridge.GemmaPrompts.NOTES_SYSTEM
+                            )
+                            aiResult = result
+                            aiProcessing = false
+                        }
+                    }
+                    AiActionItem("Continue Writing", "Add more content") {
+                        aiAction = "continue"; aiProcessing = true
+                        scope.launch {
+                            val result = com.privateai.camera.bridge.GemmaRunner.complete(
+                                context, com.privateai.camera.bridge.GemmaPrompts.continueWriting(contentValue.text),
+                                com.privateai.camera.bridge.GemmaPrompts.NOTES_SYSTEM
+                            )
+                            aiResult = result
+                            aiProcessing = false
+                        }
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+
     Scaffold(
         // ── Top bar with tonal surface ──
         topBar = {
@@ -367,6 +519,13 @@ fun NoteEditorScreen(
                 if (isRecording) {
                     LaunchedEffect(isRecording) { while (isRecording) { kotlinx.coroutines.delay(1000); recordingDuration++ } }
                     Text("%d:%02d".format(recordingDuration / 60, recordingDuration % 60), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
+                // AI sparkle button (only when Advanced AI enabled)
+                if (aiAvailable && contentValue.text.isNotBlank()) {
+                    FormatButton(Icons.Default.AutoAwesome, "AI", brandColor) {
+                        focusManager.clearFocus()
+                        showAiSheet = true
+                    }
                 }
                 Spacer(Modifier.weight(1f))
                 if (grammarEnabled && grammarErrors.isNotEmpty()) {
@@ -865,6 +1024,25 @@ fun NoteEditorScreen(
 private fun FormatButton(icon: ImageVector, desc: String, tint: Color, onClick: () -> Unit) {
     IconButton(onClick = onClick, modifier = Modifier.size(46.dp)) {
         Icon(icon, desc, Modifier.size(26.dp), tint = tint)
+    }
+}
+
+// ── AI action item in bottom sheet ──
+@Composable
+private fun AiActionItem(title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Icon(Icons.Default.AutoAwesome, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

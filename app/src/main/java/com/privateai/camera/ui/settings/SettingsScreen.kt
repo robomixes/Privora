@@ -64,6 +64,7 @@ import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -876,6 +877,188 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         }
                     } else {
                         // ─── Unlocked: show all critical settings ───
+
+                        // AI Assistant (Gemma 4)
+                        var aiEnabled by remember { mutableStateOf(com.privateai.camera.bridge.GemmaRunner.isEnabled(context)) }
+                        var aiModelDownloaded by remember { mutableStateOf(com.privateai.camera.bridge.GemmaRunner.isModelDownloaded(context)) }
+                        var showAiDownloadDialog by remember { mutableStateOf(false) }
+                        val aiModelSize = remember { com.privateai.camera.bridge.GemmaRunner.getModelSizeBytes(context) }
+                        val downloadState by com.privateai.camera.bridge.GemmaModelManager.downloadState.collectAsState()
+
+                        // React to download completion or failure
+                        androidx.compose.runtime.LaunchedEffect(downloadState) {
+                            when (downloadState) {
+                                is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Complete -> {
+                                    aiModelDownloaded = true
+                                }
+                                is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error -> {
+                                    com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
+                                    aiEnabled = false
+                                    aiModelDownloaded = false
+                                }
+                                else -> {}
+                            }
+                        }
+
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable {
+                                    if (!aiEnabled) {
+                                        showAiDownloadDialog = true
+                                    } else {
+                                        com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
+                                        com.privateai.camera.bridge.GemmaRunner.unload()
+                                        aiEnabled = false
+                                    }
+                                }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Info, null, Modifier.size(24.dp),
+                                tint = if (aiEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text("AI Assistant (Gemma 4)", style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    when {
+                                        aiEnabled && aiModelDownloaded -> "Enabled — ${StorageManager.formatSize(aiModelSize)}"
+                                        aiEnabled -> "Enabled — downloading model…"
+                                        else -> "Off — tap to enable on-device AI"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                // Show download progress
+                                if (downloadState is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Downloading) {
+                                    val dl = downloadState as com.privateai.camera.bridge.GemmaModelManager.DownloadState.Downloading
+                                    val pct = if (dl.totalBytes > 0) (dl.progressBytes.toFloat() / dl.totalBytes) else 0f
+                                    val pctInt = (pct * 100).toInt()
+                                    Spacer(Modifier.height(6.dp))
+                                    androidx.compose.material3.LinearProgressIndicator(
+                                        progress = { pct },
+                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        "$pctInt%  —  ${StorageManager.formatSize(dl.progressBytes)} / ${StorageManager.formatSize(dl.totalBytes)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (downloadState is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error) {
+                                    val err = downloadState as com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "Download failed: ${err.message}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                            Switch(checked = aiEnabled, onCheckedChange = null)
+                        }
+
+                        // Enable AI confirmation dialog
+                        if (showAiDownloadDialog) {
+                            val profiler = remember { com.privateai.camera.service.DeviceProfiler.getProfile(context) }
+                            val freeStorage = remember { storageInfo.deviceFreeBytes }
+                            val totalRamMb = profiler.ramMb
+                            val requiredStorageBytes = 3_000_000_000L // ~2.8 GB with buffer
+                            val requiredRamMb = 4000
+                            val hasEnoughStorage = freeStorage >= requiredStorageBytes
+                            val hasEnoughRam = totalRamMb >= requiredRamMb
+                            val canProceed = hasEnoughStorage // RAM is a warning, storage is a blocker
+
+                            AlertDialog(
+                                onDismissRequest = { showAiDownloadDialog = false },
+                                title = { Text("Enable AI Assistant") },
+                                text = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text("Download Gemma 4 E2B for on-device AI features:")
+                                        Text("• Summarize, rewrite, and extract tasks from notes", style = MaterialTheme.typography.bodySmall)
+                                        Text("• Better grammar and spelling check", style = MaterialTheme.typography.bodySmall)
+                                        Text("• Photo descriptions and semantic search", style = MaterialTheme.typography.bodySmall)
+                                        Spacer(Modifier.height(4.dp))
+
+                                        // Storage check
+                                        Text("Storage:", fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "• Required: ~2.6 GB   •   Free: ${StorageManager.formatSize(freeStorage)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (hasEnoughStorage) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+                                        )
+                                        if (!hasEnoughStorage) {
+                                            Text(
+                                                "Not enough storage. Free up at least ${StorageManager.formatSize(requiredStorageBytes - freeStorage)} to continue.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+
+                                        // RAM check
+                                        Spacer(Modifier.height(4.dp))
+                                        Text("Memory:", fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "• Required: 4 GB+   •   Device: ${totalRamMb} MB",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (hasEnoughRam) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+                                        )
+                                        if (!hasEnoughRam) {
+                                            Text(
+                                                "Low RAM — AI features will be slow and may cause instability.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+
+                                        if (totalRamMb in requiredRamMb..5999) {
+                                            Text(
+                                                "Recommended: 6 GB+ RAM for best experience.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = {
+                                            showAiDownloadDialog = false
+                                            com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
+                                            aiEnabled = true
+                                            if (!aiModelDownloaded) {
+                                                com.privateai.camera.bridge.GemmaModelManager.startDownload(context)
+                                            }
+                                        },
+                                        enabled = canProceed
+                                    ) { Text(if (canProceed) "Download & Enable" else "Not enough storage") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showAiDownloadDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+                                }
+                            )
+                        }
+
+                        // Delete model option
+                        if (aiModelDownloaded) {
+                            SettingsItem(
+                                icon = Icons.Default.Delete,
+                                title = "Delete AI Model",
+                                subtitle = "Free ${StorageManager.formatSize(aiModelSize)} of storage",
+                                onClick = {
+                                    com.privateai.camera.bridge.GemmaRunner.deleteModel(context)
+                                    com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
+                                    aiEnabled = false
+                                    aiModelDownloaded = false
+                                }
+                            )
+                        }
+
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
                         // Emergency PIN
                         if (getAuthMode(context) == AuthMode.APP_PIN) {

@@ -49,6 +49,9 @@ class MainActivity : AppCompatActivity() {
         // Install crash handler (logs locally, never sends anywhere)
         CrashHandler.install(this)
 
+        // Create notification channel for AI model download
+        com.privateai.camera.service.GemmaDownloadService.createNotificationChannel(this)
+
         // Clean up any leftover files from interrupted duress wipe
         Thread { DuressManager.deleteMarkedFiles(this) }.start()
 

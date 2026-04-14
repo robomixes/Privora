@@ -1,6 +1,6 @@
 [versions]
 agp = "8.9.3"
-kotlin = "2.1.20"
+kotlin = "2.3.20"
 coreKtx = "1.16.0"
 lifecycleRuntimeKtx = "2.9.0"
 activityCompose = "1.10.1"
@@ -54,6 +54,9 @@ mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", ve
 
 # ZXing (QR code generation)
 zxing-core = { group = "com.google.zxing", name = "core", version = "3.5.3" }
+
+# LiteRT-LM (Gemma 4 on-device LLM inference)
+litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version = "+" }
 
 # SQLCipher (encrypted SQLite)
 sqlcipher = { group = "net.zetetic", name = "sqlcipher-android", version = "4.6.1" }

@@ -54,14 +54,16 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-
     buildFeatures {
         compose = true
     }
 
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
 }
 
 dependencies {
@@ -109,6 +111,9 @@ dependencies {
 
     // ZXing (QR code generation)
     implementation(libs.zxing.core)
+
+    // LiteRT-LM (Gemma 4 on-device LLM)
+    implementation(libs.litertlm.android)
 
     // ML Kit
     implementation(libs.mlkit.document.scanner)
