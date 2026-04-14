@@ -48,8 +48,14 @@ class PrivoraDatabase private constructor(context: Context, crypto: CryptoManage
             scores TEXT,
             feature_vector BLOB,
             blur_score REAL DEFAULT 0,
-            indexed_at INTEGER DEFAULT 0
+            indexed_at INTEGER DEFAULT 0,
+            description TEXT DEFAULT ''
         )""")
+
+        // Migration: add description column if missing (existing installs)
+        try {
+            db.execSQL("ALTER TABLE photo_index ADD COLUMN description TEXT DEFAULT ''")
+        } catch (_: Exception) { /* column already exists */ }
 
         db.execSQL("""CREATE TABLE IF NOT EXISTS face_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

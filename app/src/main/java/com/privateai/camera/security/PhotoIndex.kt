@@ -62,7 +62,8 @@ class PhotoIndex(private val database: PrivoraDatabase) {
         val scores: List<Float>,         // confidence scores for labels
         val featureVector: FloatArray?,   // 1000-dim for similarity
         val blurScore: Double,
-        val faces: List<FaceEntry> = emptyList()
+        val faces: List<FaceEntry> = emptyList(),
+        val description: String = ""     // AI-generated description (Gemma 4)
     ) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -71,7 +72,8 @@ class PhotoIndex(private val database: PrivoraDatabase) {
                     scores == other.scores &&
                     featureVector.contentEquals(other.featureVector) &&
                     blurScore == other.blurScore &&
-                    faces == other.faces
+                    faces == other.faces &&
+                    description == other.description
         }
 
         override fun hashCode(): Int {
@@ -80,6 +82,7 @@ class PhotoIndex(private val database: PrivoraDatabase) {
             result = 31 * result + (featureVector?.contentHashCode() ?: 0)
             result = 31 * result + blurScore.hashCode()
             result = 31 * result + faces.hashCode()
+            result = 31 * result + description.hashCode()
             return result
         }
     }
@@ -327,6 +330,12 @@ class PhotoIndex(private val database: PrivoraDatabase) {
             }
         }
 
+        // Also search AI descriptions (Gemma-generated)
+        val descMatches = searchByDescription(query)
+        for (id in descMatches) {
+            results.add(Pair(id, 1.8f)) // high relevance — description is a full sentence match
+        }
+
         // Deduplicate: keep highest score per photoId
         val bestScores = mutableMapOf<String, Float>()
         for ((id, score) in results) {
@@ -521,6 +530,53 @@ class PhotoIndex(private val database: PrivoraDatabase) {
             }
         }
         return allLabels.sorted()
+    }
+
+    /** Get the AI-generated description for a photo. */
+    fun getDescription(photoId: String): String {
+        db.rawQuery(
+            "SELECT description FROM photo_index WHERE photo_id = ?",
+            arrayOf(photoId)
+        ).use { cursor ->
+            if (cursor.moveToFirst()) return cursor.getString(0) ?: ""
+        }
+        return ""
+    }
+
+    /** Set/update the AI-generated description for a photo. */
+    fun setDescription(photoId: String, description: String) {
+        val cv = android.content.ContentValues().apply {
+            put("description", description)
+        }
+        db.update("photo_index", cv, "photo_id = ?", arrayOf(photoId))
+    }
+
+    /** Search photos by description text (in addition to labels). */
+    fun searchByDescription(query: String): List<String> {
+        val results = mutableListOf<String>()
+        db.rawQuery(
+            "SELECT photo_id FROM photo_index WHERE description LIKE ? AND description != ''",
+            arrayOf("%$query%")
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                results.add(cursor.getString(0))
+            }
+        }
+        return results
+    }
+
+    /** Get all photos that don't have a description yet (for lazy generation). */
+    fun getPhotosWithoutDescription(): List<String> {
+        val ids = mutableListOf<String>()
+        db.rawQuery(
+            "SELECT photo_id FROM photo_index WHERE description = '' OR description IS NULL",
+            null
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                ids.add(cursor.getString(0))
+            }
+        }
+        return ids
     }
 
     /**

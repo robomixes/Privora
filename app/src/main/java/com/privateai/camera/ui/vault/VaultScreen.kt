@@ -2405,36 +2405,197 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
 
                 // AI labels (above action bar, pass-through touches)
                 viewerPhoto?.let { vp ->
-                    photoIndex?.getLabelsWithScores(vp.id)?.let { labelsWithScores ->
-                        if (labelsWithScores.isNotEmpty()) {
-                            Row(
-                                Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp)
-                                    .horizontalScroll(rememberScrollState())
-                                    .padding(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                labelsWithScores.forEach { (label, score) ->
-                                    val pct = (score * 100).toInt()
-                                    SuggestionChip(onClick = {
-                                        searchQuery = label
-                                        searchFromViewer = true
-                                        scope.launch {
-                                            val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
-                                            val labelMatches = photoIndex?.searchByLabel(label)?.toSet() ?: emptySet()
-                                            searchResults = allItems.filter { it.id in labelMatches }
-                                            isSearching = true
-                                            smartMode = null
-                                            page = VaultPage.CATEGORIES
-                                            val thumbMap = mutableMapOf<String, Bitmap>()
-                                            withContext(Dispatchers.IO) {
-                                                searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
-                                            }
-                                            searchThumbnails = thumbMap
+                    // AI vision disabled until LiteRT-LM 0.10.1 fixes CPU multimodal crash
+                    val aiAvailable = false
+                    var aiDescription by remember(vp.id) { mutableStateOf(photoIndex?.getDescription(vp.id) ?: "") }
+                    var aiDescLoading by remember(vp.id) { mutableStateOf(false) }
+                    var showAskDialog by remember { mutableStateOf(false) }
+                    var askQuestion by remember { mutableStateOf("") }
+                    var askAnswer by remember { mutableStateOf<String?>(null) }
+                    var askLoading by remember { mutableStateOf(false) }
+
+                    // Load cached description (no auto-generation — user triggers via "Describe" button)
+                    LaunchedEffect(vp.id) {
+                        val cached = withContext(Dispatchers.IO) { photoIndex?.getDescription(vp.id) ?: "" }
+                        aiDescription = cached
+                    }
+
+                    // Function to generate description on demand using Gemma vision
+                    fun generateDescription() {
+                        if (aiDescLoading) return
+                        aiDescLoading = true
+                        scope.launch {
+                            try {
+                                val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(vp) }
+                                if (bmp != null) {
+                                    val tempFile = java.io.File(context.cacheDir, "describe_${vp.id}.jpg")
+                                    withContext(Dispatchers.IO) {
+                                        java.io.FileOutputStream(tempFile).use { out ->
+                                            bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
                                         }
-                                    }, label = { Text("$label $pct%", style = MaterialTheme.typography.labelSmall) })
+                                    }
+                                    val desc = com.privateai.camera.bridge.GemmaRunner.describeImage(
+                                        context, tempFile.absolutePath,
+                                        com.privateai.camera.bridge.GemmaPrompts.describePhoto()
+                                    )
+                                    tempFile.delete()
+                                    if (!desc.isNullOrBlank()) {
+                                        aiDescription = desc.trim()
+                                        withContext(Dispatchers.IO) {
+                                            photoIndex?.setDescription(vp.id, aiDescription)
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("VaultAI", "Describe failed: ${e.message}", e)
+                            }
+                            aiDescLoading = false
+                        }
+                    }
+
+                    Column(
+                        Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp, start = 16.dp, end = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // AI description text
+                        if (aiDescription.isNotEmpty()) {
+                            Text(
+                                aiDescription,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White,
+                                modifier = Modifier
+                                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        } else if (aiDescLoading) {
+                            Text(
+                                "Describing image…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier
+                                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+
+                        // AI action chips
+                        if (aiAvailable) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (aiDescription.isEmpty() && !aiDescLoading) {
+                                    SuggestionChip(
+                                        onClick = { generateDescription() },
+                                        label = { Text("Describe", style = MaterialTheme.typography.labelSmall) }
+                                    )
+                                }
+                                SuggestionChip(
+                                    onClick = { showAskDialog = true },
+                                    label = { Text("Ask about this image", style = MaterialTheme.typography.labelSmall) }
+                                )
+                            }
+                        }
+
+                        // Label chips
+                        photoIndex?.getLabelsWithScores(vp.id)?.let { labelsWithScores ->
+                            if (labelsWithScores.isNotEmpty()) {
+                                Row(
+                                    Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    labelsWithScores.forEach { (label, score) ->
+                                        val pct = (score * 100).toInt()
+                                        SuggestionChip(onClick = {
+                                            searchQuery = label
+                                            searchFromViewer = true
+                                            scope.launch {
+                                                val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
+                                                val labelMatches = photoIndex?.searchByLabel(label)?.toSet() ?: emptySet()
+                                                searchResults = allItems.filter { it.id in labelMatches }
+                                                isSearching = true
+                                                smartMode = null
+                                                page = VaultPage.CATEGORIES
+                                                val thumbMap = mutableMapOf<String, Bitmap>()
+                                                withContext(Dispatchers.IO) {
+                                                    searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                                                }
+                                                searchThumbnails = thumbMap
+                                            }
+                                        }, label = { Text("$label $pct%", style = MaterialTheme.typography.labelSmall) })
+                                    }
                                 }
                             }
                         }
+                    }
+
+                    // Ask about image dialog
+                    if (showAskDialog) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { showAskDialog = false; askQuestion = ""; askAnswer = null },
+                            title = { Text("Ask about this image") },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    androidx.compose.material3.OutlinedTextField(
+                                        value = askQuestion,
+                                        onValueChange = { askQuestion = it },
+                                        label = { Text("Your question") },
+                                        placeholder = { Text("What color is the car?") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        enabled = !askLoading
+                                    )
+                                    if (askLoading) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                            Text("Analyzing…", style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+                                    if (askAnswer != null) {
+                                        Text(
+                                            askAnswer!!,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            modifier = Modifier
+                                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+                                                .padding(12.dp)
+                                                .fillMaxWidth()
+                                        )
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        if (askQuestion.isNotBlank()) {
+                                            askLoading = true
+                                            scope.launch {
+                                                val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(vp) }
+                                                if (bmp != null) {
+                                                    val tempFile = java.io.File(context.cacheDir, "ask_${vp.id}.jpg")
+                                                    withContext(Dispatchers.IO) {
+                                                        java.io.FileOutputStream(tempFile).use { out ->
+                                                            bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+                                                        }
+                                                    }
+                                                    val answer = com.privateai.camera.bridge.GemmaRunner.describeImage(
+                                                        context, tempFile.absolutePath, askQuestion
+                                                    )
+                                                    tempFile.delete()
+                                                    askAnswer = answer ?: "Could not analyze this image."
+                                                } else {
+                                                    askAnswer = "Could not load this image."
+                                                }
+                                                askLoading = false
+                                            }
+                                        }
+                                    },
+                                    enabled = askQuestion.isNotBlank() && !askLoading
+                                ) { Text("Ask") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showAskDialog = false; askQuestion = ""; askAnswer = null }) {
+                                    Text("Close")
+                                }
+                            }
+                        )
                     }
                 }
             }

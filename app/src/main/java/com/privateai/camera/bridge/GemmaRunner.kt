@@ -36,7 +36,9 @@ object GemmaRunner {
     private const val MODEL_FILE = "gemma-4-e2b.litertlm"
 
     private var engine: Engine? = null
+    private var activeConversation: Conversation? = null
     private val mutex = Mutex()
+    private var loadFailed = false
 
     // ── Status checks ────────────────────────────────────────────────
 
@@ -56,9 +58,9 @@ object GemmaRunner {
         return getModelFile(context).exists()
     }
 
-    /** Whether the AI is enabled AND model is present — use this to show/hide AI buttons. */
+    /** Whether the AI is enabled AND model is present AND hasn't failed — use this to show/hide AI buttons. */
     fun isAvailable(context: Context): Boolean {
-        return isEnabled(context) && isModelDownloaded(context)
+        return isEnabled(context) && isModelDownloaded(context) && !loadFailed
     }
 
     /** Get the model file path. */
@@ -72,9 +74,12 @@ object GemmaRunner {
         return if (f.exists()) f.length() else 0L
     }
 
-    /** Delete the downloaded model to free storage. */
+    /** Delete the downloaded model and cache to free storage. */
     fun deleteModel(context: Context) {
         getModelFile(context).delete()
+        // Also delete xnnpack cache
+        File(getModelFile(context).absolutePath + ".xnnpack_cache").delete()
+        resetCrashFlag(context)
         unload()
     }
 
@@ -83,6 +88,7 @@ object GemmaRunner {
     /** Load the engine. Call from a coroutine (IO-bound, takes ~3-5 sec cold). */
     suspend fun load(context: Context) = mutex.withLock {
         if (engine != null) return@withLock
+        if (loadFailed) return@withLock
 
         val modelFile = getModelFile(context)
         if (!modelFile.exists()) {
@@ -90,8 +96,21 @@ object GemmaRunner {
             return@withLock
         }
 
+        // Check if a previous load attempt crashed the app
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean("load_crashed", false)) {
+            Log.w(TAG, "Previous engine load crashed — skipping. User can retry from Settings.")
+            loadFailed = true
+            return@withLock
+        }
+
         withContext(Dispatchers.IO) {
             try {
+                // Mark as "loading" — if app crashes during this, we know on next launch
+                prefs.edit().putBoolean("load_crashed", true).commit()
+
+                // CPU backend — GPU requires OpenCL which many devices lack.
+                // Vision (multimodal) is disabled until LiteRT-LM 0.10.1 fixes CPU vision crash.
                 val config = EngineConfig(
                     modelPath = modelFile.absolutePath,
                     backend = Backend.CPU()
@@ -99,18 +118,35 @@ object GemmaRunner {
                 val eng = Engine(config)
                 eng.initialize()
                 engine = eng
+
+                // Load succeeded — clear the crash flag
+                prefs.edit().putBoolean("load_crashed", false).apply()
                 Log.i(TAG, "Gemma 4 engine loaded successfully")
             } catch (e: Exception) {
+                prefs.edit().putBoolean("load_crashed", false).apply()
+                loadFailed = true
                 Log.e(TAG, "Failed to load Gemma engine: ${e.message}", e)
             }
         }
     }
 
+    /** Reset the crash flag so the user can retry loading. */
+    fun resetCrashFlag(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean("load_crashed", false).apply()
+        loadFailed = false
+    }
+
+    /** Close any active conversation (LiteRT-LM only allows one at a time). */
+    private fun closeActiveConversation() {
+        try { activeConversation?.close() } catch (_: Exception) {}
+        activeConversation = null
+    }
+
     /** Unload the engine to free RAM. */
     fun unload() {
-        try {
-            engine?.close()
-        } catch (_: Exception) {}
+        closeActiveConversation()
+        try { engine?.close() } catch (_: Exception) {}
         engine = null
         Log.i(TAG, "Gemma engine unloaded")
     }
@@ -127,23 +163,34 @@ object GemmaRunner {
         maxTokens: Int = 512,
         temperature: Double = 0.7
     ): String? {
+        Log.d(TAG, "complete() called — loadFailed=$loadFailed, engine=${engine != null}")
+        if (loadFailed) { Log.w(TAG, "complete() skipped — loadFailed"); return null }
         if (engine == null) load(context)
-        val eng = engine ?: return null
+        val eng = engine
+        if (eng == null) { Log.w(TAG, "complete() skipped — engine null after load"); return null }
 
-        return withContext(Dispatchers.IO) {
-            try {
-                val conversation = eng.createConversation(
-                    ConversationConfig(
-                        systemInstruction = if (systemInstruction.isNotEmpty()) Contents.of(Content.Text(systemInstruction)) else null,
-                        samplerConfig = SamplerConfig(topK = 40, topP = 0.95, temperature = temperature)
+        return mutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    closeActiveConversation()
+                    Log.d(TAG, "Creating conversation for text completion...")
+                    val conversation = eng.createConversation(
+                        ConversationConfig(
+                            systemInstruction = if (systemInstruction.isNotEmpty()) Contents.of(Content.Text(systemInstruction)) else null,
+                            samplerConfig = SamplerConfig(topK = 40, topP = 0.95, temperature = temperature)
+                        )
                     )
-                )
-                val response = conversation.sendMessage(prompt)
-                conversation.close()
-                extractText(response)
-            } catch (e: Exception) {
-                Log.e(TAG, "Inference failed: ${e.message}", e)
-                null
+                    activeConversation = conversation
+                    Log.d(TAG, "Sending message (${prompt.take(50)}...)")
+                    val response = conversation.sendMessage(prompt)
+                    Log.d(TAG, "Response received: ${response.toString().take(100)}")
+                    closeActiveConversation()
+                    extractText(response)
+                } catch (e: Exception) {
+                    closeActiveConversation()
+                    Log.e(TAG, "Inference failed: ${e.message}", e)
+                    null
+                }
             }
         }
     }
@@ -160,51 +207,107 @@ object GemmaRunner {
         }
         val eng = engine ?: return@flow
 
-        val conversation = eng.createConversation(
-            ConversationConfig(
-                systemInstruction = if (systemInstruction.isNotEmpty()) Contents.of(Content.Text(systemInstruction)) else null,
-                samplerConfig = SamplerConfig(topK = 40, topP = 0.95, temperature = temperature)
+        mutex.withLock {
+            closeActiveConversation()
+            val conversation = eng.createConversation(
+                ConversationConfig(
+                    systemInstruction = if (systemInstruction.isNotEmpty()) Contents.of(Content.Text(systemInstruction)) else null,
+                    samplerConfig = SamplerConfig(topK = 40, topP = 0.95, temperature = temperature)
+                )
             )
-        )
+            activeConversation = conversation
 
-        try {
-            conversation.sendMessageAsync(prompt).collect { chunk ->
-                emit(chunk.toString())
+            try {
+                conversation.sendMessageAsync(prompt).collect { chunk ->
+                    emit(chunk.toString())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Streaming inference failed: ${e.message}", e)
+            } finally {
+                closeActiveConversation()
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Streaming inference failed: ${e.message}", e)
-        } finally {
-            conversation.close()
         }
     }
 
     // ── Vision inference ─────────────────────────────────────────────
 
-    /** Describe an image or answer a question about it. */
+    /** Describe an image or answer a question about it using Gemma vision. */
     suspend fun describeImage(
         context: Context,
         imagePath: String,
         prompt: String = "Describe this image in one sentence."
     ): String? {
+        Log.d(TAG, "describeImage() called — loadFailed=$loadFailed, engine=${engine != null}, path=$imagePath")
+        if (loadFailed) { Log.w(TAG, "describeImage() skipped — loadFailed"); return null }
         if (engine == null) load(context)
-        val eng = engine ?: return null
+        val eng = engine
+        if (eng == null) { Log.w(TAG, "describeImage() skipped — engine null"); return null }
 
-        return withContext(Dispatchers.IO) {
-            try {
-                val conversation = eng.createConversation(ConversationConfig())
-                val response = conversation.sendMessage(
-                    Contents.of(
-                        Content.ImageFile(imagePath),
-                        Content.Text(prompt)
+        return mutex.withLock {
+            withContext(Dispatchers.IO) {
+                try {
+                    closeActiveConversation()
+                    Log.d(TAG, "Creating conversation for vision...")
+                    val conversation = eng.createConversation(ConversationConfig())
+                    activeConversation = conversation
+                    // Image first, text second (required by Gemma 4 attention mechanism)
+                    Log.d(TAG, "Sending vision message...")
+                    val response = conversation.sendMessage(
+                        Contents.of(
+                            Content.ImageFile(imagePath),
+                            Content.Text(prompt)
+                        )
                     )
-                )
-                conversation.close()
-                extractText(response)
-            } catch (e: Exception) {
-                Log.e(TAG, "Vision inference failed: ${e.message}", e)
-                null
+                    Log.d(TAG, "Vision response: ${response.toString().take(100)}")
+                    closeActiveConversation()
+                    extractText(response)
+                } catch (e: Exception) {
+                    closeActiveConversation()
+                    Log.e(TAG, "Vision inference failed: ${e.message}", e)
+                    null
+                }
             }
         }
+    }
+
+    /** Describe an image using its existing labels (no vision, text-only, safe). */
+    suspend fun describeFromLabels(
+        context: Context,
+        labels: List<String>
+    ): String? {
+        if (loadFailed) return null
+        if (labels.isEmpty()) return null
+        val labelStr = labels.joinToString(", ")
+        return complete(
+            context,
+            "A photo was analyzed and these objects were detected: $labelStr.\n" +
+            "Write a single factual sentence describing what is likely in this photo. " +
+            "Only mention what the detected objects confirm. " +
+            "Do NOT guess gender, age, emotions, or identity of people — just say 'person' or 'people'. " +
+            "Output only the description, nothing else.",
+            temperature = 0.3
+        )
+    }
+
+    /** Answer a question about a photo using its labels and description (text-only, safe). */
+    suspend fun askAboutPhoto(
+        context: Context,
+        labels: List<String>,
+        description: String,
+        question: String
+    ): String? {
+        if (loadFailed) return null
+        val context2 = buildString {
+            append("Detected objects in photo: ${labels.joinToString(", ")}.")
+            if (description.isNotEmpty()) append(" Description: $description.")
+        }
+        return complete(
+            context,
+            "Photo analysis: $context2\n\nQuestion: $question\n\n" +
+            "Answer based only on what was detected. If you cannot determine the answer from the detected objects, say so. " +
+            "Do NOT guess gender, age, or identity. Be concise.",
+            temperature = 0.3
+        )
     }
 
     /** Extract text from a Message response. */
