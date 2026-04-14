@@ -2405,7 +2405,9 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
 
                 // AI labels (above action bar, pass-through touches)
                 viewerPhoto?.let { vp ->
-                    // AI vision disabled until LiteRT-LM 0.10.1 fixes CPU multimodal crash
+                    // AI vision disabled — model file has "VisionExecutorSettings: Not set"
+                    // Need updated model from HuggingFace with fixed vision metadata
+                    // Text AI (notes) works fine on GPU
                     val aiAvailable = false
                     var aiDescription by remember(vp.id) { mutableStateOf(photoIndex?.getDescription(vp.id) ?: "") }
                     var aiDescLoading by remember(vp.id) { mutableStateOf(false) }

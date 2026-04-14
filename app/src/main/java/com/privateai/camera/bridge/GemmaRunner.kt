@@ -106,22 +106,46 @@ object GemmaRunner {
 
         withContext(Dispatchers.IO) {
             try {
+                // Clean stale engine caches from previous backend attempts
+                val modelDir = modelFile.parentFile
+                modelDir?.listFiles()?.forEach { f ->
+                    if (f.name.endsWith(".xnnpack_cache") || f.name.endsWith("_mldrift_program_cache.bin")) {
+                        f.delete()
+                        Log.d(TAG, "Deleted stale cache: ${f.name}")
+                    }
+                }
+
                 // Mark as "loading" — if app crashes during this, we know on next launch
                 prefs.edit().putBoolean("load_crashed", true).commit()
 
-                // CPU backend — GPU requires OpenCL which many devices lack.
-                // Vision (multimodal) is disabled until LiteRT-LM 0.10.1 fixes CPU vision crash.
-                val config = EngineConfig(
-                    modelPath = modelFile.absolutePath,
-                    backend = Backend.CPU()
-                )
-                val eng = Engine(config)
-                eng.initialize()
+                // Try GPU first (faster, bypasses CPU vision crash in 0.10.0)
+                // Fall back to CPU if GPU/OpenCL not available
+                var eng: Engine? = null
+                var usedBackend = "unknown"
+                try {
+                    Log.i(TAG, "Attempting GPU backend...")
+                    val gpuConfig = EngineConfig(modelPath = modelFile.absolutePath, backend = Backend.GPU())
+                    eng = Engine(gpuConfig)
+                    eng.initialize()
+                    usedBackend = "GPU"
+                } catch (gpuErr: Exception) {
+                    Log.w(TAG, "GPU failed (${gpuErr.message}), falling back to CPU...")
+                    try { eng?.close() } catch (_: Exception) {}
+                    eng = null
+                    // Clean GPU cache before CPU attempt
+                    modelFile.parentFile?.listFiles()?.forEach { f ->
+                        if (f.name.contains("mldrift")) { f.delete() }
+                    }
+                    val cpuConfig = EngineConfig(modelPath = modelFile.absolutePath, backend = Backend.CPU())
+                    eng = Engine(cpuConfig)
+                    eng.initialize()
+                    usedBackend = "CPU"
+                }
                 engine = eng
 
                 // Load succeeded — clear the crash flag
                 prefs.edit().putBoolean("load_crashed", false).apply()
-                Log.i(TAG, "Gemma 4 engine loaded successfully")
+                Log.i(TAG, "Gemma 4 engine loaded successfully (backend=$usedBackend)")
             } catch (e: Exception) {
                 prefs.edit().putBoolean("load_crashed", false).apply()
                 loadFailed = true
@@ -152,6 +176,53 @@ object GemmaRunner {
     }
 
     fun isLoaded(): Boolean = engine != null
+
+    /** Reload engine on CPU backend after GPU failure. */
+    private fun reloadOnCpu(context: Context) {
+        try {
+            closeActiveConversation()
+            engine?.close()
+            engine = null
+            // Clean GPU caches
+            getModelFile(context).parentFile?.listFiles()?.forEach { f ->
+                if (f.name.contains("mldrift") || f.name.endsWith(".xnnpack_cache")) f.delete()
+            }
+            val config = EngineConfig(
+                modelPath = getModelFile(context).absolutePath,
+                backend = Backend.CPU()
+            )
+            val eng = Engine(config)
+            eng.initialize()
+            engine = eng
+            Log.i(TAG, "Engine reloaded on CPU backend")
+        } catch (e: Exception) {
+            Log.e(TAG, "CPU reload also failed: ${e.message}", e)
+            loadFailed = true
+        }
+    }
+
+    /** Retry a text completion after backend switch. */
+    private fun retryComplete(prompt: String, systemInstruction: String, temperature: Double): String? {
+        val eng = engine ?: return null
+        return try {
+            closeActiveConversation()
+            val conversation = eng.createConversation(
+                ConversationConfig(
+                    systemInstruction = if (systemInstruction.isNotEmpty()) Contents.of(Content.Text(systemInstruction)) else null,
+                    samplerConfig = SamplerConfig(topK = 40, topP = 0.95, temperature = temperature)
+                )
+            )
+            activeConversation = conversation
+            val response = conversation.sendMessage(prompt)
+            closeActiveConversation()
+            Log.i(TAG, "Retry on CPU succeeded")
+            extractText(response)
+        } catch (e: Exception) {
+            closeActiveConversation()
+            Log.e(TAG, "Retry on CPU also failed: ${e.message}", e)
+            null
+        }
+    }
 
     // ── Text inference ───────────────────────────────────────────────
 
@@ -189,6 +260,12 @@ object GemmaRunner {
                 } catch (e: Exception) {
                     closeActiveConversation()
                     Log.e(TAG, "Inference failed: ${e.message}", e)
+                    // If GPU failed with OpenCL error, retry on CPU
+                    if (e.message?.contains("OpenCL") == true) {
+                        Log.w(TAG, "GPU inference failed — reloading engine on CPU...")
+                        reloadOnCpu(context)
+                        return@withContext retryComplete(prompt, systemInstruction, temperature)
+                    }
                     null
                 }
             }
