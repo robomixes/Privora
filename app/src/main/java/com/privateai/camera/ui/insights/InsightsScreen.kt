@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +36,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -203,8 +210,78 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
         return
     }
 
-    // Unlocked — show tabs
-    val tabs = listOf(stringResource(R.string.tab_expenses) to Icons.Default.AttachMoney, stringResource(R.string.tab_health) to Icons.Default.FitnessCenter, stringResource(R.string.tab_habits) to Icons.Default.CheckCircle)
+    // Unlocked — show tabs (Schedule promoted to top-level Reminders feature in Phase G)
+    val tabs = listOf(
+        stringResource(R.string.tab_expenses) to Icons.Default.AttachMoney,
+        stringResource(R.string.tab_health) to Icons.Default.FitnessCenter,
+        stringResource(R.string.tab_medications) to Icons.Default.LocalPharmacy,
+        stringResource(R.string.tab_habits) to Icons.Default.CheckCircle
+    )
+
+    // Shared profile filter — hoisted so all tabs respect the same selection
+    var profiles by remember {
+        // One-time orphan cleanup: drop HealthProfiles whose linked contact was deleted
+        try {
+            val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+            val contactRepo = com.privateai.camera.security.ContactRepository(
+                java.io.File(context.filesDir, "vault/contacts"), crypto, db
+            )
+            val validContactIds = contactRepo.listContacts().map { it.id }.toSet()
+            val all = repo.loadProfiles()
+            val orphans = all.filter { it.personId != null && it.personId !in validContactIds }
+            if (orphans.isNotEmpty()) {
+                // Drop orphans + their health entries
+                val healthEntries = repo.listHealthEntries()
+                orphans.forEach { orphan ->
+                    healthEntries.filter { it.profileId == orphan.id }.forEach { repo.deleteHealthEntry(it.id) }
+                }
+                val cleaned = all.filterNot { orphans.contains(it) }
+                repo.saveProfiles(cleaned)
+                mutableStateOf(cleaned)
+            } else mutableStateOf(all)
+        } catch (_: Exception) { mutableStateOf(repo.loadProfiles()) }
+    }
+    val initialProfileId = remember(filterPersonId) {
+        if (filterPersonId != null) profiles.find { it.personId == filterPersonId }?.id ?: SELF_PROFILE_ID
+        else SELF_PROFILE_ID
+    }
+    var selectedProfileId by remember { mutableStateOf(initialProfileId) }
+
+    // Callback that HealthTab can call to refresh the shared profiles list
+    val refreshProfiles: () -> Unit = { profiles = repo.loadProfiles() }
+
+    // Contact picker dialog state for linking a new profile
+    var showLinkDialog by remember { mutableStateOf(false) }
+
+    if (showLinkDialog) {
+        LinkProfileDialog(
+            crypto = crypto,
+            existingProfilePersonIds = profiles.mapNotNull { it.personId }.toSet(),
+            onPicked = { contact ->
+                val newProfile = com.privateai.camera.security.HealthProfile(
+                    name = contact.name,
+                    personId = contact.id
+                )
+                repo.saveProfiles(profiles + newProfile)
+                profiles = repo.loadProfiles()
+                selectedProfileId = newProfile.id
+                showLinkDialog = false
+            },
+            onDismiss = { showLinkDialog = false }
+        )
+    }
+
+    // Pull self contact name for the "Me" chip label
+    val selfLabel = remember {
+        try {
+            val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+            val contactRepo = com.privateai.camera.security.ContactRepository(
+                java.io.File(context.filesDir, "vault/contacts"), crypto, db
+            )
+            contactRepo.ensureSelfContact(context.getString(R.string.health_myself))
+            contactRepo.getSelfContact()?.name ?: context.getString(R.string.health_myself)
+        } catch (_: Exception) { context.getString(R.string.health_myself) }
+    }
 
     Scaffold(topBar = {
         TopAppBar(title = { Text(stringResource(R.string.insights_title)) }, navigationIcon = {
@@ -212,6 +289,31 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
         })
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
+            // Profile filter chips — shown only on tabs that are actually profile-scoped.
+            // Expenses (tab 0) is always for the self profile (no person linkage), so the
+            // chip row is hidden there to avoid implying a filter that does nothing.
+            // During duress, show only "Me" (no family profiles, no add button) — same as all other data hidden.
+            val showProfileFilter = selectedTab != 0
+            if (showProfileFilter) {
+                ProfileFilter(
+                    profiles = if (isDuressActive) emptyList() else profiles,
+                    selectedProfileId = if (isDuressActive) SELF_PROFILE_ID else selectedProfileId,
+                    onProfileSelected = { if (!isDuressActive) selectedProfileId = it },
+                    onAddProfile = { if (!isDuressActive) showLinkDialog = true },
+                    onRemoveProfile = { prof ->
+                        if (isDuressActive) return@ProfileFilter
+                        repo.listHealthEntries()
+                            .filter { it.profileId == prof.id }
+                            .forEach { repo.deleteHealthEntry(it.id) }
+                        val remaining = profiles.filter { it.id != prof.id }
+                        repo.saveProfiles(remaining)
+                        profiles = remaining
+                    },
+                    selfLabel = selfLabel,
+                    showAddButton = !isDuressActive
+                )
+            }
+
             TabRow(selectedTabIndex = selectedTab) {
                 tabs.forEachIndexed { i, (title, icon) ->
                     Tab(selected = selectedTab == i, onClick = { selectedTab = i },
@@ -227,12 +329,68 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
                     }
                 } else {
                     when (selectedTab) {
-                        0 -> ExpensesTab(repo)
-                        1 -> HealthTab(repo, filterPersonId = filterPersonId)
-                        2 -> HabitsTab(repo)
+                        // Expenses always uses self — pass SELF_PROFILE_ID so user-side filter is moot.
+                        0 -> ExpensesTab(repo, selectedProfileId = SELF_PROFILE_ID)
+                        1 -> HealthTab(repo, selectedProfileId = selectedProfileId, onProfilesChanged = refreshProfiles)
+                        2 -> MedicationsTab(repo, selectedProfileId = selectedProfileId)
+                        3 -> HabitsTab(repo, selectedProfileId = selectedProfileId)
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun LinkProfileDialog(
+    crypto: com.privateai.camera.security.CryptoManager,
+    existingProfilePersonIds: Set<String>,
+    onPicked: (com.privateai.camera.security.PrivateContact) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val contacts = remember {
+        try {
+            val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+            val contactRepo = com.privateai.camera.security.ContactRepository(
+                java.io.File(context.filesDir, "vault/contacts"), crypto, db
+            )
+            contactRepo.listContacts().filter {
+                it.id != com.privateai.camera.security.ContactRepository.SELF_CONTACT_ID &&
+                        it.id !in existingProfilePersonIds
+            }
+        } catch (_: Exception) { emptyList() }
+    }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Link a profile") },
+        text = {
+            if (contacts.isEmpty()) {
+                Text("No contacts to link. Add someone in People first, or all your contacts are already linked.")
+            } else {
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    contacts.forEach { contact ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { onPicked(contact) }
+                                .padding(vertical = 12.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text("👤", style = MaterialTheme.typography.titleMedium)
+                            Text(contact.name, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

@@ -64,9 +64,11 @@ private val CAT_COLORS = listOf(
 )
 
 @Composable
-fun ExpensesTab(repo: InsightsRepository) {
+fun ExpensesTab(repo: InsightsRepository, selectedProfileId: String = SELF_PROFILE_ID) {
     val context = LocalContext.current
-    var allExpenses by remember { mutableStateOf(repo.listExpenses()) }
+    var allExpenses by remember(selectedProfileId) {
+        mutableStateOf(repo.listExpenses().filter { it.profileId == selectedProfileId })
+    }
     var showAddDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("MMM dd", Locale.getDefault()) }
@@ -92,7 +94,10 @@ fun ExpensesTab(repo: InsightsRepository) {
 
     if (showAddDialog) {
         AddExpenseDialog(onDismiss = { showAddDialog = false }, onSave = { expense ->
-            repo.saveExpense(expense); allExpenses = repo.listExpenses(); showAddDialog = false
+            // Tag with currently-selected profile so it shows up when filter applied
+            repo.saveExpense(expense.copy(profileId = selectedProfileId))
+            allExpenses = repo.listExpenses().filter { it.profileId == selectedProfileId }
+            showAddDialog = false
         })
     }
 
@@ -164,7 +169,7 @@ fun ExpensesTab(repo: InsightsRepository) {
                             Text("${expense.category} • ${dateFormat.format(Date(expense.date))}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Text("${"%.2f".format(expense.amount)}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                        IconButton(onClick = { repo.deleteExpense(expense.id); allExpenses = repo.listExpenses() }, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = { repo.deleteExpense(expense.id); allExpenses = repo.listExpenses().filter { it.profileId == selectedProfileId } }, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Default.Delete, stringResource(R.string.action_delete), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                         }
                     }

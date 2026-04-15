@@ -52,6 +52,18 @@ class MainActivity : AppCompatActivity() {
         // Create notification channel for AI model download
         com.privateai.camera.service.GemmaDownloadService.createNotificationChannel(this)
 
+        // Create reminders notification channel + enqueue daily missed-sweep worker
+        com.privateai.camera.service.ReminderReceiver.createNotificationChannel(this)
+        com.privateai.camera.service.MissedSweepWorker.enqueue(this)
+
+        // Request POST_NOTIFICATIONS (Android 13+) — best-effort, silent fail if denied
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1001)
+            }
+        }
+
         // Clean up any leftover files from interrupted duress wipe
         Thread { DuressManager.deleteMarkedFiles(this) }.start()
 

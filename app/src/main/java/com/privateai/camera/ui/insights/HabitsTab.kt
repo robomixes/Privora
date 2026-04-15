@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -51,6 +53,10 @@ import com.privateai.camera.R
 import com.privateai.camera.security.Habit
 import com.privateai.camera.security.HabitLog
 import com.privateai.camera.security.InsightsRepository
+import com.privateai.camera.security.ScheduleKind
+import com.privateai.camera.ui.reminders.ReminderEditorState
+import com.privateai.camera.ui.reminders.ReminderLinker
+import com.privateai.camera.ui.reminders.RemindersEditor
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -60,9 +66,14 @@ private val HABIT_EMOJIS = listOf("💪", "💧", "🧘", "📖", "🏃", "🍎"
 private val HABIT_COLORS = listOf(0xFF4CAF50, 0xFF2196F3, 0xFFFF9800, 0xFFE91E63, 0xFF9C27B0, 0xFF00BCD4)
 
 @Composable
-fun HabitsTab(repo: InsightsRepository) {
+fun HabitsTab(
+    repo: InsightsRepository,
+    selectedProfileId: String = SELF_PROFILE_ID
+) {
     val context = LocalContext.current
-    var habits by remember { mutableStateOf(repo.loadHabits()) }
+    var habits by remember(selectedProfileId) {
+        mutableStateOf(repo.loadHabits().filter { it.profileId == selectedProfileId })
+    }
     val fmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
     val dayFmt = remember { SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()) }
 
@@ -85,10 +96,37 @@ fun HabitsTab(repo: InsightsRepository) {
         selectedLog = repo.loadHabitLog(date)
     }
 
+    // Helper: save only the current profile's habits without dropping habits from other profiles
+    fun saveHabitsForCurrentProfile(newProfileHabits: List<com.privateai.camera.security.Habit>) {
+        val otherProfiles = repo.loadHabits().filter { it.profileId != selectedProfileId }
+        repo.saveHabits(otherProfiles + newProfileHabits)
+    }
+
     if (showAddDialog) {
-        AddHabitDialog(onDismiss = { showAddDialog = false }, onSave = { habit ->
-            habits = habits + habit; repo.saveHabits(habits); showAddDialog = false
-        })
+        AddHabitDialog(
+            repo = repo,
+            onDismiss = { showAddDialog = false },
+            onSave = { habit, reminderState ->
+                // 1. Stamp profileId then run the reminder lifecycle BEFORE saving the habit list,
+                //    so the final habit row carries the linked scheduleId from the start.
+                val withProfile = habit.copy(profileId = selectedProfileId)
+                val newScheduleId = ReminderLinker.apply(
+                    context = context,
+                    repo = repo,
+                    sourceId = withProfile.id,
+                    kind = ScheduleKind.HABIT,
+                    title = withProfile.name,
+                    profileId = withProfile.profileId,
+                    priorScheduleId = withProfile.scheduleId,
+                    state = reminderState
+                )
+                val finalHabit = withProfile.copy(scheduleId = newScheduleId)
+                val newHabits = habits + finalHabit
+                habits = newHabits
+                saveHabitsForCurrentProfile(newHabits)
+                showAddDialog = false
+            }
+        )
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -135,7 +173,18 @@ fun HabitsTab(repo: InsightsRepository) {
                             Text(habit.name, style = MaterialTheme.typography.bodyLarge)
                             if (streak > 0 && isToday) Text(stringResource(R.string.habits_day_streak, streak), style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9800))
                         }
-                        IconButton(onClick = { habits = habits.filter { it.id != habit.id }; repo.saveHabits(habits) }, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = {
+                            // Cascade: cancel + delete any linked reminder before removing the habit
+                            habit.scheduleId?.let { sid ->
+                                repo.loadScheduleItem(sid)?.let { item ->
+                                    com.privateai.camera.service.ReminderScheduler.cancelItem(context, item.id, item.timesOfDay)
+                                }
+                                repo.deleteScheduleItem(sid)
+                            }
+                            val filtered = habits.filter { it.id != habit.id }
+                            habits = filtered
+                            saveHabitsForCurrentProfile(filtered)
+                        }, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Default.Delete, stringResource(R.string.action_delete), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -263,15 +312,23 @@ fun HabitsTab(repo: InsightsRepository) {
 }
 
 @Composable
-private fun AddHabitDialog(onDismiss: () -> Unit, onSave: (Habit) -> Unit) {
+private fun AddHabitDialog(
+    repo: InsightsRepository,
+    onDismiss: () -> Unit,
+    onSave: (Habit, ReminderEditorState) -> Unit
+) {
     var name by remember { mutableStateOf("") }
     var emoji by remember { mutableStateOf("💪") }
     var color by remember { mutableStateOf(HABIT_COLORS[0]) }
+    var reminderState by remember { mutableStateOf(ReminderEditorState()) }
 
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(stringResource(R.string.habits_new_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.label_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 Text(stringResource(R.string.label_icon))
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -284,9 +341,19 @@ private fun AddHabitDialog(onDismiss: () -> Unit, onSave: (Habit) -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     HABIT_COLORS.forEach { c -> Box(Modifier.size(32.dp).background(Color(c), CircleShape).then(if (color == c) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier).clickable { color = c }) }
                 }
+                // Optional reminder — when on, a linked ScheduleItem with kind=HABIT is created on save
+                RemindersEditor(state = reminderState, onChange = { reminderState = it })
             }
         },
-        confirmButton = { TextButton(onClick = { if (name.isNotBlank()) onSave(Habit(name = name, icon = emoji, color = color.toInt())) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.action_create)) } },
+        confirmButton = {
+            val canSave = name.isNotBlank() && reminderState.isValid
+            TextButton(
+                onClick = {
+                    if (canSave) onSave(Habit(name = name, icon = emoji, color = color.toInt()), reminderState)
+                },
+                enabled = canSave
+            ) { Text(stringResource(R.string.action_create)) }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }

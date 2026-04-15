@@ -215,6 +215,7 @@ fun ContactsScreen(
         if (page != ContactsPage.LOCKED && contacts.isEmpty() && !isDuressActive) {
             if (!crypto.isUnlocked()) crypto.initialize()
             if (crypto.isUnlocked()) {
+                contactRepo.ensureSelfContact(context.getString(R.string.health_myself))
                 contacts = contactRepo.listContacts()
                 allGroups = contactRepo.getGroups()
                 if (page == ContactsPage.PROFILE) {
@@ -303,12 +304,35 @@ fun ContactsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    /** Cascade-delete a contact: removes linked HealthProfile + all their health entries. */
+    fun deleteContactCascade(contactId: String) {
+        if (contactId == com.privateai.camera.security.ContactRepository.SELF_CONTACT_ID) return
+        try {
+            val insightsRepo = com.privateai.camera.security.InsightsRepository(
+                java.io.File(context.filesDir, "vault/insights"), crypto
+            )
+            val linkedProfiles = insightsRepo.loadProfiles().filter { it.personId == contactId }
+            if (linkedProfiles.isNotEmpty()) {
+                // Delete health entries for each linked profile
+                val allEntries = insightsRepo.listHealthEntries()
+                linkedProfiles.forEach { prof ->
+                    allEntries.filter { it.profileId == prof.id }.forEach { insightsRepo.deleteHealthEntry(it.id) }
+                }
+                // Remove the profile records
+                val remaining = insightsRepo.loadProfiles().filter { it.personId != contactId }
+                insightsRepo.saveProfiles(remaining)
+            }
+        } catch (_: Exception) {}
+        contactRepo.deleteContact(contactId)
+    }
+
     fun refreshContacts() {
         if (isDuressActive) {
             contacts = emptyList()
             allGroups = emptyList()
             return
         }
+        contactRepo.ensureSelfContact(context.getString(R.string.health_myself))
         val all = contactRepo.listContacts()
         contacts = when {
             searchQuery.isNotBlank() -> all.filter { c ->
@@ -488,7 +512,7 @@ fun ContactsScreen(
             text = { Text("Delete \"${contactToDelete!!.name}\"? This cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
-                    contactToDelete?.let { contactRepo.deleteContact(it.id) }
+                    contactToDelete?.let { deleteContactCascade(it.id) }
                     showDeleteDialog = false
                     contactToDelete = null
                     refreshContacts()
@@ -812,7 +836,13 @@ fun ContactsScreen(
                                     ContactCard(
                                         contact = contact,
                                         onClick = { editingContact = contact; savedContactId = contact.id; page = ContactsPage.PROFILE },
-                                        onLongClick = { contactToDelete = contact; showDeleteDialog = true },
+                                        onLongClick = {
+                                            // Self contact is non-deletable — ignore long press
+                                            if (contact.id != com.privateai.camera.security.ContactRepository.SELF_CONTACT_ID) {
+                                                contactToDelete = contact
+                                                showDeleteDialog = true
+                                            }
+                                        },
                                         onCall = { dialPhone(context, contact.phone) },
                                         onSms = { sendSms(context, contact.phone) }
                                     )
@@ -833,7 +863,13 @@ fun ContactsScreen(
                                     ContactCard(
                                         contact = contact,
                                         onClick = { editingContact = contact; savedContactId = contact.id; page = ContactsPage.PROFILE },
-                                        onLongClick = { contactToDelete = contact; showDeleteDialog = true },
+                                        onLongClick = {
+                                            // Self contact is non-deletable — ignore long press
+                                            if (contact.id != com.privateai.camera.security.ContactRepository.SELF_CONTACT_ID) {
+                                                contactToDelete = contact
+                                                showDeleteDialog = true
+                                            }
+                                        },
                                         onCall = { dialPhone(context, contact.phone) },
                                         onSms = { sendSms(context, contact.phone) }
                                     )
@@ -933,7 +969,25 @@ fun ContactsScreen(
                                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text("Connected", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(bottom = 8.dp))
                                     // Health link
-                                    Row(Modifier.fillMaxWidth().clickable { ContactsNavState.save(ContactsPage.PROFILE, contact.id); onNavigateToInsights?.invoke(contact.id) }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    Row(Modifier.fillMaxWidth().clickable {
+                                        // Ensure a HealthProfile exists for this contact (auto-create on first tap)
+                                        if (contact.id != com.privateai.camera.security.ContactRepository.SELF_CONTACT_ID) {
+                                            try {
+                                                val c = CryptoManager(context).also { it.initialize() }
+                                                val repo = com.privateai.camera.security.InsightsRepository(java.io.File(context.filesDir, "vault/insights"), c)
+                                                val existing = repo.loadProfiles()
+                                                if (existing.none { it.personId == contact.id }) {
+                                                    val newProfile = com.privateai.camera.security.HealthProfile(
+                                                        name = contact.name,
+                                                        personId = contact.id
+                                                    )
+                                                    repo.saveProfiles(existing + newProfile)
+                                                }
+                                            } catch (_: Exception) {}
+                                        }
+                                        ContactsNavState.save(ContactsPage.PROFILE, contact.id)
+                                        onNavigateToInsights?.invoke(contact.id)
+                                    }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                         Box(Modifier.size(36.dp).background(Color(0xFFE91E63).copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) {
                                             Icon(Icons.Default.Favorite, null, Modifier.size(18.dp), tint = Color(0xFFE91E63))
                                         }
@@ -1084,7 +1138,7 @@ fun ContactsScreen(
                     page = ContactsPage.PROFILE
                 },
                 onDelete = {
-                    editingContact?.let { contactRepo.deleteContact(it.id) }
+                    editingContact?.let { deleteContactCascade(it.id) }
                     refreshContacts()
                     page = ContactsPage.LIST
                 },
@@ -1205,7 +1259,8 @@ private fun ContactEditorScreen(
                             tint = if (isFavorite) Color(0xFFFFC107) else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    if (!isNew) {
+                    // Hide delete for the non-deletable "Myself" contact
+                    if (!isNew && contact?.id != com.privateai.camera.security.ContactRepository.SELF_CONTACT_ID) {
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
                         }

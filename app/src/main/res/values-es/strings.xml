@@ -55,6 +55,14 @@
     <string name="feature_notes_desc">Notas seguras cifradas</string>
     <string name="feature_insights">Análisis</string>
     <string name="feature_insights_desc">Gastos, salud, hábitos</string>
+    <string name="feature_reminders">Recordatorios</string>
+    <string name="feature_reminders_desc">Alarmas y tareas programadas</string>
+    <string name="reminders_title">Recordatorios</string>
+    <string name="reminders_locked">Los recordatorios están bloqueados</string>
+    <string name="reminders_unlock_title">Desbloquear recordatorios</string>
+    <string name="reminders_unlock_subtitle">Autentícate para acceder a tus recordatorios</string>
+    <string name="reminder_set_reminder">Establecer recordatorio</string>
+    <string name="reminder_summary_label">🔔 Recordatorio</string>
     <string name="feature_tools">Herramientas</string>
     <string name="feature_tools_desc">Conversor de unidades</string>
     <string name="settings_reorder_hint">Usa las flechas para reordenar. Las funciones desactivadas se ocultan de la pantalla principal.</string>
@@ -206,6 +214,48 @@
     <string name="tab_expenses">Gastos</string>
     <string name="tab_health">Salud</string>
     <string name="tab_habits">Hábitos</string>
+    <string name="tab_medications">Meds</string>
+
+    <!-- Medications tab -->
+    <string name="medications_title">Medicamentos</string>
+    <string name="medications_add">Añadir medicamento</string>
+    <string name="medications_edit">Editar medicamento</string>
+    <string name="medications_empty">Sin medicamentos</string>
+    <string name="medications_empty_hint">Toca + para añadir</string>
+    <string name="medications_name">Nombre</string>
+    <string name="medications_dosage">Dosis</string>
+    <string name="medications_instructions">Instrucciones</string>
+    <string name="medications_since">Desde</string>
+
+    <!-- Schedule tab -->
+    <string name="tab_schedule">Horario</string>
+    <string name="schedule_add">Añadir recordatorio</string>
+    <string name="schedule_edit">Editar recordatorio</string>
+    <string name="schedule_today">Hoy</string>
+    <string name="schedule_nothing_today">Nada programado para hoy.</string>
+    <string name="schedule_all">Todos los recordatorios</string>
+    <string name="schedule_empty_hint">Toca + para crear un recordatorio.</string>
+    <string name="schedule_title_field">Título</string>
+    <string name="schedule_times_field">Horas (HH:mm separadas por comas)</string>
+    <string name="schedule_times_field_simple">Horas</string>
+    <string name="schedule_add_time">Añadir hora</string>
+    <string name="schedule_pick_time">Elegir hora</string>
+    <string name="schedule_pick_at_least_one">Añade al menos una hora</string>
+    <string name="schedule_permission_title">Permitir recordatorios exactos</string>
+    <string name="schedule_permission_message">Para que los recordatorios suenen a la hora exacta, Privora necesita permiso para programar alarmas exactas.</string>
+    <string name="schedule_permission_grant">Abrir ajustes</string>
+    <string name="schedule_mode_one_time">Una vez</string>
+    <string name="schedule_mode_recurring">Recurrente</string>
+    <string name="schedule_pick_date">Elegir fecha</string>
+    <string name="schedule_time_in_past">La hora elegida ya pasó.</string>
+    <string name="schedule_days_field">Días de la semana</string>
+    <string name="schedule_every_day_hint">Sin días seleccionados — se activa cada día.</string>
+    <string name="schedule_done">Hecho</string>
+    <string name="schedule_skip">Omitir</string>
+    <string name="schedule_undo">Deshacer</string>
+    <string name="schedule_state_done">Hecho</string>
+    <string name="schedule_state_skipped">Omitido</string>
+    <string name="schedule_state_missed">Perdido</string>
 
     <!-- Expenses tab -->
     <string name="expenses_total">Total</string>

@@ -89,54 +89,28 @@ fun HomeTabsLayout(
     onSettingsClick: () -> Unit
 ) {
     val context = LocalContext.current
-    var isVaultUnlocked by remember { mutableStateOf(VaultLockManager.isUnlockedWithinGrace(context)) }
-    var showMoreSheet by remember { mutableStateOf(false) }
-
-    val tabFeatures = visibleFeatures.take(4)
-    val moreFeatures = visibleFeatures.drop(4)
-
-    // "More" bottom sheet
-    if (showMoreSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showMoreSheet = false },
-            sheetState = rememberModalBottomSheetState()
-        ) {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(
-                    stringResource(R.string.home_more),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-                if (moreFeatures.isEmpty()) {
-                    Text(
-                        "All features shown as tabs",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(moreFeatures) { feature ->
-                            MoreSheetItem(feature = feature, onClick = {
-                                showMoreSheet = false
-                                onFeatureClick(feature.route)
-                            })
-                        }
-                    }
-                }
-                Spacer(Modifier.height(24.dp))
-            }
-        }
+    // Session flag — true when ANY session is active (normal unlock OR duress)
+    // so the lock button is shown and the user can always re-lock to escape duress.
+    var hasActiveSession by remember { mutableStateOf(VaultLockManager.isUnlockedWithinGrace(context)) }
+    // Treat duress mode as "locked" for data rendering — no real data leaks through greeting / recent activity / AI tip
+    var isVaultUnlocked by remember {
+        mutableStateOf(VaultLockManager.isUnlockedWithinGrace(context) && !VaultLockManager.isDuressActive)
     }
+    // Tabs + More sheet moved to app-level PrivoraBottomTabs. This composable only provides
+    // the top bar + greeting/recent-activity/tip body. onFeatureClick is still accepted
+    // because some cards (Recent Activity rows) may navigate to features directly.
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name_home)) },
                 actions = {
-                    if (isVaultUnlocked) {
+                    // Lock button shown whenever a session is active (normal OR duress),
+                    // so the user can always re-lock to escape duress and enter the real PIN.
+                    if (hasActiveSession) {
                         IconButton(onClick = {
                             VaultLockManager.lock()
+                            hasActiveSession = false
                             isVaultUnlocked = false
                             Toast.makeText(context, context.getString(R.string.vault_notes_locked), Toast.LENGTH_SHORT).show()
                         }, modifier = Modifier
@@ -159,36 +133,8 @@ fun HomeTabsLayout(
                     }
                 }
             )
-        },
-        bottomBar = {
-            NavigationBar {
-                tabFeatures.forEach { feature ->
-                    val label = stringResource(feature.labelRes)
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = { onFeatureClick(feature.route) },
-                        icon = {
-                            Icon(feature.icon, contentDescription = label, tint = feature.iconColor)
-                        },
-                        label = {
-                            Text(label, maxLines = 1, style = MaterialTheme.typography.labelSmall)
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            unselectedIconColor = feature.iconColor,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurface
-                        )
-                    )
-                }
-                if (moreFeatures.isNotEmpty()) {
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = { showMoreSheet = true },
-                        icon = { Icon(Icons.Default.MoreHoriz, contentDescription = stringResource(R.string.home_more)) },
-                        label = { Text(stringResource(R.string.home_more), maxLines = 1, style = MaterialTheme.typography.labelSmall) }
-                    )
-                }
-            }
         }
+        // bottomBar removed — app-level Scaffold in PrivateAICameraApp provides persistent tabs
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -198,8 +144,8 @@ fun HomeTabsLayout(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Greeting
-            GreetingHeader()
+            // Greeting — include self contact name when vault is unlocked
+            GreetingHeader(isVaultUnlocked = isVaultUnlocked)
 
             // Recent activity (only when unlocked)
             if (isVaultUnlocked) {
@@ -215,11 +161,36 @@ fun HomeTabsLayout(
 }
 
 @Composable
-private fun GreetingHeader() {
+private fun GreetingHeader(isVaultUnlocked: Boolean) {
     val context = LocalContext.current
     val greeting = remember { getTimeBasedGreeting(context) }
+    var selfName by remember { mutableStateOf<String?>(null) }
+
+    // Only pull the self name when unlocked (contacts DB requires crypto)
+    LaunchedEffect(isVaultUnlocked) {
+        if (!isVaultUnlocked) {
+            selfName = null
+            return@LaunchedEffect
+        }
+        withContext(Dispatchers.IO) {
+            try {
+                val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
+                if (crypto.isUnlocked()) {
+                    val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+                    val contactRepo = com.privateai.camera.security.ContactRepository(
+                        File(context.filesDir, "vault/contacts"), crypto, db
+                    )
+                    contactRepo.ensureSelfContact(context.getString(R.string.health_myself))
+                    selfName = contactRepo.getSelfContact()?.name
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    val name = selfName
     Text(
-        greeting,
+        if (!name.isNullOrBlank() && name != context.getString(R.string.health_myself)) "$greeting, $name"
+        else greeting,
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onSurface
@@ -501,35 +472,4 @@ private fun RecentActivityCard(onFeatureClick: (String) -> Unit) {
     }
 }
 
-@Composable
-private fun MoreSheetItem(feature: FeatureItem, onClick: () -> Unit) {
-    val label = stringResource(feature.labelRes)
-    val description = stringResource(feature.descriptionRes)
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = feature.bgColor)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Icon(
-                feature.icon,
-                contentDescription = null,
-                modifier = Modifier.size(32.dp),
-                tint = feature.iconColor
-            )
-            Column(Modifier.weight(1f)) {
-                Text(label, style = MaterialTheme.typography.titleSmall)
-                Text(
-                    description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
+// MoreSheetItem moved to PrivoraBottomTabs.kt

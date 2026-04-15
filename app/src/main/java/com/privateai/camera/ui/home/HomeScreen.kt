@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.NoteAlt
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
@@ -81,6 +82,7 @@ val features = listOf(
     FeatureItem("vault", R.string.feature_vault, R.string.feature_vault_desc, Icons.Default.Lock, Color(0xFFC62828), Color(0xFFFFCDD2)),
     FeatureItem("notes", R.string.feature_notes, R.string.feature_notes_desc, Icons.Default.NoteAlt, Color(0xFF4E342E), Color(0xFFD7CCC8)),
     FeatureItem("insights", R.string.feature_insights, R.string.feature_insights_desc, Icons.Default.BarChart, Color(0xFF00695C), Color(0xFFB2DFDB)),
+    FeatureItem("reminders", R.string.feature_reminders, R.string.feature_reminders_desc, Icons.Default.Notifications, Color(0xFFD32F2F), Color(0xFFFFCDD2)),
     FeatureItem("tools", R.string.feature_tools, R.string.feature_tools_desc, Icons.Default.Build, Color(0xFF37474F), Color(0xFFCFD8DC)),
     FeatureItem("contacts", R.string.feature_contacts, R.string.feature_contacts_desc, Icons.Default.Person, Color(0xFFEF6C00), Color(0xFFFFF3E0)),
 )

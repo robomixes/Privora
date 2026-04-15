@@ -19,7 +19,8 @@ data class Expense(
     val description: String,
     val date: Long = System.currentTimeMillis(),
     val receiptPhotoId: String? = null,
-    val personId: String? = null
+    val personId: String? = null,
+    val profileId: String = "self" // "self" or HealthProfile.id — unified with Health/Habits
 )
 
 data class HealthProfile(
@@ -51,12 +52,57 @@ data class Habit(
     val name: String,
     val icon: String = "✅",
     val color: Int = 0xFF4CAF50.toInt(),
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val profileId: String = "self", // "self" or HealthProfile.id
+    val scheduleId: String? = null  // optional linked ScheduleItem (Phase F)
 )
 
 data class HabitLog(
     val date: String, // "2026-04-03"
     val completed: Set<String> // habit IDs
+)
+
+data class Medication(
+    val id: String = UUID.randomUUID().toString(),
+    val profileId: String = "self",   // "self" or HealthProfile.id
+    val name: String,                 // "Aspirin 100mg"
+    val dosage: String = "",          // "1 pill", "5ml"
+    val instructions: String = "",    // "With food"
+    val startDate: Long = System.currentTimeMillis(),
+    val endDate: Long? = null,        // null = indefinite / ongoing
+    val scheduleId: String? = null,   // optional linked ScheduleItem
+    val notes: String = ""
+)
+
+enum class ScheduleKind { MEDICATION, HABIT, CUSTOM }
+enum class LogState { DONE, SKIPPED, MISSED }
+
+data class ScheduleItem(
+    val id: String = UUID.randomUUID().toString(),
+    val profileId: String = "self",
+    val kind: ScheduleKind = ScheduleKind.CUSTOM,
+    val sourceId: String? = null,         // Medication.id / Habit.id when linked
+    val title: String,                    // "Take Aspirin", "Gym", "Walk the dog"
+    val timesOfDay: List<String> = emptyList(), // ["08:00", "20:00"] — recurring mode
+    val daysOfWeek: Set<Int> = emptySet(),      // 1..7 (Mon..Sun); empty = every day — recurring mode
+    val oneShotAt: Long? = null,          // absolute epoch millis — fires once at this moment (non-recurring)
+    val enabled: Boolean = true,
+    val reminderMinutesBefore: Int = 0,
+    val notes: String = "",
+    val createdAt: Long = System.currentTimeMillis()
+) {
+    val isOneShot: Boolean get() = oneShotAt != null
+}
+
+data class ScheduleLogEntry(
+    val scheduleId: String,
+    val time: String,        // "08:00"
+    val state: LogState
+)
+
+data class ScheduleLog(
+    val date: String,                          // "2026-04-14"
+    val entries: List<ScheduleLogEntry> = emptyList()
 )
 
 val EXPENSE_CATEGORIES = listOf("Food", "Transport", "Shopping", "Bills", "Health", "Entertainment", "Education", "Other")
@@ -75,6 +121,45 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
     private val expensesDir = File(baseDir, "expenses").also { it.mkdirs() }
     private val healthDir = File(baseDir, "health").also { it.mkdirs() }
     private val habitsDir = File(baseDir, "habits").also { it.mkdirs() }
+    private val medsDir = File(baseDir, "medications").also { it.mkdirs() }
+
+    // Reminders storage moved to vault/reminders/ (Phase G — Reminders promoted to top-level feature).
+    // baseDir is vault/insights, so parent is vault/ — put reminders alongside insights.
+    private val remindersBaseDir = File(baseDir.parentFile, "reminders").also { it.mkdirs() }
+    private val scheduleDir = File(remindersBaseDir, "items").also { it.mkdirs() }
+    private val scheduleLogsDir = File(remindersBaseDir, "logs").also { it.mkdirs() }
+
+    init {
+        // One-shot migration from the old Insights-scoped paths to the new Reminders-scoped paths.
+        // Copy any files from vault/insights/schedule/ → vault/reminders/items/ and
+        // vault/insights/schedule_logs/ → vault/reminders/logs/, then delete the old dirs.
+        migrateLegacyScheduleDirs()
+    }
+
+    private fun migrateLegacyScheduleDirs() {
+        try {
+            val oldItems = File(baseDir, "schedule")
+            if (oldItems.exists() && oldItems.isDirectory) {
+                oldItems.listFiles()?.forEach { src ->
+                    val dst = File(scheduleDir, src.name)
+                    if (!dst.exists()) src.copyTo(dst, overwrite = false)
+                    src.delete()
+                }
+                oldItems.delete()
+            }
+            val oldLogs = File(baseDir, "schedule_logs")
+            if (oldLogs.exists() && oldLogs.isDirectory) {
+                oldLogs.listFiles()?.forEach { src ->
+                    val dst = File(scheduleLogsDir, src.name)
+                    if (!dst.exists()) src.copyTo(dst, overwrite = false)
+                    src.delete()
+                }
+                oldLogs.delete()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Schedule migration failed: ${e.message}")
+        }
+    }
 
     // ===== Expenses =====
 
@@ -84,6 +169,7 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
             put("category", expense.category); put("description", expense.description)
             put("date", expense.date); put("receiptPhotoId", expense.receiptPhotoId ?: "")
             put("personId", expense.personId ?: "")
+            put("profileId", expense.profileId)
         }.toString()
         crypto.encryptToFile(json.toByteArray(Charsets.UTF_8), File(expensesDir, "${expense.id}.expense.enc"))
     }
@@ -101,12 +187,16 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
                         category = obj.getString("category"), description = obj.getString("description"),
                         date = obj.getLong("date"),
                         receiptPhotoId = obj.optString("receiptPhotoId", "").ifEmpty { null },
-                        personId = obj.optString("personId", "").ifEmpty { null }
+                        personId = obj.optString("personId", "").ifEmpty { null },
+                        profileId = obj.optString("profileId", "self") // migration: existing = "self"
                     )
                 } catch (e: Exception) { Log.e(TAG, "Failed to load expense: ${e.message}"); null }
             }
             .sortedByDescending { it.date }
     }
+
+    fun listExpensesForProfile(profileId: String): List<Expense> =
+        listExpenses().filter { it.profileId == profileId }
 
     fun deleteExpense(id: String) {
         File(expensesDir, "$id.expense.enc").delete()
@@ -269,6 +359,8 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
             arr.put(JSONObject().apply {
                 put("id", h.id); put("name", h.name); put("icon", h.icon)
                 put("color", h.color); put("createdAt", h.createdAt)
+                put("profileId", h.profileId)
+                if (h.scheduleId != null) put("scheduleId", h.scheduleId)
             })
         }
         crypto.encryptToFile(arr.toString().toByteArray(Charsets.UTF_8), File(habitsDir, "habits_config.enc"))
@@ -286,11 +378,16 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
                     id = obj.getString("id"), name = obj.getString("name"),
                     icon = obj.optString("icon", "✅"),
                     color = obj.optInt("color", 0xFF4CAF50.toInt()),
-                    createdAt = obj.optLong("createdAt", 0)
+                    createdAt = obj.optLong("createdAt", 0),
+                    profileId = obj.optString("profileId", "self"), // migration
+                    scheduleId = obj.optString("scheduleId", "").ifEmpty { null }
                 )
             }
         } catch (e: Exception) { Log.e(TAG, "Failed to load habits: ${e.message}"); emptyList() }
     }
+
+    fun loadHabitsForProfile(profileId: String): List<Habit> =
+        loadHabits().filter { it.profileId == profileId }
 
     fun saveHabitLog(log: HabitLog) {
         val json = JSONObject().apply {
@@ -336,12 +433,173 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
         return streak
     }
 
+    // ===== Medications =====
+
+    fun saveMedication(med: Medication) {
+        val json = JSONObject().apply {
+            put("id", med.id)
+            put("profileId", med.profileId)
+            put("name", med.name)
+            put("dosage", med.dosage)
+            put("instructions", med.instructions)
+            put("startDate", med.startDate)
+            if (med.endDate != null) put("endDate", med.endDate)
+            if (med.scheduleId != null) put("scheduleId", med.scheduleId)
+            put("notes", med.notes)
+        }.toString()
+        crypto.encryptToFile(json.toByteArray(Charsets.UTF_8), File(medsDir, "${med.id}.med.enc"))
+    }
+
+    fun listMedications(): List<Medication> {
+        return (medsDir.listFiles() ?: emptyArray())
+            .filter { it.name.endsWith(".med.enc") }
+            .mapNotNull { file ->
+                try {
+                    val json = String(crypto.decryptFile(file), Charsets.UTF_8)
+                    val obj = JSONObject(json)
+                    Medication(
+                        id = obj.getString("id"),
+                        profileId = obj.optString("profileId", "self"),
+                        name = obj.getString("name"),
+                        dosage = obj.optString("dosage", ""),
+                        instructions = obj.optString("instructions", ""),
+                        startDate = obj.optLong("startDate", 0L),
+                        endDate = if (obj.has("endDate")) obj.getLong("endDate") else null,
+                        scheduleId = obj.optString("scheduleId", "").ifEmpty { null },
+                        notes = obj.optString("notes", "")
+                    )
+                } catch (e: Exception) { Log.e(TAG, "Failed to load medication: ${e.message}"); null }
+            }
+            .sortedByDescending { it.startDate }
+    }
+
+    fun listMedicationsForProfile(profileId: String): List<Medication> =
+        listMedications().filter { it.profileId == profileId }
+
+    fun deleteMedication(id: String) {
+        File(medsDir, "$id.med.enc").delete()
+    }
+
+    // ===== Schedule =====
+
+    fun saveSchedule(item: ScheduleItem) {
+        val json = JSONObject().apply {
+            put("id", item.id)
+            put("profileId", item.profileId)
+            put("kind", item.kind.name)
+            if (item.sourceId != null) put("sourceId", item.sourceId)
+            put("title", item.title)
+            put("timesOfDay", JSONArray(item.timesOfDay))
+            put("daysOfWeek", JSONArray(item.daysOfWeek.toList()))
+            if (item.oneShotAt != null) put("oneShotAt", item.oneShotAt)
+            put("enabled", item.enabled)
+            put("reminderMinutesBefore", item.reminderMinutesBefore)
+            put("notes", item.notes)
+            put("createdAt", item.createdAt)
+        }.toString()
+        crypto.encryptToFile(json.toByteArray(Charsets.UTF_8), File(scheduleDir, "${item.id}.sched.enc"))
+    }
+
+    fun listScheduleItems(): List<ScheduleItem> {
+        return (scheduleDir.listFiles() ?: emptyArray())
+            .filter { it.name.endsWith(".sched.enc") }
+            .mapNotNull { file ->
+                try {
+                    val json = String(crypto.decryptFile(file), Charsets.UTF_8)
+                    val obj = JSONObject(json)
+                    val timesArr = obj.optJSONArray("timesOfDay")
+                    val times = if (timesArr != null) (0 until timesArr.length()).map { timesArr.getString(it) } else emptyList()
+                    val daysArr = obj.optJSONArray("daysOfWeek")
+                    val days = if (daysArr != null) (0 until daysArr.length()).map { daysArr.getInt(it) }.toSet() else emptySet()
+                    ScheduleItem(
+                        id = obj.getString("id"),
+                        profileId = obj.optString("profileId", "self"),
+                        kind = try { ScheduleKind.valueOf(obj.optString("kind", "CUSTOM")) } catch (_: Exception) { ScheduleKind.CUSTOM },
+                        sourceId = obj.optString("sourceId", "").ifEmpty { null },
+                        title = obj.getString("title"),
+                        timesOfDay = times,
+                        daysOfWeek = days,
+                        oneShotAt = if (obj.has("oneShotAt")) obj.getLong("oneShotAt") else null,
+                        enabled = obj.optBoolean("enabled", true),
+                        reminderMinutesBefore = obj.optInt("reminderMinutesBefore", 0),
+                        notes = obj.optString("notes", ""),
+                        createdAt = obj.optLong("createdAt", 0L)
+                    )
+                } catch (e: Exception) { Log.e(TAG, "Failed to load schedule: ${e.message}"); null }
+            }
+            .sortedBy { it.title }
+    }
+
+    fun listScheduleItemsForProfile(profileId: String): List<ScheduleItem> =
+        listScheduleItems().filter { it.profileId == profileId }
+
+    /** Load a single schedule item by id, or null if missing/corrupt. */
+    fun loadScheduleItem(id: String): ScheduleItem? =
+        listScheduleItems().find { it.id == id }
+
+    /** Find every schedule linked to a given source (medication or habit). */
+    fun findSchedulesForSource(sourceId: String, kind: ScheduleKind): List<ScheduleItem> =
+        listScheduleItems().filter { it.sourceId == sourceId && it.kind == kind }
+
+    fun deleteScheduleItem(id: String) {
+        File(scheduleDir, "$id.sched.enc").delete()
+    }
+
+    // ===== Schedule Logs (done/skipped/missed marks) =====
+
+    fun saveScheduleLog(log: ScheduleLog) {
+        val json = JSONObject().apply {
+            put("date", log.date)
+            val arr = JSONArray()
+            log.entries.forEach { e ->
+                arr.put(JSONObject().apply {
+                    put("scheduleId", e.scheduleId)
+                    put("time", e.time)
+                    put("state", e.state.name)
+                })
+            }
+            put("entries", arr)
+        }.toString()
+        crypto.encryptToFile(json.toByteArray(Charsets.UTF_8), File(scheduleLogsDir, "${log.date}.log.enc"))
+    }
+
+    fun loadScheduleLog(date: String): ScheduleLog {
+        val file = File(scheduleLogsDir, "$date.log.enc")
+        if (!file.exists()) return ScheduleLog(date, emptyList())
+        return try {
+            val obj = JSONObject(String(crypto.decryptFile(file), Charsets.UTF_8))
+            val arr = obj.getJSONArray("entries")
+            val entries = (0 until arr.length()).mapNotNull { i ->
+                try {
+                    val e = arr.getJSONObject(i)
+                    ScheduleLogEntry(
+                        scheduleId = e.getString("scheduleId"),
+                        time = e.getString("time"),
+                        state = LogState.valueOf(e.getString("state"))
+                    )
+                } catch (_: Exception) { null }
+            }
+            ScheduleLog(obj.getString("date"), entries)
+        } catch (_: Exception) { ScheduleLog(date, emptyList()) }
+    }
+
+    /** Convenience: mark a single schedule entry with a state for a given date. */
+    fun markScheduleEntry(date: String, scheduleId: String, time: String, state: LogState) {
+        val current = loadScheduleLog(date)
+        val filtered = current.entries.filterNot { it.scheduleId == scheduleId && it.time == time }
+        val updated = ScheduleLog(date, filtered + ScheduleLogEntry(scheduleId, time, state))
+        saveScheduleLog(updated)
+    }
+
     // ===== Wipe =====
 
     fun wipeAll() {
         expensesDir.listFiles()?.forEach { it.delete() }
         healthDir.listFiles()?.forEach { it.delete() }
         habitsDir.listFiles()?.forEach { it.delete() }
+        medsDir.listFiles()?.forEach { it.delete() }
+        scheduleDir.listFiles()?.forEach { it.delete() }
+        scheduleLogsDir.listFiles()?.forEach { it.delete() }
         Log.i(TAG, "Insights data wiped")
     }
 }

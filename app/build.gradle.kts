@@ -102,6 +102,9 @@ dependencies {
     // Biometric
     implementation(libs.androidx.biometric)
 
+    // WorkManager (reminder missed-sweep)
+    implementation(libs.androidx.work.runtime)
+
     // Testing
     testImplementation(libs.junit)
 

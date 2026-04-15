@@ -55,6 +55,14 @@
     <string name="feature_notes_desc">安全加密笔记</string>
     <string name="feature_insights">数据分析</string>
     <string name="feature_insights_desc">支出、健康、习惯</string>
+    <string name="feature_reminders">提醒事项</string>
+    <string name="feature_reminders_desc">定时闹钟和任务</string>
+    <string name="reminders_title">提醒事项</string>
+    <string name="reminders_locked">提醒事项已锁定</string>
+    <string name="reminders_unlock_title">解锁提醒事项</string>
+    <string name="reminders_unlock_subtitle">请进行身份验证以访问提醒事项</string>
+    <string name="reminder_set_reminder">设置提醒</string>
+    <string name="reminder_summary_label">🔔 提醒</string>
     <string name="feature_tools">工具</string>
     <string name="feature_tools_desc">单位换算</string>
     <string name="settings_reorder_hint">使用箭头重新排序。已禁用的功能将从主屏幕隐藏。</string>
@@ -208,6 +216,48 @@
     <string name="tab_expenses">支出</string>
     <string name="tab_health">健康</string>
     <string name="tab_habits">习惯</string>
+    <string name="tab_medications">药物</string>
+
+    <!-- Medications tab -->
+    <string name="medications_title">药物</string>
+    <string name="medications_add">添加药物</string>
+    <string name="medications_edit">编辑药物</string>
+    <string name="medications_empty">暂无药物</string>
+    <string name="medications_empty_hint">点击 + 添加</string>
+    <string name="medications_name">名称</string>
+    <string name="medications_dosage">剂量</string>
+    <string name="medications_instructions">说明</string>
+    <string name="medications_since">自</string>
+
+    <!-- Schedule tab -->
+    <string name="tab_schedule">日程</string>
+    <string name="schedule_add">添加提醒</string>
+    <string name="schedule_edit">编辑提醒</string>
+    <string name="schedule_today">今日</string>
+    <string name="schedule_nothing_today">今日无安排。</string>
+    <string name="schedule_all">所有提醒</string>
+    <string name="schedule_empty_hint">点击 + 创建提醒。</string>
+    <string name="schedule_title_field">标题</string>
+    <string name="schedule_times_field">时间（HH:mm，逗号分隔）</string>
+    <string name="schedule_times_field_simple">时间</string>
+    <string name="schedule_add_time">添加时间</string>
+    <string name="schedule_pick_time">选择时间</string>
+    <string name="schedule_pick_at_least_one">至少添加一个时间</string>
+    <string name="schedule_permission_title">允许精确提醒</string>
+    <string name="schedule_permission_message">为了按时触发提醒，Privora 需要精确闹钟权限。将带您到系统设置授权。</string>
+    <string name="schedule_permission_grant">打开设置</string>
+    <string name="schedule_mode_one_time">一次性</string>
+    <string name="schedule_mode_recurring">循环</string>
+    <string name="schedule_pick_date">选择日期</string>
+    <string name="schedule_time_in_past">所选时间已过。</string>
+    <string name="schedule_days_field">星期</string>
+    <string name="schedule_every_day_hint">未选择日期 — 将每天触发。</string>
+    <string name="schedule_done">完成</string>
+    <string name="schedule_skip">跳过</string>
+    <string name="schedule_undo">撤销</string>
+    <string name="schedule_state_done">已完成</string>
+    <string name="schedule_state_skipped">已跳过</string>
+    <string name="schedule_state_missed">已错过</string>
 
     <!-- Expenses tab -->
     <string name="expenses_total">总计</string>

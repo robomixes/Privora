@@ -55,6 +55,14 @@
     <string name="feature_notes_desc">Notes sécurisées et chiffrées</string>
     <string name="feature_insights">Analyses</string>
     <string name="feature_insights_desc">Dépenses, santé, habitudes</string>
+    <string name="feature_reminders">Rappels</string>
+    <string name="feature_reminders_desc">Alarmes et tâches programmées</string>
+    <string name="reminders_title">Rappels</string>
+    <string name="reminders_locked">Les rappels sont verrouillés</string>
+    <string name="reminders_unlock_title">Déverrouiller les rappels</string>
+    <string name="reminders_unlock_subtitle">Authentifiez-vous pour accéder à vos rappels</string>
+    <string name="reminder_set_reminder">Définir un rappel</string>
+    <string name="reminder_summary_label">🔔 Rappel</string>
     <string name="feature_tools">Outils</string>
     <string name="feature_tools_desc">Convertisseur d\'unités</string>
     <string name="settings_reorder_hint">Utilisez les flèches pour réordonner. Les fonctionnalités désactivées sont masquées de l\'accueil.</string>
@@ -208,6 +216,48 @@
     <string name="tab_expenses">Dépenses</string>
     <string name="tab_health">Santé</string>
     <string name="tab_habits">Habitudes</string>
+    <string name="tab_medications">Méds</string>
+
+    <!-- Medications tab -->
+    <string name="medications_title">Médicaments</string>
+    <string name="medications_add">Ajouter un médicament</string>
+    <string name="medications_edit">Modifier le médicament</string>
+    <string name="medications_empty">Aucun médicament</string>
+    <string name="medications_empty_hint">Appuyez sur + pour en ajouter</string>
+    <string name="medications_name">Nom</string>
+    <string name="medications_dosage">Dosage</string>
+    <string name="medications_instructions">Instructions</string>
+    <string name="medications_since">Depuis</string>
+
+    <!-- Schedule tab -->
+    <string name="tab_schedule">Planning</string>
+    <string name="schedule_add">Ajouter un rappel</string>
+    <string name="schedule_edit">Modifier le rappel</string>
+    <string name="schedule_today">Aujourd\'hui</string>
+    <string name="schedule_nothing_today">Rien de prévu aujourd\'hui.</string>
+    <string name="schedule_all">Tous les rappels</string>
+    <string name="schedule_empty_hint">Appuyez sur + pour créer un rappel.</string>
+    <string name="schedule_title_field">Titre</string>
+    <string name="schedule_times_field">Heures (HH:mm séparées par des virgules)</string>
+    <string name="schedule_times_field_simple">Heures</string>
+    <string name="schedule_add_time">Ajouter une heure</string>
+    <string name="schedule_pick_time">Choisir une heure</string>
+    <string name="schedule_pick_at_least_one">Ajoutez au moins une heure</string>
+    <string name="schedule_permission_title">Autoriser les rappels précis</string>
+    <string name="schedule_permission_message">Pour déclencher les rappels à l\'heure exacte, Privora a besoin de l\'autorisation de planifier des alarmes précises.</string>
+    <string name="schedule_permission_grant">Ouvrir les paramètres</string>
+    <string name="schedule_mode_one_time">Unique</string>
+    <string name="schedule_mode_recurring">Récurrent</string>
+    <string name="schedule_pick_date">Choisir une date</string>
+    <string name="schedule_time_in_past">L\'heure choisie est dans le passé.</string>
+    <string name="schedule_days_field">Jours de la semaine</string>
+    <string name="schedule_every_day_hint">Aucun jour sélectionné — se déclenche tous les jours.</string>
+    <string name="schedule_done">Fait</string>
+    <string name="schedule_skip">Passer</string>
+    <string name="schedule_undo">Annuler</string>
+    <string name="schedule_state_done">Fait</string>
+    <string name="schedule_state_skipped">Passé</string>
+    <string name="schedule_state_missed">Manqué</string>
 
     <!-- Expenses tab -->
     <string name="expenses_total">Total</string>

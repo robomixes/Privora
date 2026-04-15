@@ -67,15 +67,13 @@ import java.util.Locale
 private val PROFILE_EMOJIS = listOf("👤", "👶", "👦", "👧", "👨", "👩", "👴", "👵", "🐶", "🐱")
 
 @Composable
-fun HealthTab(repo: InsightsRepository, filterPersonId: String? = null) {
+fun HealthTab(
+    repo: InsightsRepository,
+    selectedProfileId: String = SELF_PROFILE_ID,
+    onProfilesChanged: () -> Unit = {}
+) {
     val context = LocalContext.current
     var profiles by remember { mutableStateOf(repo.loadProfiles()) }
-    // Auto-select profile linked to this person
-    val initialProfileId = remember(filterPersonId) {
-        if (filterPersonId != null) profiles.find { it.personId == filterPersonId }?.id ?: "self"
-        else "self"
-    }
-    var selectedProfileId by remember { mutableStateOf(initialProfileId) }
     var allEntries by remember { mutableStateOf(repo.listHealthEntries()) }
     var showAddDialog by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
@@ -107,56 +105,24 @@ fun HealthTab(repo: InsightsRepository, filterPersonId: String? = null) {
         })
     }
 
-    if (showProfileDialog) {
-        AddProfileDialog(onDismiss = { showProfileDialog = false }, onSave = { profile ->
-            profiles = profiles + profile; repo.saveProfiles(profiles); showProfileDialog = false
-        })
-    }
+    // (AddProfileDialog removed — add/link now handled by shared ProfileFilter at top of Insights)
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Profile selector
+            // (Profile add/remove moved to shared ProfileFilter at top of InsightsScreen)
             item {
-                var profileToDelete by remember { mutableStateOf<HealthProfile?>(null) }
-
-                // Delete profile confirmation
-                profileToDelete?.let { prof ->
-                    AlertDialog(
-                        onDismissRequest = { profileToDelete = null },
-                        title = { Text("Delete Profile") },
-                        text = { Text("Delete \"${prof.name}\" and all their health entries?") },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                // Delete all entries for this profile
-                                allEntries.filter { it.profileId == prof.id }.forEach { repo.deleteHealthEntry(it.id) }
-                                profiles = profiles.filter { it.id != prof.id }
-                                repo.saveProfiles(profiles)
-                                allEntries = repo.listHealthEntries()
-                                if (selectedProfileId == prof.id) selectedProfileId = "self"
-                                profileToDelete = null
-                            }) { Text("Delete", color = Color.Red) }
-                        },
-                        dismissButton = { TextButton(onClick = { profileToDelete = null }) { Text("Cancel") } }
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val currentProfile = profiles.find { it.id == selectedProfileId }
+                    Text(
+                        if (currentProfile != null) "${currentProfile.icon} ${currentProfile.name}"
+                        else "👤 ${stringResource(R.string.health_myself)}",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f)
                     )
-                }
-
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = selectedProfileId == "self", onClick = { selectedProfileId = "self" }, label = { Text("👤 ${stringResource(R.string.health_myself)}") })
-                    profiles.forEach { p ->
-                        FilterChip(
-                            selected = selectedProfileId == p.id,
-                            onClick = { selectedProfileId = p.id },
-                            label = { Text("${p.icon} ${p.name}") },
-                            trailingIcon = {
-                                if (selectedProfileId == p.id) {
-                                    Icon(Icons.Default.Close, "Delete", Modifier.size(14.dp).clickable { profileToDelete = p })
-                                }
-                            }
-                        )
-                    }
-                    IconButton(onClick = { showProfileDialog = true }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Add, stringResource(R.string.health_add_profile), Modifier.size(18.dp))
-                    }
                 }
             }
 

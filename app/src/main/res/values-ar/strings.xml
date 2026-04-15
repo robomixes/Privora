@@ -55,6 +55,14 @@
     <string name="feature_notes_desc">ملاحظات آمنة ومشفرة</string>
     <string name="feature_insights">التحليلات</string>
     <string name="feature_insights_desc">المصاريف، الصحة، العادات</string>
+    <string name="feature_reminders">التذكيرات</string>
+    <string name="feature_reminders_desc">المنبّهات والمهام المجدولة</string>
+    <string name="reminders_title">التذكيرات</string>
+    <string name="reminders_locked">التذكيرات مقفلة</string>
+    <string name="reminders_unlock_title">فتح التذكيرات</string>
+    <string name="reminders_unlock_subtitle">قم بالمصادقة للوصول إلى تذكيراتك</string>
+    <string name="reminder_set_reminder">تعيين تذكير</string>
+    <string name="reminder_summary_label">🔔 تذكير</string>
     <string name="feature_tools">الأدوات</string>
     <string name="feature_tools_desc">محوّل الوحدات</string>
     <string name="settings_reorder_hint">استخدم الأسهم لإعادة الترتيب. الميزات المعطّلة تُخفى من الشاشة الرئيسية.</string>
@@ -206,6 +214,48 @@
     <string name="tab_expenses">المصاريف</string>
     <string name="tab_health">الصحة</string>
     <string name="tab_habits">العادات</string>
+    <string name="tab_medications">الأدوية</string>
+
+    <!-- Medications tab -->
+    <string name="medications_title">الأدوية</string>
+    <string name="medications_add">إضافة دواء</string>
+    <string name="medications_edit">تعديل الدواء</string>
+    <string name="medications_empty">لا توجد أدوية بعد</string>
+    <string name="medications_empty_hint">اضغط + لإضافة دواء</string>
+    <string name="medications_name">الاسم</string>
+    <string name="medications_dosage">الجرعة</string>
+    <string name="medications_instructions">التعليمات</string>
+    <string name="medications_since">منذ</string>
+
+    <!-- Schedule tab -->
+    <string name="tab_schedule">الجدول</string>
+    <string name="schedule_add">إضافة تذكير</string>
+    <string name="schedule_edit">تعديل التذكير</string>
+    <string name="schedule_today">اليوم</string>
+    <string name="schedule_nothing_today">لا يوجد شيء مجدول اليوم.</string>
+    <string name="schedule_all">كل التذكيرات</string>
+    <string name="schedule_empty_hint">اضغط + لإنشاء تذكير.</string>
+    <string name="schedule_title_field">العنوان</string>
+    <string name="schedule_times_field">الأوقات (HH:mm مفصولة بفاصلة)</string>
+    <string name="schedule_times_field_simple">الأوقات</string>
+    <string name="schedule_add_time">إضافة وقت</string>
+    <string name="schedule_pick_time">اختر وقتاً</string>
+    <string name="schedule_pick_at_least_one">أضف وقتاً واحداً على الأقل</string>
+    <string name="schedule_permission_title">السماح بتذكيرات دقيقة</string>
+    <string name="schedule_permission_message">لإطلاق التذكيرات في موعدها بدقة، تحتاج Privora إلى إذن جدولة المنبهات الدقيقة. ستُنقل إلى إعدادات النظام لمنح الإذن.</string>
+    <string name="schedule_permission_grant">فتح الإعدادات</string>
+    <string name="schedule_mode_one_time">لمرة واحدة</string>
+    <string name="schedule_mode_recurring">متكرر</string>
+    <string name="schedule_pick_date">اختر تاريخاً</string>
+    <string name="schedule_time_in_past">الوقت المختار في الماضي.</string>
+    <string name="schedule_days_field">أيام الأسبوع</string>
+    <string name="schedule_every_day_hint">لم تُختَر أيام — سيعمل كل يوم.</string>
+    <string name="schedule_done">تم</string>
+    <string name="schedule_skip">تخطَّ</string>
+    <string name="schedule_undo">تراجع</string>
+    <string name="schedule_state_done">تم</string>
+    <string name="schedule_state_skipped">متخطّى</string>
+    <string name="schedule_state_missed">فائت</string>
 
     <!-- Expenses tab -->
     <string name="expenses_total">الإجمالي</string>

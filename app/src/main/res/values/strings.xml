@@ -55,6 +55,14 @@
     <string name="feature_notes_desc">Secure encrypted notes</string>
     <string name="feature_insights">Insights</string>
     <string name="feature_insights_desc">Expenses, health, habits</string>
+    <string name="feature_reminders">Reminders</string>
+    <string name="feature_reminders_desc">Scheduled alarms &amp; tasks</string>
+    <string name="reminders_title">Reminders</string>
+    <string name="reminders_locked">Reminders are locked</string>
+    <string name="reminders_unlock_title">Unlock Reminders</string>
+    <string name="reminders_unlock_subtitle">Authenticate to access your reminders</string>
+    <string name="reminder_set_reminder">Set reminder</string>
+    <string name="reminder_summary_label">🔔 Reminder</string>
     <string name="feature_tools">Tools</string>
     <string name="feature_tools_desc">Unit converter</string>
     <string name="feature_contacts">People</string>
@@ -217,6 +225,48 @@
     <string name="tab_expenses">Expenses</string>
     <string name="tab_health">Health</string>
     <string name="tab_habits">Habits</string>
+    <string name="tab_medications">Meds</string>
+
+    <!-- Medications tab -->
+    <string name="medications_title">Medications</string>
+    <string name="medications_add">Add medication</string>
+    <string name="medications_edit">Edit medication</string>
+    <string name="medications_empty">No medications yet</string>
+    <string name="medications_empty_hint">Tap + to add one</string>
+    <string name="medications_name">Name</string>
+    <string name="medications_dosage">Dosage</string>
+    <string name="medications_instructions">Instructions</string>
+    <string name="medications_since">Since</string>
+
+    <!-- Schedule tab -->
+    <string name="tab_schedule">Schedule</string>
+    <string name="schedule_add">Add schedule</string>
+    <string name="schedule_edit">Edit schedule</string>
+    <string name="schedule_today">Today</string>
+    <string name="schedule_nothing_today">Nothing scheduled for today.</string>
+    <string name="schedule_all">All schedules</string>
+    <string name="schedule_empty_hint">Tap + to create a reminder.</string>
+    <string name="schedule_title_field">Title</string>
+    <string name="schedule_times_field">Times (HH:mm, comma-separated)</string>
+    <string name="schedule_times_field_simple">Times</string>
+    <string name="schedule_add_time">Add time</string>
+    <string name="schedule_pick_time">Pick a time</string>
+    <string name="schedule_pick_at_least_one">Add at least one time</string>
+    <string name="schedule_permission_title">Allow exact reminders</string>
+    <string name="schedule_permission_message">To fire reminders exactly on time, Privora needs permission to schedule exact alarms. You\'ll be taken to system settings to grant it.</string>
+    <string name="schedule_permission_grant">Open settings</string>
+    <string name="schedule_mode_one_time">One time</string>
+    <string name="schedule_mode_recurring">Recurring</string>
+    <string name="schedule_pick_date">Pick a date</string>
+    <string name="schedule_time_in_past">The chosen time is in the past.</string>
+    <string name="schedule_days_field">Days of week</string>
+    <string name="schedule_every_day_hint">No days selected — fires every day.</string>
+    <string name="schedule_done">Done</string>
+    <string name="schedule_skip">Skip</string>
+    <string name="schedule_undo">Undo</string>
+    <string name="schedule_state_done">Done</string>
+    <string name="schedule_state_skipped">Skipped</string>
+    <string name="schedule_state_missed">Missed</string>
 
     <!-- Expenses tab -->
     <string name="expenses_total">Total</string>

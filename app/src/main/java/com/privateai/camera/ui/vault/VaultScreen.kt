@@ -350,7 +350,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
             val refreshFolder = currentFolder
             if (page == VaultPage.FOLDER_VIEW && refreshFolder != null) {
                 val dir = folderManager.getFolderDir(refreshFolder.id)
-                photos = vault.listFolderItems(dir)
+                photos = if (isDuressActive) emptyList() else vault.listFolderItems(dir)
                 // Load thumbnails for newly imported items
                 withContext(Dispatchers.IO) {
                     val thumbMap = thumbnails.toMutableMap()
@@ -1999,7 +1999,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             CompactCategoryCard(folder.name, itemCount, Icons.Default.Description, halfW) {
                                 currentFolder = folder
                                 val dir = folderManager.getFolderDir(folder.id)
-                                photos = vault.listFolderItems(dir)
+                                photos = if (isDuressActive) emptyList() else vault.listFolderItems(dir)
                                 thumbnails = emptyMap()
                                 scope.launch {
                                     val thumbMap = mutableMapOf<String, Bitmap>()
@@ -2774,8 +2774,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                 if (parent != null) {
                                     currentFolder = parent
                                     val dir = folderManager.getFolderDir(parent.id)
-                                    photos = vault.listFolderItems(dir)
-                                    subfolders = folderManager.listSubfolders(parent.id)
+                                    photos = if (isDuressActive) emptyList() else vault.listFolderItems(dir)
+                                    subfolders = if (isDuressActive) emptyList() else folderManager.listSubfolders(parent.id)
                                     scope.launch {
                                         val thumbMap = mutableMapOf<String, Bitmap>()
                                         withContext(Dispatchers.IO) { photos.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } } }
@@ -2817,8 +2817,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                         if (f.id != folder.id) {
                                             currentFolder = f
                                             val dir = folderManager.getFolderDir(f.id)
-                                            photos = vault.listFolderItems(dir)
-                                            subfolders = folderManager.listSubfolders(f.id)
+                                            photos = if (isDuressActive) emptyList() else vault.listFolderItems(dir)
+                                            subfolders = if (isDuressActive) emptyList() else folderManager.listSubfolders(f.id)
                                             scope.launch {
                                                 val thumbMap = mutableMapOf<String, Bitmap>()
                                                 withContext(Dispatchers.IO) { photos.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } } }

@@ -30,6 +30,10 @@ class ContactRepository(
     companion object {
         private const val TAG = "ContactRepository"
         private const val TABLE = "contacts"
+
+        /** Fixed ID of the non-deletable "Myself" contact — the app's owner.
+         *  Matches the legacy Insights profileId="self" so no data migration needed. */
+        const val SELF_CONTACT_ID = "self"
     }
 
     init { baseDir.mkdirs() }
@@ -58,11 +62,41 @@ class ContactRepository(
     }
 
     fun deleteContact(id: String) {
+        // "Myself" is non-deletable — silently ignore
+        if (id == SELF_CONTACT_ID) {
+            Log.w(TAG, "Refusing to delete the self contact")
+            return
+        }
         try {
             db.delete(TABLE, "id = ?", arrayOf(id))
         } catch (e: Exception) {
             Log.e(TAG, "Failed to delete contact: ${e.message}")
         }
+    }
+
+    /** Ensure the non-deletable "Myself" contact exists. Call once at app start. */
+    fun ensureSelfContact(defaultName: String = "Me") {
+        try {
+            val cursor = db.rawQuery("SELECT id FROM $TABLE WHERE id = ?", arrayOf(SELF_CONTACT_ID))
+            val exists = cursor.use { it.moveToFirst() }
+            if (!exists) {
+                val self = PrivateContact(
+                    id = SELF_CONTACT_ID,
+                    name = defaultName,
+                    group = "",
+                    isFavorite = true // pinned to top of favorites
+                )
+                saveContact(self)
+                Log.i(TAG, "Created self contact")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "ensureSelfContact failed: ${e.message}")
+        }
+    }
+
+    /** Returns the self contact (creates it if missing). */
+    fun getSelfContact(): PrivateContact? {
+        return listContacts().find { it.id == SELF_CONTACT_ID }
     }
 
     fun listContacts(): List<PrivateContact> {

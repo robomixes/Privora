@@ -1,33 +1,49 @@
 package com.privateai.camera.ui
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.privateai.camera.MainActivity
 import com.privateai.camera.ui.camera.CameraScreen
 import com.privateai.camera.ui.camera.CaptureScreen
-import com.privateai.camera.ui.qrscanner.QrScannerScreen
 import com.privateai.camera.ui.home.HomeScreen
+import com.privateai.camera.ui.home.PrivoraBottomTabs
+import com.privateai.camera.ui.insights.InsightsScreen
 import com.privateai.camera.ui.notes.NotesScreen
 import com.privateai.camera.ui.onboarding.OnboardingScreen
 import com.privateai.camera.ui.onboarding.completeOnboardingQuick
 import com.privateai.camera.ui.onboarding.isOnboardingComplete
+import com.privateai.camera.ui.qrscanner.QrScannerScreen
+import com.privateai.camera.ui.reminders.RemindersScreen
 import com.privateai.camera.ui.scanner.ScannerScreen
-import com.privateai.camera.ui.insights.InsightsScreen
-import com.privateai.camera.ui.tools.UnitConverterScreen
 import com.privateai.camera.ui.settings.BackupScreen
 import com.privateai.camera.ui.settings.DuressSetupScreen
+import com.privateai.camera.ui.settings.FeatureToggleManager
+import com.privateai.camera.ui.settings.HomeLayout
 import com.privateai.camera.ui.settings.SettingsScreen
+import com.privateai.camera.ui.tools.UnitConverterScreen
 import com.privateai.camera.ui.translate.TranslateScreen
 import com.privateai.camera.ui.vault.VaultScreen
+
+/** Top-level routes where the persistent bottom tab bar is shown (Tabs layout only). */
+private val TAB_VISIBLE_ROUTES = setOf(
+    "home", "vault", "notes", "insights", "reminders", "contacts", "tools", "qrscanner", "translate", "detect", "scan"
+)
 
 @Composable
 fun PrivateAICameraApp() {
@@ -50,10 +66,43 @@ fun PrivateAICameraApp() {
         }
     }
 
+    // Persistent tab bar logic — only when Tabs layout is selected + current route is top-level
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route?.substringBefore("?")
+    val layoutMode = FeatureToggleManager.getHomeLayout(context)
+    // Hide the persistent tab bar while the soft keyboard is open. Otherwise it sits between
+    // the active text field's toolbar (e.g. Notes editor's format bar) and the keyboard,
+    // leaving an ~80dp dead-strip that pushes the toolbar visually into the middle of the screen.
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val showTabs = layoutMode == HomeLayout.TABS && currentRoute in TAB_VISIBLE_ROUTES && !imeVisible
+
     Surface(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            // Don't consume system insets — inner feature screens have their own Scaffolds with TopAppBars
+            // that already handle status bar insets. Only the bottom bar inset is relevant here.
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            bottomBar = {
+                if (showTabs) {
+                    PrivoraBottomTabs(
+                        currentRoute = currentRoute,
+                        onFeatureClick = { route ->
+                            // Single-top navigation — don't stack duplicate entries of top-level routes
+                            navController.navigate(route) {
+                                launchSingleTop = true
+                                restoreState = true
+                                popUpTo("home") { saveState = true }
+                            }
+                        }
+                    )
+                }
+            }
+        ) { innerPadding ->
+        // Apply only the bottom inset (from the bottom bar) to the NavHost,
+        // so inner screens' own top bars still render flush to the status bar.
         NavHost(
             navController = navController,
-            startDestination = startDest
+            startDestination = startDest,
+            modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())
         ) {
             composable("onboarding") { backStackEntry ->
                 val importSummary = backStackEntry.savedStateHandle.get<String>("import_summary")
@@ -140,6 +189,9 @@ fun PrivateAICameraApp() {
                 val tab = backStackEntry.arguments?.getString("tab") ?: ""
                 InsightsScreen(onBack = safeBack, initialTab = if (tab == "health") 1 else 0, filterPersonId = personId)
             }
+            composable("reminders") {
+                RemindersScreen(onBack = safeBack)
+            }
             composable("tools") {
                 UnitConverterScreen(onBack = safeBack)
             }
@@ -182,5 +234,6 @@ fun PrivateAICameraApp() {
                 )
             }
         }
+        } // end NavHost Scaffold content lambda
     }
 }
