@@ -58,6 +58,46 @@
     <string name="feature_tools">الأدوات</string>
     <string name="feature_tools_desc">محوّل الوحدات</string>
     <string name="settings_reorder_hint">استخدم الأسهم لإعادة الترتيب. الميزات المعطّلة تُخفى من الشاشة الرئيسية.</string>
+    <string name="settings_layout_title">التخطيط</string>
+    <string name="settings_layout_grid">شبكة</string>
+    <string name="settings_layout_grid_desc">جميع الميزات في شبكة 2×2</string>
+    <string name="settings_layout_tabs">علامات تبويب</string>
+    <string name="settings_layout_tabs_desc">شريط وصول سريع في الأسفل</string>
+    <string name="home_more">المزيد</string>
+
+    <!-- Home landing (Tabs) -->
+    <string name="greeting_morning">صباح الخير</string>
+    <string name="greeting_afternoon">مساء الخير</string>
+    <string name="greeting_evening">طاب مساؤك</string>
+    <string name="greeting_night">مساء هادئ</string>
+    <string name="home_recent_activity">النشاط الأخير</string>
+    <string name="home_vault_is_locked">الخزنة مقفلة</string>
+    <string name="home_tip_of_the_day">نصيحة</string>
+    <string name="tip_cat_family">العائلة</string>
+    <string name="tip_cat_joke">نكتة</string>
+    <string name="tip_cat_food">غذاء صحي</string>
+    <string name="tip_cat_sport">تحرّك اليوم</string>
+    <string name="tip_cat_stress">استرخاء</string>
+    <string name="home_photos_count">%1$d صورة</string>
+    <string name="home_notes_count">%1$d ملاحظة</string>
+    <string name="home_latest_photo">أحدث صورة</string>
+    <string name="home_latest_note">أحدث ملاحظة</string>
+
+    <string name="tip_link_note_person">اربط الملاحظة بشخص لإيجادها بسرعة لاحقاً.</string>
+    <string name="tip_vault_label_search">ابحث في الخزنة بالعلامات: جرّب \"كلب\" أو \"شاطئ\" أو \"فاتورة\".</string>
+    <string name="tip_face_groups_auto_name">مجموعات الوجوه تُسمَّى تلقائياً من جهات اتصالك.</string>
+    <string name="tip_emergency_pin">رمز الطوارئ يُظهر خزنة فارغة مزيفة — اضبطه في الإعدادات المتقدمة.</string>
+    <string name="tip_countdown_timer">اضغط أيقونة المؤقت في الكاميرا لتعيين عدّ تنازلي قبل الالتقاط.</string>
+    <string name="tip_long_press_multi_select">اضغط مطوّلاً على صورة لتفعيل وضع التحديد المتعدد.</string>
+    <string name="tip_duplicates_blurry">الخزنة تكشف الصور المكرّرة والضبابية للتنظيف السريع.</string>
+    <string name="tip_ai_notes_sparkle">فعّل مساعد الذكاء الاصطناعي في الإعدادات المتقدمة لفتح قائمة البريق في الملاحظات.</string>
+    <string name="tip_voice_notes_encrypted">الملاحظات الصوتية مشفّرة بنفس مفاتيح ملاحظاتك النصية.</string>
+    <string name="tip_checklist_mode">بدّل إلى وضع القائمة داخل الملاحظة لتصبح قابلة للتحديد.</string>
+    <string name="tip_on_device_only">كل معالجة الذكاء الاصطناعي على جهازك فقط. لا تُرسل بياناتك إلى أي مكان.</string>
+    <string name="tip_advanced_settings_pin">الإعدادات المتقدمة محمية برمز PIN — الإجراءات الحساسة آمنة.</string>
+    <string name="tip_backup_downloads">النسخ الاحتياطية تُحفظ في مجلد التنزيلات لنقلها بسهولة.</string>
+    <string name="tip_qr_generator">شاشة QR بها تبويب إنشاء — اصنع رموز WiFi وبطاقات vCard والمزيد.</string>
+    <string name="tip_face_threshold_slider">اضبط حساسية تجميع الوجوه في الإعدادات → الكاميرا.</string>
 
     <!-- Settings: AI Detection -->
     <string name="settings_section_ai_detection">كشف الذكاء الاصطناعي</string>

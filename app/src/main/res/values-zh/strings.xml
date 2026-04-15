@@ -58,6 +58,46 @@
     <string name="feature_tools">工具</string>
     <string name="feature_tools_desc">单位换算</string>
     <string name="settings_reorder_hint">使用箭头重新排序。已禁用的功能将从主屏幕隐藏。</string>
+    <string name="settings_layout_title">布局</string>
+    <string name="settings_layout_grid">网格</string>
+    <string name="settings_layout_grid_desc">所有功能显示为 2×2 网格</string>
+    <string name="settings_layout_tabs">标签栏</string>
+    <string name="settings_layout_tabs_desc">底部快速访问栏</string>
+    <string name="home_more">更多</string>
+
+    <!-- Home landing (Tabs) -->
+    <string name="greeting_morning">早上好</string>
+    <string name="greeting_afternoon">下午好</string>
+    <string name="greeting_evening">晚上好</string>
+    <string name="greeting_night">晚安</string>
+    <string name="home_recent_activity">最近活动</string>
+    <string name="home_vault_is_locked">您的保险库已锁定</string>
+    <string name="home_tip_of_the_day">小贴士</string>
+    <string name="tip_cat_family">家庭</string>
+    <string name="tip_cat_joke">笑话</string>
+    <string name="tip_cat_food">健康饮食</string>
+    <string name="tip_cat_sport">今天动起来</string>
+    <string name="tip_cat_stress">正念</string>
+    <string name="home_photos_count">%1$d 张照片</string>
+    <string name="home_notes_count">%1$d 条笔记</string>
+    <string name="home_latest_photo">最新照片</string>
+    <string name="home_latest_note">最新笔记</string>
+
+    <string name="tip_link_note_person">将笔记关联到联系人，方便以后快速查找。</string>
+    <string name="tip_vault_label_search">按标签搜索保险库：试试\"狗\"、\"海滩\"或\"收据\"。</string>
+    <string name="tip_face_groups_auto_name">人脸分组会自动从您的联系人命名。</string>
+    <string name="tip_emergency_pin">紧急 PIN 会显示一个假的空保险库 — 在高级设置中配置。</string>
+    <string name="tip_countdown_timer">点击相机中的计时器图标，拍照前设置自拍延时。</string>
+    <string name="tip_long_press_multi_select">长按保险库中的照片进入多选模式。</string>
+    <string name="tip_duplicates_blurry">保险库自动检测重复和模糊照片，方便快速清理。</string>
+    <string name="tip_ai_notes_sparkle">在高级设置中启用 AI 助手，解锁笔记中的闪光菜单。</string>
+    <string name="tip_voice_notes_encrypted">语音笔记与文字笔记使用相同的密钥加密。</string>
+    <string name="tip_checklist_mode">切换笔记到清单模式，变成可勾选的任务列表。</string>
+    <string name="tip_on_device_only">所有 AI 处理均在您的设备上完成，数据永不外发。</string>
+    <string name="tip_advanced_settings_pin">高级设置受 PIN 保护 — 关键操作保持安全。</string>
+    <string name="tip_backup_downloads">备份保存到下载文件夹，便于传输。</string>
+    <string name="tip_qr_generator">QR 界面有生成标签页 — 创建 WiFi、vCard 等。</string>
+    <string name="tip_face_threshold_slider">在 设置 → 相机 中调整人脸分组灵敏度。</string>
 
     <!-- Settings: AI Detection -->
     <string name="settings_section_ai_detection">AI 检测</string>

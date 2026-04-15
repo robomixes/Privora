@@ -60,6 +60,47 @@
     <string name="feature_contacts">People</string>
     <string name="feature_contacts_desc">Private Address Book</string>
     <string name="settings_reorder_hint">Use arrows to reorder. Disabled features are hidden from home.</string>
+    <string name="settings_layout_title">Layout</string>
+    <string name="settings_layout_grid">Grid</string>
+    <string name="settings_layout_grid_desc">All features in a 2×2 grid</string>
+    <string name="settings_layout_tabs">Tabs</string>
+    <string name="settings_layout_tabs_desc">Quick access bottom bar</string>
+    <string name="home_more">More</string>
+
+    <!-- Home landing (Tabs layout) -->
+    <string name="greeting_morning">Good morning</string>
+    <string name="greeting_afternoon">Good afternoon</string>
+    <string name="greeting_evening">Good evening</string>
+    <string name="greeting_night">Good night</string>
+    <string name="home_recent_activity">Recent activity</string>
+    <string name="home_vault_is_locked">Your vault is locked</string>
+    <string name="home_tip_of_the_day">Tip</string>
+    <string name="tip_cat_family">Family</string>
+    <string name="tip_cat_joke">Joke</string>
+    <string name="tip_cat_food">Healthy Food</string>
+    <string name="tip_cat_sport">Move Today</string>
+    <string name="tip_cat_stress">Mindfulness</string>
+    <string name="home_photos_count">%1$d photos</string>
+    <string name="home_notes_count">%1$d notes</string>
+    <string name="home_latest_photo">Latest photo</string>
+    <string name="home_latest_note">Latest note</string>
+
+    <!-- Daily tips -->
+    <string name="tip_link_note_person">Link a note to a person to find it fast later.</string>
+    <string name="tip_vault_label_search">Search your vault by label: try \"dog\", \"beach\", or \"receipt\".</string>
+    <string name="tip_face_groups_auto_name">Face groups auto-name from your People contacts.</string>
+    <string name="tip_emergency_pin">Emergency PIN shows a fake empty vault — set it in Advanced Settings.</string>
+    <string name="tip_countdown_timer">Tap the timer icon in Camera to set a self-timer before capture.</string>
+    <string name="tip_long_press_multi_select">Long-press a photo in the vault to enter multi-select mode.</string>
+    <string name="tip_duplicates_blurry">The vault detects duplicates and blurry photos for quick cleanup.</string>
+    <string name="tip_ai_notes_sparkle">Enable AI Assistant in Advanced to unlock the sparkle menu in notes.</string>
+    <string name="tip_voice_notes_encrypted">Voice notes are encrypted with the same keys as your text notes.</string>
+    <string name="tip_checklist_mode">Toggle checklist mode in a note to turn it into a tap-to-complete list.</string>
+    <string name="tip_on_device_only">All AI processing runs on-device. No data is ever sent anywhere.</string>
+    <string name="tip_advanced_settings_pin">Advanced Settings are PIN-protected — critical actions stay safe.</string>
+    <string name="tip_backup_downloads">Backups are saved to your Downloads folder for easy transfer.</string>
+    <string name="tip_qr_generator">The QR screen has a Generate tab — create WiFi, vCard, and more.</string>
+    <string name="tip_face_threshold_slider">Tune face grouping sensitivity in Settings → Camera.</string>
 
     <!-- Settings: AI Detection -->
     <string name="settings_section_ai_detection">AI Detection</string>

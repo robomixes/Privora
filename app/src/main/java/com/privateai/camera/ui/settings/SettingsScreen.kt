@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -154,6 +155,43 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             val showFeatures = matchesSearch("Home Screen Features", "Camera", "Detect", "Scan", "QR Scan", "Translate", "Vault", "Notes", "Insights", "Tools", "reorder")
             if (showFeatures) {
             SectionHeader(stringResource(R.string.settings_section_home_features))
+
+            // Layout selector: Grid vs Tabs
+            var currentLayout by remember { mutableStateOf(FeatureToggleManager.getHomeLayout(context)) }
+            Text(
+                stringResource(R.string.settings_layout_title),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                LayoutOption(
+                    selected = currentLayout == HomeLayout.GRID,
+                    title = stringResource(R.string.settings_layout_grid),
+                    description = stringResource(R.string.settings_layout_grid_desc),
+                    preview = "\u229E",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        FeatureToggleManager.setHomeLayout(context, HomeLayout.GRID)
+                        currentLayout = HomeLayout.GRID
+                    }
+                )
+                LayoutOption(
+                    selected = currentLayout == HomeLayout.TABS,
+                    title = stringResource(R.string.settings_layout_tabs),
+                    description = stringResource(R.string.settings_layout_tabs_desc),
+                    preview = "\u2261",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        FeatureToggleManager.setHomeLayout(context, HomeLayout.TABS)
+                        currentLayout = HomeLayout.TABS
+                    }
+                )
+            }
+            Spacer(Modifier.height(8.dp))
 
             val featureInfo = mapOf(
                 "camera" to Triple(stringResource(R.string.feature_camera), stringResource(R.string.feature_camera_desc), Icons.Default.CameraAlt),
@@ -1246,6 +1284,53 @@ private fun SectionHeader(title: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
     )
+}
+
+@Composable
+private fun LayoutOption(
+    selected: Boolean,
+    title: String,
+    description: String,
+    preview: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val borderColor = if (selected) MaterialTheme.colorScheme.primary
+                      else MaterialTheme.colorScheme.outlineVariant
+    val bgColor = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                  else MaterialTheme.colorScheme.surface
+    Column(
+        modifier = modifier
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .background(bgColor)
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = borderColor,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            preview,
+            style = MaterialTheme.typography.headlineMedium,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            description,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
 }
 
 @Composable

@@ -4,6 +4,9 @@ import android.content.Context
 
 private const val PREFS_NAME = "feature_toggles"
 private const val KEY_ORDER = "feature_order"
+private const val KEY_LAYOUT = "home_layout"
+
+enum class HomeLayout { GRID, TABS }
 
 /**
  * Manages which features are visible on the home screen and their order.
@@ -58,5 +61,19 @@ object FeatureToggleManager {
     fun getOrderedEnabledFeatures(context: Context): List<String> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return getOrderedFeatures(context).filter { prefs.getBoolean(it, true) }
+    }
+
+    /** Get home screen layout preference (Grid or Tabs). Default: GRID. */
+    fun getHomeLayout(context: Context): HomeLayout {
+        val v = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_LAYOUT, "grid")
+        return if (v == "tabs") HomeLayout.TABS else HomeLayout.GRID
+    }
+
+    /** Set home screen layout preference. */
+    fun setHomeLayout(context: Context, layout: HomeLayout) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_LAYOUT, layout.name.lowercase())
+            .apply()
     }
 }

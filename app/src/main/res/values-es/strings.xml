@@ -58,6 +58,46 @@
     <string name="feature_tools">Herramientas</string>
     <string name="feature_tools_desc">Conversor de unidades</string>
     <string name="settings_reorder_hint">Usa las flechas para reordenar. Las funciones desactivadas se ocultan de la pantalla principal.</string>
+    <string name="settings_layout_title">Diseño</string>
+    <string name="settings_layout_grid">Cuadrícula</string>
+    <string name="settings_layout_grid_desc">Todas las funciones en cuadrícula 2×2</string>
+    <string name="settings_layout_tabs">Pestañas</string>
+    <string name="settings_layout_tabs_desc">Barra de acceso rápido abajo</string>
+    <string name="home_more">Más</string>
+
+    <!-- Home landing (Tabs) -->
+    <string name="greeting_morning">Buenos días</string>
+    <string name="greeting_afternoon">Buenas tardes</string>
+    <string name="greeting_evening">Buenas tardes</string>
+    <string name="greeting_night">Buenas noches</string>
+    <string name="home_recent_activity">Actividad reciente</string>
+    <string name="home_vault_is_locked">Tu bóveda está bloqueada</string>
+    <string name="home_tip_of_the_day">Consejo</string>
+    <string name="tip_cat_family">Familia</string>
+    <string name="tip_cat_joke">Chiste</string>
+    <string name="tip_cat_food">Comida saludable</string>
+    <string name="tip_cat_sport">Muévete hoy</string>
+    <string name="tip_cat_stress">Atención plena</string>
+    <string name="home_photos_count">%1$d fotos</string>
+    <string name="home_notes_count">%1$d notas</string>
+    <string name="home_latest_photo">Última foto</string>
+    <string name="home_latest_note">Última nota</string>
+
+    <string name="tip_link_note_person">Vincula una nota a una persona para encontrarla rápido después.</string>
+    <string name="tip_vault_label_search">Busca en la bóveda por etiqueta: prueba \"perro\", \"playa\" o \"recibo\".</string>
+    <string name="tip_face_groups_auto_name">Los grupos de rostros se nombran automáticamente desde tus contactos.</string>
+    <string name="tip_emergency_pin">El PIN de emergencia muestra una bóveda falsa vacía — configúralo en Ajustes Avanzados.</string>
+    <string name="tip_countdown_timer">Toca el icono temporizador en Cámara para definir un autodisparador.</string>
+    <string name="tip_long_press_multi_select">Mantén pulsada una foto para entrar en modo multi-selección.</string>
+    <string name="tip_duplicates_blurry">La bóveda detecta duplicados y fotos borrosas para limpieza rápida.</string>
+    <string name="tip_ai_notes_sparkle">Activa el Asistente de IA en Ajustes Avanzados para desbloquear el menú brillo en notas.</string>
+    <string name="tip_voice_notes_encrypted">Las notas de voz están cifradas con las mismas claves que tus notas de texto.</string>
+    <string name="tip_checklist_mode">Cambia al modo lista en una nota para convertirla en lista de tareas.</string>
+    <string name="tip_on_device_only">Todo el procesamiento de IA se hace en tu dispositivo. Ningún dato se envía.</string>
+    <string name="tip_advanced_settings_pin">Los Ajustes Avanzados están protegidos por PIN — las acciones críticas están seguras.</string>
+    <string name="tip_backup_downloads">Las copias de seguridad se guardan en Descargas para transferirlas fácilmente.</string>
+    <string name="tip_qr_generator">La pantalla QR tiene una pestaña Generar — crea WiFi, vCard y más.</string>
+    <string name="tip_face_threshold_slider">Ajusta la sensibilidad de agrupación de rostros en Ajustes → Cámara.</string>
 
     <!-- Settings: AI Detection -->
     <string name="settings_section_ai_detection">Detección con IA</string>

@@ -97,6 +97,18 @@ fun HomeScreen(
     val orderedRoutes = remember { com.privateai.camera.ui.settings.FeatureToggleManager.getOrderedEnabledFeatures(context) }
     val featureMap = remember { features.associateBy { it.route } }
     val visibleFeatures = orderedRoutes.mapNotNull { featureMap[it] }
+    val layout = remember { com.privateai.camera.ui.settings.FeatureToggleManager.getHomeLayout(context) }
+
+    // Branch to tabs layout if user selected it
+    if (layout == com.privateai.camera.ui.settings.HomeLayout.TABS) {
+        HomeTabsLayout(
+            visibleFeatures = visibleFeatures,
+            onFeatureClick = onFeatureClick,
+            onSettingsClick = onSettingsClick
+        )
+        return
+    }
+
     var isVaultUnlocked by remember { mutableStateOf(VaultLockManager.isUnlockedWithinGrace(context)) }
     var showImportBanner by remember { mutableStateOf(importSummary != null) }
 

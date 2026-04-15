@@ -58,6 +58,46 @@
     <string name="feature_tools">Outils</string>
     <string name="feature_tools_desc">Convertisseur d\'unités</string>
     <string name="settings_reorder_hint">Utilisez les flèches pour réordonner. Les fonctionnalités désactivées sont masquées de l\'accueil.</string>
+    <string name="settings_layout_title">Disposition</string>
+    <string name="settings_layout_grid">Grille</string>
+    <string name="settings_layout_grid_desc">Toutes les fonctionnalités en grille 2×2</string>
+    <string name="settings_layout_tabs">Onglets</string>
+    <string name="settings_layout_tabs_desc">Barre d\'accès rapide en bas</string>
+    <string name="home_more">Plus</string>
+
+    <!-- Home landing (Tabs) -->
+    <string name="greeting_morning">Bonjour</string>
+    <string name="greeting_afternoon">Bon après-midi</string>
+    <string name="greeting_evening">Bonsoir</string>
+    <string name="greeting_night">Bonne nuit</string>
+    <string name="home_recent_activity">Activité récente</string>
+    <string name="home_vault_is_locked">Votre coffre est verrouillé</string>
+    <string name="home_tip_of_the_day">Astuce</string>
+    <string name="tip_cat_family">Famille</string>
+    <string name="tip_cat_joke">Blague</string>
+    <string name="tip_cat_food">Alimentation saine</string>
+    <string name="tip_cat_sport">Bougez aujourd\'hui</string>
+    <string name="tip_cat_stress">Pleine conscience</string>
+    <string name="home_photos_count">%1$d photos</string>
+    <string name="home_notes_count">%1$d notes</string>
+    <string name="home_latest_photo">Dernière photo</string>
+    <string name="home_latest_note">Dernière note</string>
+
+    <string name="tip_link_note_person">Liez une note à une personne pour la retrouver rapidement.</string>
+    <string name="tip_vault_label_search">Recherchez dans le coffre par label : \"chien\", \"plage\", \"reçu\".</string>
+    <string name="tip_face_groups_auto_name">Les groupes de visages sont nommés automatiquement depuis vos contacts.</string>
+    <string name="tip_emergency_pin">Le PIN d\'urgence affiche un faux coffre vide — définissez-le dans les Paramètres Avancés.</string>
+    <string name="tip_countdown_timer">Touchez l\'icône minuteur dans Caméra pour régler un retardateur.</string>
+    <string name="tip_long_press_multi_select">Appui long sur une photo pour entrer en mode sélection multiple.</string>
+    <string name="tip_duplicates_blurry">Le coffre détecte doublons et photos floues pour un nettoyage rapide.</string>
+    <string name="tip_ai_notes_sparkle">Activez l\'Assistant IA dans les Paramètres Avancés pour débloquer le menu éclat dans les notes.</string>
+    <string name="tip_voice_notes_encrypted">Les notes vocales sont chiffrées avec les mêmes clés que vos notes texte.</string>
+    <string name="tip_checklist_mode">Basculez en mode liste dans une note pour la transformer en liste de tâches.</string>
+    <string name="tip_on_device_only">Tout traitement IA se fait sur votre appareil. Aucune donnée n\'est envoyée ailleurs.</string>
+    <string name="tip_advanced_settings_pin">Les Paramètres Avancés sont protégés par PIN — les actions critiques restent sûres.</string>
+    <string name="tip_backup_downloads">Les sauvegardes vont dans le dossier Téléchargements pour un transfert facile.</string>
+    <string name="tip_qr_generator">L\'écran QR a un onglet Générer — créez WiFi, vCard et plus.</string>
+    <string name="tip_face_threshold_slider">Ajustez la sensibilité du regroupement de visages dans Paramètres → Caméra.</string>
 
     <!-- Settings: AI Detection -->
     <string name="settings_section_ai_detection">Détection IA</string>
