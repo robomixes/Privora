@@ -145,6 +145,25 @@ fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null, op
         deepLinkHandled = true
     }
 
+    // Share-to-Privora: if text was shared from another app, create a new note with that content
+    var shareHandled by remember { mutableStateOf(false) }
+    if (!shareHandled && startUnlocked) {
+        val (_, shareText) = com.privateai.camera.MainActivity.consumePendingShare()
+        if (!shareText.isNullOrBlank()) {
+            // Pre-fill a new note — user lands in the editor to review before saving
+            editingNote = SecureNote(
+                id = java.util.UUID.randomUUID().toString(),
+                title = "",
+                content = shareText,
+                tags = emptyList(),
+                createdAt = System.currentTimeMillis(),
+                modifiedAt = System.currentTimeMillis()
+            )
+            page = NotesPage.EDITOR
+        }
+        shareHandled = true
+    }
+
     // Multi-select
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isSelectionMode by remember { mutableStateOf(false) }

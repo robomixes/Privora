@@ -85,6 +85,11 @@
     <string name="intruder_alerts_desc">Capture a front camera photo on wrong PIN attempts</string>
     <string name="intruder_view_captures">View captures (%d)</string>
     <string name="intruder_clear_all">Clear all</string>
+    <!-- Calculator disguise -->
+    <string name="disguise_calculator_name">Calculator</string>
+    <string name="disguise_title">Calculator Disguise</string>
+    <string name="disguise_enabled_desc">App appears as \"Calculator\" in launcher. Enter your PIN + = to unlock.</string>
+    <string name="disguise_disabled_desc">App appears as \"Privora\" in launcher.</string>
     <string name="assistant_copied">Copied to clipboard</string>
     <string name="assistant_new_chat">New chat</string>
     <string name="feature_tools">Tools</string>

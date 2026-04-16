@@ -919,6 +919,35 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     } else {
                         // ─── Unlocked: show all critical settings ───
 
+                        // Calculator disguise — swap launcher icon
+                        var disguiseEnabled by remember {
+                            mutableStateOf(com.privateai.camera.ui.disguise.DisguiseManager.isDisguiseEnabled(context))
+                        }
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.PhoneAndroid, null, Modifier.size(24.dp),
+                                tint = if (disguiseEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.disguise_title), style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    if (disguiseEnabled) stringResource(R.string.disguise_enabled_desc)
+                                    else stringResource(R.string.disguise_disabled_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(checked = disguiseEnabled, onCheckedChange = {
+                                disguiseEnabled = it
+                                com.privateai.camera.ui.disguise.DisguiseManager.setDisguiseEnabled(context, it)
+                            })
+                        }
+
                         // Intruder alerts — front camera on wrong PIN
                         IntruderAlertsSetting(context)
                         Spacer(Modifier.height(8.dp))

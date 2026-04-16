@@ -1,6 +1,7 @@
 package com.privateai.camera
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
@@ -24,6 +25,21 @@ class MainActivity : AppCompatActivity() {
             val route = pendingWidgetRoute
             pendingWidgetRoute = null
             return route
+        }
+
+        /** URIs shared from other apps via ACTION_SEND / SEND_MULTIPLE. Consumed after auth. */
+        var pendingShareUris: List<Uri>? = null
+            private set
+        /** Text shared from other apps via ACTION_SEND text/plain. Consumed after auth. */
+        var pendingShareText: String? = null
+            private set
+
+        fun consumePendingShare(): Pair<List<Uri>?, String?> {
+            val uris = pendingShareUris
+            val text = pendingShareText
+            pendingShareUris = null
+            pendingShareText = null
+            return uris to text
         }
     }
 
@@ -68,6 +84,7 @@ class MainActivity : AppCompatActivity() {
         Thread { DuressManager.deleteMarkedFiles(this) }.start()
 
         handleWidgetIntent(intent)
+        handleShareIntent(intent)
 
         setContent {
             PrivateAICameraTheme {
@@ -79,12 +96,41 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleWidgetIntent(intent)
+        handleShareIntent(intent)
     }
 
     private fun handleWidgetIntent(intent: Intent?) {
         when (intent?.action) {
             "OPEN_CAMERA" -> pendingWidgetRoute = "camera"
             "OPEN_VAULT" -> pendingWidgetRoute = "vault"
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun handleShareIntent(intent: Intent?) {
+        if (intent == null) return
+        when (intent.action) {
+            Intent.ACTION_SEND -> {
+                val type = intent.type ?: return
+                if (type == "text/plain") {
+                    pendingShareText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                    pendingWidgetRoute = "notes" // will create a new note with the text
+                } else {
+                    // image/*, video/*, application/pdf
+                    val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+                    if (uri != null) {
+                        pendingShareUris = listOf(uri)
+                        pendingWidgetRoute = "vault" // will auto-import
+                    }
+                }
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                val uris = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+                if (!uris.isNullOrEmpty()) {
+                    pendingShareUris = uris
+                    pendingWidgetRoute = "vault"
+                }
+            }
         }
     }
 }

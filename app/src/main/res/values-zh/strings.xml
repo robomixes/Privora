@@ -83,6 +83,10 @@
     <string name="intruder_alerts_desc">输入错误 PIN 时用前置摄像头拍照</string>
     <string name="intruder_view_captures">查看拍摄记录 (%d)</string>
     <string name="intruder_clear_all">全部清除</string>
+    <string name="disguise_calculator_name">计算器</string>
+    <string name="disguise_title">计算器伪装</string>
+    <string name="disguise_enabled_desc">应用在启动器中显示为\"计算器\"。输入 PIN + = 解锁。</string>
+    <string name="disguise_disabled_desc">应用在启动器中显示为\"Privora\"。</string>
     <string name="assistant_copied">已复制到剪贴板</string>
     <string name="assistant_new_chat">新对话</string>
     <string name="feature_tools">工具</string>

@@ -277,7 +277,71 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
         }
     }
 
-    // Import files launcher
+    // Auto-import shared URIs from other apps (Share → Privora)
+    // Uses the same import logic as the manual picker below.
+    var pendingShareProcessed by remember { mutableStateOf(false) }
+    fun runImport(uris: List<android.net.Uri>) {
+        if (uris.isEmpty()) return
+        isImporting = true
+        importTotal = uris.size
+        importProgress = 0
+        importErrors = 0
+        scope.launch {
+            var importedImages = 0; var importedPdfs = 0; var importedVideos = 0; var skippedLarge = 0
+            VaultLockManager.markUnlocked()
+            withContext(Dispatchers.IO) {
+                uris.forEachIndexed { idx, uri ->
+                    VaultLockManager.markUnlocked()
+                    try {
+                        val mimeType = context.contentResolver.getType(uri)
+                        if (mimeType?.startsWith("video/") == true) {
+                            val size = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
+                            if (size > 150L * 1024 * 1024) { skippedLarge++; importErrors++; withContext(Dispatchers.Main) { importProgress = idx + 1 }; return@forEachIndexed }
+                            val tempFile = java.io.File(context.cacheDir, "share_vid_${System.currentTimeMillis()}.mp4")
+                            context.contentResolver.openInputStream(uri)?.use { input -> tempFile.outputStream().use { output -> input.copyTo(output) } }
+                            vault.saveVideo(tempFile); importedVideos++
+                        } else {
+                            val bytes = context.contentResolver.openInputStream(uri)?.readBytes()
+                            if (bytes == null) { importErrors++; withContext(Dispatchers.Main) { importProgress = idx + 1 }; return@forEachIndexed }
+                            if (mimeType?.startsWith("image/") == true) {
+                                val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                if (bitmap != null) { vault.savePhoto(bitmap, VaultCategory.CAMERA); bitmap.recycle(); importedImages++ }
+                                else importErrors++
+                            } else if (mimeType == "application/pdf") {
+                                vault.saveFile(bytes, "share_${System.currentTimeMillis()}.pdf", VaultCategory.SCAN); importedPdfs++
+                            }
+                        }
+                    } catch (_: Exception) { importErrors++ }
+                    withContext(Dispatchers.Main) { importProgress = idx + 1 }
+                }
+            }
+            isImporting = false
+            if (!isDuressActive) { categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders(); trashCount = vault.trashCount() }
+            val summary = buildString {
+                if (importedImages > 0) append("$importedImages photo(s) ")
+                if (importedVideos > 0) append("$importedVideos video(s) ")
+                if (importedPdfs > 0) append("$importedPdfs PDF(s) ")
+                append("saved to vault")
+                if (importErrors > 0) append(" ($importErrors failed)")
+            }
+            withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(context, summary, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    // Check for pending share from other apps on first composition
+    LaunchedEffect(Unit) {
+        if (!pendingShareProcessed) {
+            pendingShareProcessed = true
+            val (shareUris, _) = com.privateai.camera.MainActivity.consumePendingShare()
+            if (!shareUris.isNullOrEmpty()) {
+                runImport(shareUris)
+            }
+        }
+    }
+
+    // Import files launcher (manual picker)
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->

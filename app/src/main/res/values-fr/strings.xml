@@ -83,6 +83,10 @@
     <string name="intruder_alerts_desc">Capturer une photo frontale lors de tentatives de PIN incorrectes</string>
     <string name="intruder_view_captures">Voir les captures (%d)</string>
     <string name="intruder_clear_all">Tout effacer</string>
+    <string name="disguise_calculator_name">Calculatrice</string>
+    <string name="disguise_title">Déguisement calculatrice</string>
+    <string name="disguise_enabled_desc">L\'app apparaît comme \"Calculatrice\". Entrez votre PIN + = pour déverrouiller.</string>
+    <string name="disguise_disabled_desc">L\'app apparaît comme \"Privora\".</string>
     <string name="assistant_copied">Copié dans le presse-papier</string>
     <string name="assistant_new_chat">Nouveau chat</string>
     <string name="feature_tools">Outils</string>

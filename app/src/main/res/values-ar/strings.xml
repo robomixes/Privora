@@ -83,6 +83,10 @@
     <string name="intruder_alerts_desc">التقاط صورة بالكاميرا الأمامية عند إدخال رمز PIN خاطئ</string>
     <string name="intruder_view_captures">عرض الصور الملتقطة (%d)</string>
     <string name="intruder_clear_all">مسح الكل</string>
+    <string name="disguise_calculator_name">الآلة الحاسبة</string>
+    <string name="disguise_title">تمويه الآلة الحاسبة</string>
+    <string name="disguise_enabled_desc">يظهر التطبيق كـ\"آلة حاسبة\". أدخل رمز PIN + = للفتح.</string>
+    <string name="disguise_disabled_desc">يظهر التطبيق كـ\"Privora\".</string>
     <string name="assistant_copied">تم النسخ</string>
     <string name="assistant_new_chat">محادثة جديدة</string>
     <string name="feature_tools">الأدوات</string>

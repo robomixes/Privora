@@ -83,6 +83,10 @@
     <string name="intruder_alerts_desc">Capturar foto frontal en intentos de PIN incorrectos</string>
     <string name="intruder_view_captures">Ver capturas (%d)</string>
     <string name="intruder_clear_all">Borrar todo</string>
+    <string name="disguise_calculator_name">Calculadora</string>
+    <string name="disguise_title">Disfraz de calculadora</string>
+    <string name="disguise_enabled_desc">La app aparece como \"Calculadora\". Introduce tu PIN + = para desbloquear.</string>
+    <string name="disguise_disabled_desc">La app aparece como \"Privora\".</string>
     <string name="assistant_copied">Copiado al portapapeles</string>
     <string name="assistant_new_chat">Nuevo chat</string>
     <string name="feature_tools">Herramientas</string>
