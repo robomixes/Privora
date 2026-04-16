@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Refresh
@@ -918,6 +919,10 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     } else {
                         // ─── Unlocked: show all critical settings ───
 
+                        // Intruder alerts — front camera on wrong PIN
+                        IntruderAlertsSetting(context)
+                        Spacer(Modifier.height(8.dp))
+
                         // AI Assistant (Gemma 4)
                         var aiEnabled by remember { mutableStateOf(com.privateai.camera.bridge.GemmaRunner.isEnabled(context)) }
                         var aiModelDownloaded by remember { mutableStateOf(com.privateai.camera.bridge.GemmaRunner.isModelDownloaded(context)) }
@@ -1506,3 +1511,124 @@ private fun formatSize(bytes: Long): String {
         else -> "${"%.1f".format(bytes / (1024.0 * 1024 * 1024))} GB"
     }
 }
+
+/**
+ * Intruder Alerts setting: toggle + list of captured photos from wrong PIN attempts.
+ * Matches the Advanced section's Row layout pattern (icon + column + switch).
+ */
+@Composable
+private fun IntruderAlertsSetting(context: android.content.Context) {
+    var enabled by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(com.privateai.camera.security.IntruderCapture.isEnabled(context))
+    }
+    var showViewer by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    // Main toggle row — same padding/spacing as AI Assistant and other Advanced items
+    Row(
+        Modifier.fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(
+            Icons.Default.Security, null, Modifier.size(24.dp),
+            tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.intruder_alerts_title), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                if (enabled) {
+                    val count = com.privateai.camera.security.IntruderCapture.listCaptures(context).size
+                    if (count > 0) stringResource(R.string.intruder_view_captures, count)
+                    else stringResource(R.string.intruder_alerts_desc)
+                } else {
+                    stringResource(R.string.intruder_alerts_desc)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = enabled, onCheckedChange = {
+            enabled = it
+            com.privateai.camera.security.IntruderCapture.setEnabled(context, it)
+        })
+    }
+
+    // Tap the row to view captures when enabled
+    if (enabled) {
+        val count = com.privateai.camera.security.IntruderCapture.listCaptures(context).size
+        if (count > 0) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .clickable { showViewer = true }
+                    .padding(horizontal = 56.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    stringResource(R.string.intruder_view_captures, count),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+
+    // Viewer dialog
+    if (showViewer) {
+        val captures = androidx.compose.runtime.remember { com.privateai.camera.security.IntruderCapture.listCaptures(context) }
+        if (captures.isEmpty()) {
+            showViewer = false
+            return
+        }
+        val dateFmt = java.text.SimpleDateFormat("MMM dd, yyyy HH:mm:ss", java.util.Locale.getDefault())
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showViewer = false },
+            title = { Text(stringResource(R.string.intruder_alerts_title)) },
+            text = {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(captures.size) { i ->
+                        val entry = captures[i]
+                        val bitmap = androidx.compose.runtime.remember(entry.timestamp) {
+                            com.privateai.camera.security.IntruderCapture.decryptCapture(context, entry)
+                        }
+                        androidx.compose.material3.Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(Modifier.padding(8.dp)) {
+                                Text(
+                                    dateFmt.format(java.util.Date(entry.timestamp)),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (bitmap != null) {
+                                    androidx.compose.foundation.Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxWidth().height(180.dp)
+                                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                    )
+                                } else {
+                                    Text("Could not load photo", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    com.privateai.camera.security.IntruderCapture.clearAll(context)
+                    showViewer = false
+                }) { Text(stringResource(R.string.intruder_clear_all)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showViewer = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+}
+

@@ -391,4 +391,51 @@ object GemmaRunner {
     private fun extractText(message: Message?): String? {
         return message?.toString()
     }
+
+    // ── Strict-JSON helper ───────────────────────────────────────────
+
+    /**
+     * Run a completion expected to return a single JSON object.
+     *
+     * Tolerant of the common ways Gemma drifts from "JSON only" — it may
+     * wrap the object in ```json fences, prepend a sentence, or follow it
+     * with a paragraph. We grab the first {...} substring and parse that.
+     *
+     * Returns null if no JSON could be extracted (caller's job to fall back
+     * to a user-friendly toast or treat the raw text as an answer).
+     */
+    suspend fun completeJson(
+        context: Context,
+        prompt: String,
+        systemInstruction: String = "",
+        maxTokens: Int = 512,
+        temperature: Double = 0.2
+    ): org.json.JSONObject? {
+        val raw = complete(context, prompt, systemInstruction, maxTokens, temperature) ?: return null
+        return extractFirstJsonObject(raw)
+    }
+
+    /** Pull the first balanced {...} block out of arbitrary model text. */
+    internal fun extractFirstJsonObject(raw: String): org.json.JSONObject? {
+        val start = raw.indexOf('{')
+        if (start < 0) return null
+        var depth = 0
+        var end = -1
+        var inString = false
+        var escape = false
+        for (i in start until raw.length) {
+            val c = raw[i]
+            if (escape) { escape = false; continue }
+            if (c == '\\') { escape = true; continue }
+            if (c == '"') { inString = !inString; continue }
+            if (inString) continue
+            if (c == '{') depth++
+            else if (c == '}') {
+                depth--
+                if (depth == 0) { end = i; break }
+            }
+        }
+        if (end < 0) return null
+        return try { org.json.JSONObject(raw.substring(start, end + 1)) } catch (_: Exception) { null }
+    }
 }

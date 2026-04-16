@@ -24,6 +24,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Lock
@@ -86,7 +88,8 @@ import java.io.File
 fun HomeTabsLayout(
     visibleFeatures: List<FeatureItem>,
     onFeatureClick: (String) -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onAssistantClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     // Session flag — true when ANY session is active (normal unlock OR duress)
@@ -96,17 +99,82 @@ fun HomeTabsLayout(
     var isVaultUnlocked by remember {
         mutableStateOf(VaultLockManager.isUnlockedWithinGrace(context) && !VaultLockManager.isDuressActive)
     }
-    // Tabs + More sheet moved to app-level PrivoraBottomTabs. This composable only provides
-    // the top bar + greeting/recent-activity/tip body. onFeatureClick is still accepted
-    // because some cards (Recent Activity rows) may navigate to features directly.
+
+    // General vault unlock — same logic as Grid layout
+    val crypto = remember { com.privateai.camera.security.CryptoManager(context) }
+    val currentAuthMode = remember { com.privateai.camera.ui.onboarding.getAuthMode(context) }
+    var showPinDialog by remember { mutableStateOf(false) }
+
+    fun unlockWithBiometric() {
+        val activity = context as? androidx.fragment.app.FragmentActivity ?: return
+        val bm = androidx.biometric.BiometricManager.from(context)
+        val canAuth = bm.canAuthenticate(
+            androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or
+            androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        ) == androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS
+        if (!canAuth) {
+            if (crypto.initialize()) { VaultLockManager.markUnlocked(); hasActiveSession = true; isVaultUnlocked = true }
+            return
+        }
+        val prompt = androidx.biometric.BiometricPrompt(
+            activity, androidx.core.content.ContextCompat.getMainExecutor(context),
+            object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                    if (crypto.initialize()) { VaultLockManager.markUnlocked(); hasActiveSession = true; isVaultUnlocked = true }
+                }
+            }
+        )
+        prompt.authenticate(
+            androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+                .setTitle(context.getString(R.string.vault_unlock_title))
+                .setSubtitle(context.getString(R.string.vault_unlock_subtitle))
+                .setAllowedAuthenticators(
+                    androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                    androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                ).build()
+        )
+    }
+
+    fun unlockVault() {
+        if (currentAuthMode == com.privateai.camera.ui.onboarding.AuthMode.APP_PIN) {
+            showPinDialog = true
+        } else {
+            unlockWithBiometric()
+        }
+    }
+
+    if (showPinDialog) {
+        VaultPinDialog(
+            crypto = crypto,
+            onUnlocked = { isDuress ->
+                showPinDialog = false
+                hasActiveSession = true
+                isVaultUnlocked = !isDuress
+            },
+            onDismiss = { showPinDialog = false }
+        )
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name_home)) },
                 actions = {
-                    // Lock button shown whenever a session is active (normal OR duress),
-                    // so the user can always re-lock to escape duress and enter the real PIN.
+                    // ✨ AI Assistant — only when AI available + vault unlocked + not duress
+                    if (isVaultUnlocked
+                        && com.privateai.camera.bridge.GemmaRunner.isAvailable(context)
+                        && !com.privateai.camera.security.VaultLockManager.isDuressActive
+                        && onAssistantClick != null
+                    ) {
+                        IconButton(onClick = onAssistantClick) {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = stringResource(R.string.assistant_title),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    // Lock/Unlock — always visible. Locked → tap to authenticate. Unlocked → tap to re-lock.
                     if (hasActiveSession) {
                         IconButton(onClick = {
                             VaultLockManager.lock()
@@ -121,6 +189,14 @@ fun HomeTabsLayout(
                                 Icons.Default.LockOpen,
                                 contentDescription = stringResource(R.string.cd_lock_vault),
                                 tint = Color(0xFF4CAF50)
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = { unlockVault() }) {
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = stringResource(R.string.action_unlock),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -147,15 +223,15 @@ fun HomeTabsLayout(
             // Greeting — include self contact name when vault is unlocked
             GreetingHeader(isVaultUnlocked = isVaultUnlocked)
 
-            // Recent activity (only when unlocked)
+            // Daily tip — above recent activity for visibility
+            DailyTipCard(isVaultUnlocked = isVaultUnlocked)
+
+            // Recent activity + today's reminders (only when unlocked)
             if (isVaultUnlocked) {
                 RecentActivityCard(onFeatureClick = onFeatureClick)
             } else {
                 LockedActivityCard()
             }
-
-            // Daily tip — AI-generated when unlocked + AI enabled, else static pool
-            DailyTipCard(isVaultUnlocked = isVaultUnlocked)
         }
     }
 }
@@ -342,6 +418,9 @@ private fun LockedActivityCard() {
     }
 }
 
+/** A today-reminder entry for the landing card. */
+private data class TodayRemItem(val title: String, val time: String, val isDone: Boolean)
+
 @Composable
 private fun RecentActivityCard(onFeatureClick: (String) -> Unit) {
     val context = LocalContext.current
@@ -349,6 +428,7 @@ private fun RecentActivityCard(onFeatureClick: (String) -> Unit) {
     var noteCount by remember { mutableStateOf(0) }
     var latestPhotoThumb by remember { mutableStateOf<Bitmap?>(null) }
     var latestNoteTitle by remember { mutableStateOf<String?>(null) }
+    var todayReminders by remember { mutableStateOf<List<TodayRemItem>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -356,6 +436,9 @@ private fun RecentActivityCard(onFeatureClick: (String) -> Unit) {
                 val crypto = CryptoManager(context).also { it.initialize() }
                 val vault = VaultRepository(context, crypto)
                 val noteRepo = NoteRepository(File(context.filesDir, "vault/notes"), crypto)
+                val insightsRepo = com.privateai.camera.security.InsightsRepository(
+                    File(context.filesDir, "vault/insights"), crypto
+                )
 
                 val allPhotos = VaultCategory.entries
                     .filter { it != VaultCategory.FILES }
@@ -369,6 +452,35 @@ private fun RecentActivityCard(onFeatureClick: (String) -> Unit) {
                 latestNoteTitle = noteRepo.listNotes()
                     .maxByOrNull { it.modifiedAt }?.title
                     ?.takeIf { it.isNotBlank() }
+
+                // Today's reminders
+                val dateFmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                val timeFmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.US)
+                val today = dateFmt.format(java.util.Date())
+                val cal = java.util.Calendar.getInstance()
+                val todayDow = when (cal.get(java.util.Calendar.DAY_OF_WEEK)) {
+                    java.util.Calendar.MONDAY -> 1; java.util.Calendar.TUESDAY -> 2
+                    java.util.Calendar.WEDNESDAY -> 3; java.util.Calendar.THURSDAY -> 4
+                    java.util.Calendar.FRIDAY -> 5; java.util.Calendar.SATURDAY -> 6
+                    else -> 7
+                }
+                val schedules = insightsRepo.listScheduleItems().filter { it.enabled }
+                val todayLog = insightsRepo.loadScheduleLog(today)
+
+                val recurring = schedules
+                    .filter { !it.isOneShot && (it.daysOfWeek.isEmpty() || todayDow in it.daysOfWeek) }
+                    .flatMap { item -> item.timesOfDay.map { time ->
+                        val done = todayLog.entries.any { it.scheduleId == item.id && it.time == time && it.state == com.privateai.camera.security.LogState.DONE }
+                        TodayRemItem(item.title, time, done)
+                    }}
+                val oneShots = schedules
+                    .filter { it.isOneShot && it.oneShotAt != null && dateFmt.format(java.util.Date(it.oneShotAt!!)) == today }
+                    .map { item ->
+                        val t = timeFmt.format(java.util.Date(item.oneShotAt!!))
+                        val done = todayLog.entries.any { it.scheduleId == item.id && (it.time == t || it.time == "ONESHOT") && it.state == com.privateai.camera.security.LogState.DONE }
+                        TodayRemItem(item.title, t, done)
+                    }
+                todayReminders = (recurring + oneShots).sortedBy { it.time }.take(5)
             } catch (_: Exception) {
                 // Silently fail — keep defaults
             }
@@ -389,6 +501,41 @@ private fun RecentActivityCard(onFeatureClick: (String) -> Unit) {
                 color = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.height(12.dp))
+
+            // Today's reminders
+            if (todayReminders.isNotEmpty()) {
+                todayReminders.forEach { rem ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onFeatureClick("reminders") }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            if (rem.isDone) Icons.Default.CheckCircle else Icons.Default.Schedule,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = if (rem.isDone) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            rem.time,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (rem.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            rem.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            textDecoration = if (rem.isDone) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                            color = if (rem.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
 
             // Latest photo row
             Row(

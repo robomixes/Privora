@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -92,6 +93,7 @@ val features = listOf(
 fun HomeScreen(
     onFeatureClick: (String) -> Unit,
     onSettingsClick: () -> Unit,
+    onAssistantClick: (() -> Unit)? = null,
     importSummary: String? = null
 ) {
     val context = LocalContext.current
@@ -106,7 +108,8 @@ fun HomeScreen(
         HomeTabsLayout(
             visibleFeatures = visibleFeatures,
             onFeatureClick = onFeatureClick,
-            onSettingsClick = onSettingsClick
+            onSettingsClick = onSettingsClick,
+            onAssistantClick = onAssistantClick
         )
         return
     }
@@ -114,12 +117,82 @@ fun HomeScreen(
     var isVaultUnlocked by remember { mutableStateOf(VaultLockManager.isUnlockedWithinGrace(context)) }
     var showImportBanner by remember { mutableStateOf(importSummary != null) }
 
+    // General vault unlock — supports both PHONE_LOCK (biometric) and APP_PIN modes
+    val crypto = remember { com.privateai.camera.security.CryptoManager(context) }
+    val currentAuthMode = remember { com.privateai.camera.ui.onboarding.getAuthMode(context) }
+    var showPinDialog by remember { mutableStateOf(false) }
+
+    fun unlockWithBiometric() {
+        val activity = context as? androidx.fragment.app.FragmentActivity ?: return
+        val bm = androidx.biometric.BiometricManager.from(context)
+        val canAuth = bm.canAuthenticate(
+            androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or
+            androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        ) == androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS
+        if (!canAuth) {
+            if (crypto.initialize()) { VaultLockManager.markUnlocked(); isVaultUnlocked = true }
+            return
+        }
+        val prompt = androidx.biometric.BiometricPrompt(
+            activity, androidx.core.content.ContextCompat.getMainExecutor(context),
+            object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                    if (crypto.initialize()) { VaultLockManager.markUnlocked(); isVaultUnlocked = true }
+                }
+            }
+        )
+        prompt.authenticate(
+            androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+                .setTitle(context.getString(R.string.vault_unlock_title))
+                .setSubtitle(context.getString(R.string.vault_unlock_subtitle))
+                .setAllowedAuthenticators(
+                    androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                    androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                ).build()
+        )
+    }
+
+    fun unlockVault() {
+        if (currentAuthMode == com.privateai.camera.ui.onboarding.AuthMode.APP_PIN) {
+            showPinDialog = true
+        } else {
+            unlockWithBiometric()
+        }
+    }
+
+    // PIN unlock dialog
+    if (showPinDialog) {
+        VaultPinDialog(
+            crypto = crypto,
+            onUnlocked = { isDuress ->
+                showPinDialog = false
+                isVaultUnlocked = !isDuress
+            },
+            onDismiss = { showPinDialog = false }
+        )
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.app_name_home)) },
                 actions = {
+                    // ✨ AI Assistant — only when AI available + vault unlocked + not duress
+                    if (isVaultUnlocked
+                        && com.privateai.camera.bridge.GemmaRunner.isAvailable(context)
+                        && !VaultLockManager.isDuressActive
+                        && onAssistantClick != null
+                    ) {
+                        IconButton(onClick = onAssistantClick) {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = stringResource(R.string.assistant_title),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    // Lock/Unlock — always visible so the user can unlock without navigating to a feature first
                     if (isVaultUnlocked) {
                         IconButton(onClick = {
                             VaultLockManager.lock()
@@ -133,6 +206,14 @@ fun HomeScreen(
                                 Icons.Default.LockOpen,
                                 contentDescription = stringResource(R.string.cd_lock_vault),
                                 tint = Color(0xFF4CAF50)
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = { unlockVault() }) {
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = stringResource(R.string.action_unlock),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -267,4 +348,119 @@ fun FeatureCard(
             }
         }
     }
+}
+
+/**
+ * Reusable PIN unlock dialog. Handles the app PIN check, duress PIN detection,
+ * and rate limiting — same logic as InsightsScreen's lock screen but in dialog form.
+ */
+@Composable
+fun VaultPinDialog(
+    crypto: com.privateai.camera.security.CryptoManager,
+    onUnlocked: (isDuress: Boolean) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var pinInput by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf<String?>(null) }
+    var isLockedOut by remember { mutableStateOf(com.privateai.camera.security.PinRateLimiter.remainingLockoutMs(context) > 0) }
+    var lockoutRemainingMs by remember { mutableStateOf(com.privateai.camera.security.PinRateLimiter.remainingLockoutMs(context)) }
+
+    androidx.compose.runtime.LaunchedEffect(isLockedOut) {
+        if (isLockedOut) {
+            while (true) {
+                val remaining = com.privateai.camera.security.PinRateLimiter.remainingLockoutMs(context)
+                if (remaining <= 0) { isLockedOut = false; lockoutRemainingMs = 0L; break }
+                lockoutRemainingMs = remaining
+                kotlinx.coroutines.delay(1000L)
+            }
+        }
+    }
+
+    fun checkPin(pin: String) {
+        // Duress PIN check
+        if (com.privateai.camera.security.DuressManager.isEnabled(context) &&
+            com.privateai.camera.security.DuressManager.isDuressPin(context, pin)
+        ) {
+            VaultLockManager.activateDuress()
+            VaultLockManager.markUnlocked()
+            Thread { com.privateai.camera.security.DuressManager.executeDuress(context, crypto) }.start()
+            onUnlocked(true)
+            return
+        }
+
+        if (!com.privateai.camera.security.PinRateLimiter.canAttempt(context)) {
+            pinInput = ""
+            isLockedOut = true
+            lockoutRemainingMs = com.privateai.camera.security.PinRateLimiter.remainingLockoutMs(context)
+            return
+        }
+
+        val appPin = com.privateai.camera.ui.onboarding.getAppPin(context)
+        if (appPin != null && pin == appPin) {
+            com.privateai.camera.security.PinRateLimiter.recordSuccess(context)
+            if (crypto.initialize()) {
+                VaultLockManager.clearDuress()
+                VaultLockManager.markUnlocked()
+                onUnlocked(false)
+            }
+            return
+        }
+
+        com.privateai.camera.security.PinRateLimiter.recordFailure(context)
+        val remaining = com.privateai.camera.security.PinRateLimiter.remainingLockoutMs(context)
+        if (remaining > 0) {
+            isLockedOut = true; lockoutRemainingMs = remaining; pinError = null
+        } else {
+            pinError = context.getString(R.string.vault_incorrect_pin)
+        }
+        pinInput = ""
+    }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.vault_unlock_title)) },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (isLockedOut) {
+                    val seconds = (lockoutRemainingMs / 1000).toInt()
+                    Text(
+                        stringResource(R.string.pin_locked_out, "%d:%02d".format(seconds / 60, seconds % 60)),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = pinInput,
+                        onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) { pinInput = it; pinError = null } },
+                        label = { Text(stringResource(R.string.vault_enter_pin)) },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                        ),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                            onDone = { if (pinInput.length >= 4) checkPin(pinInput) }
+                        ),
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        isError = pinError != null,
+                        supportingText = { pinError?.let { Text(it, color = MaterialTheme.colorScheme.error) } },
+                        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = { if (pinInput.length >= 4) checkPin(pinInput) },
+                enabled = pinInput.length >= 4 && !isLockedOut
+            ) { Text(stringResource(R.string.action_unlock)) }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }

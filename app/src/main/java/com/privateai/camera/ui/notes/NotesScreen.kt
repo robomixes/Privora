@@ -115,7 +115,7 @@ private enum class NotesPage { LOCKED, LIST, EDITOR }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null) {
+fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null, openNoteId: String? = null) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -133,6 +133,17 @@ fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null) {
     var selectedTag by remember { mutableStateOf<String?>(null) }
     var allTags by remember { mutableStateOf<List<String>>(emptyList()) }
     var editingNote by remember { mutableStateOf<SecureNote?>(null) }
+
+    // Deep-link: if openNoteId is provided (e.g. from AI Assistant), jump straight to that note's editor
+    var deepLinkHandled by remember { mutableStateOf(false) }
+    if (openNoteId != null && !deepLinkHandled && startUnlocked) {
+        val target = noteRepo.listNotes().find { it.id == openNoteId }
+        if (target != null) {
+            editingNote = target
+            page = NotesPage.EDITOR
+        }
+        deepLinkHandled = true
+    }
 
     // Multi-select
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }

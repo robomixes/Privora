@@ -53,6 +53,9 @@ object PinRateLimiter {
             .putInt(KEY_FAILED_ATTEMPTS, attempts)
             .putLong(KEY_LOCKOUT_UNTIL, lockoutUntil)
             .apply()
+
+        // Intruder capture: silently snap a front-camera photo on each failed attempt
+        IntruderCapture.snapIfEnabled(context)
     }
 
     fun recordSuccess(context: Context) {

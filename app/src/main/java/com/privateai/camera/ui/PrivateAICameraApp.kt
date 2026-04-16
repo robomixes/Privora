@@ -22,6 +22,7 @@ import com.privateai.camera.MainActivity
 import com.privateai.camera.ui.camera.CameraScreen
 import com.privateai.camera.ui.camera.CaptureScreen
 import com.privateai.camera.ui.home.HomeScreen
+import com.privateai.camera.ui.assistant.AssistantScreen
 import com.privateai.camera.ui.home.PrivoraBottomTabs
 import com.privateai.camera.ui.insights.InsightsScreen
 import com.privateai.camera.ui.notes.NotesScreen
@@ -126,7 +127,8 @@ fun PrivateAICameraApp() {
             composable("home") {
                 HomeScreen(
                     onFeatureClick = { route -> navController.navigate(route) },
-                    onSettingsClick = { navController.navigate("settings") }
+                    onSettingsClick = { navController.navigate("settings") },
+                    onAssistantClick = { navController.navigate("assistant") }
                 )
             }
             composable(
@@ -137,8 +139,22 @@ fun PrivateAICameraApp() {
                 HomeScreen(
                     onFeatureClick = { route -> navController.navigate(route) },
                     onSettingsClick = { navController.navigate("settings") },
+                    onAssistantClick = { navController.navigate("assistant") },
                     importSummary = summary.ifEmpty { null }
                 )
+            }
+            composable("assistant") {
+                AssistantScreen(
+                    onBack = safeBack,
+                    onNavigate = { route -> navController.navigate(route) }
+                )
+            }
+            composable(
+                "notes?openNoteId={openNoteId}",
+                arguments = listOf(navArgument("openNoteId") { defaultValue = ""; type = NavType.StringType })
+            ) { backStackEntry ->
+                val noteId = backStackEntry.arguments?.getString("openNoteId")?.ifBlank { null }
+                NotesScreen(onBack = safeBack, openNoteId = noteId)
             }
             composable("camera") {
                 CaptureScreen(

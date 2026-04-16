@@ -15,6 +15,10 @@
     <string name="action_save">Save</string>
     <string name="action_create">Create</string>
     <string name="action_unlock">Unlock</string>
+    <string name="vault_unlock_title">Unlock Privora</string>
+    <string name="vault_unlock_subtitle">Authenticate to access your private data</string>
+    <string name="vault_enter_pin">Enter your PIN</string>
+    <string name="vault_incorrect_pin">Incorrect PIN</string>
     <string name="action_clear_all">Clear All</string>
     <string name="action_previous">Previous</string>
     <string name="action_next">Next</string>
@@ -63,6 +67,26 @@
     <string name="reminders_unlock_subtitle">Authenticate to access your reminders</string>
     <string name="reminder_set_reminder">Set reminder</string>
     <string name="reminder_summary_label">🔔 Reminder</string>
+    <!-- AI Assistant -->
+    <string name="assistant_title">Ask Privora</string>
+    <string name="assistant_input_hint">Type a message…</string>
+    <string name="assistant_thinking">Thinking…</string>
+    <string name="assistant_send">Send</string>
+    <string name="assistant_empty_intro">Ask me anything about your data, or paste text to summarize or rewrite.</string>
+    <string name="assistant_try_label">Try one of these:</string>
+    <string name="assistant_example_week">What\'s coming up this week?</string>
+    <string name="assistant_example_search">Search my notes…</string>
+    <string name="assistant_example_summarize">Summarize this text…</string>
+    <string name="assistant_example_habits">Show my habits report</string>
+    <string name="assistant_error_generic">Something went wrong. Please try again.</string>
+    <string name="reminder_notification_private">You have a reminder</string>
+    <!-- Intruder alerts -->
+    <string name="intruder_alerts_title">Intruder Alerts</string>
+    <string name="intruder_alerts_desc">Capture a front camera photo on wrong PIN attempts</string>
+    <string name="intruder_view_captures">View captures (%d)</string>
+    <string name="intruder_clear_all">Clear all</string>
+    <string name="assistant_copied">Copied to clipboard</string>
+    <string name="assistant_new_chat">New chat</string>
     <string name="feature_tools">Tools</string>
     <string name="feature_tools_desc">Unit converter</string>
     <string name="feature_contacts">People</string>

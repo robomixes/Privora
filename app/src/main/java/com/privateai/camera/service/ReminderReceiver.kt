@@ -114,6 +114,16 @@ class ReminderReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .addAction(0, "Done", donePi)
             .addAction(0, "Skip", skipPi)
+            // Privacy: hide reminder content on the lock screen so passersby can't read it.
+            // Full title + time are only visible when the device is unlocked.
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setPublicVersion(
+                NotificationCompat.Builder(context, CHANNEL_ID)
+                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setContentTitle(context.getString(R.string.reminder_notification_private))
+                    .setContentText("")
+                    .build()
+            )
             .build()
         nm.notify(notifId, notification)
     }
