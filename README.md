@@ -1,114 +1,126 @@
 # Privora
 
-**Private AI Camera & Encrypted Vault**
+**Private AI Camera, Encrypted Vault & Personal Assistant**
 
-Privora is a privacy-first Android app that combines an AI-powered camera, encrypted vault, secure notes, and personal data tools — all running entirely on your device. No cloud. No analytics. No telemetry.
+Privora is a privacy-first Android app that combines an AI-powered camera, encrypted vault, secure notes, personal insights, scheduled reminders, and an on-device AI assistant — all running entirely on your device. No cloud. No analytics. No telemetry.
 
 [![Android](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
 [![API](https://img.shields.io/badge/API-26%2B-blue.svg)](https://developer.android.com/about/versions/oreo)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-purple.svg)](https://kotlinlang.org)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](#license)
 
 ---
 
 ## Features
 
-### Camera
-- Photo and video capture with real-time face detection
-- Hold-to-record quick video
-- AI object detection (YOLOv8n, fully offline)
-- Level indicator for perfect alignment
+### Camera & Detection
+- Photo and video capture with real-time YOLOv8n object detection overlay
+- Hold-to-record quick video, timer, front/back toggle
 - Photo editor with crop, rotate, filters, text, and stickers
+- Face detection + face grouping with person identity linking
+- EXIF stripping + face blur on share
 
 ### Encrypted Vault
 - AES-256-GCM encryption with hardware-backed keys (TEE/StrongBox)
 - 6 categories: Camera, Videos, Scans, Detections, Reports, Files
-- Custom folders and subfolders
-- Search across all vault items
+- Custom folders and subfolders with drag-and-drop organization
+- Full-text search across all vault items
 - Built-in video player with seek and tap-to-pause
-- Import photos, videos, and PDFs with automatic EXIF stripping
+- Bulk import from gallery (multi-select picker)
+- **Share-to-Privora**: receive images, videos, text, and PDFs from any app via the share sheet
 
 ### Secure Notes
 - Encrypted note-taking with 9 color themes
-- Pin, tag, and search notes
-- Multi-select with bulk operations
+- Markdown formatting: bold, italic, strikethrough, underline, checklists
+- Audio recording with encrypted storage
+- Photo attachments from vault
+- Person-linking to encrypted contacts
+- Tags, search, pin, multi-select, bulk operations
+- **AI-powered**: summarize, rewrite, extract tasks, fix grammar, continue writing (Gemma 4)
 
-### Document Scanner
+### Document Scanner + OCR
 - Multi-page scanning (up to 10 pages) via ML Kit
-- OCR text extraction
+- Enhancement modes: Auto, B&W, Color
+- OCR text extraction with copy-to-clipboard
 - Save as encrypted PDF (A4, 150 DPI)
 
 ### QR & Barcode Scanner
 - Live scanning with 50-item history
-- Context-aware actions (URL, phone, email, Wi-Fi)
+- QR code generator
+- Context-aware actions (URL, phone, email, SMS, Wi-Fi)
 
 ### Translation
 - Offline translation between 15 languages
 - Camera and gallery input with text overlay
-- Text-to-speech support
+- Text-to-speech support with bidirectional swap
 
-### Personal Insights
+### People / Encrypted Contacts
+- Encrypted address book with phone, email, links
+- Face identity linking from vault photos
+- Health profile linking for per-person insights
+- Notes and vault cross-references
+
+### Personal Insights (Encrypted)
 - **Expenses** — category tracking, pie charts, month navigation, PDF/CSV export
-- **Health** — family profiles, weight, heart rate, blood pressure, sleep, mood, temperature, steps, trend charts
-- **Habits** — daily checklist, streak counter, calendar view, completion tracking
+- **Health** — family profiles, weight, HR, BP, sleep, mood, temperature, steps, trend charts, AI weekly summary
+- **Medications** — name, dosage, instructions, linked reminders with alarms
+- **Habits** — daily checklist, streak counter, calendar heatmap, PDF export
 
-### Tools
-- Unit converter with 8 categories: length, weight, temperature, speed, data, area, volume, time
+### Reminders (Standalone Feature)
+- One-time and recurring reminders with AlarmManager
+- Done / Skip / Missed tracking with daily sweep
+- Boot persistence (re-registers alarms on reboot)
+- Linked to medications and habits (Done propagates to habit checklist)
+- **Notification privacy**: content hidden on lock screen (VISIBILITY_SECRET)
 
----
+### AI Assistant (On-Device)
+- **Gemma 4 E2B** (2.7GB) running locally via LiteRT-LM — zero cloud
+- ✨ entry point in the home top bar
+- Chat surface with markdown rendering (bold, italic, bullets, section headers)
+- Knowledge snapshot: reads reminders, expenses, notes (titles only), habits, health, medications
+- 3 tools: `search_notes`, `fetch_note`, `summarize_expenses`
+- Dynamic temperature (0.3 for data queries, 0.7 for creative tasks)
+- Persistent chat session (clears on app kill — no disk write)
+- Tappable data references (notes → opens editor, reminders → Reminders screen, habits/health → Insights)
+- Deep-link into specific notes from search results
 
-## Security
+### Home Screen
+- **Grid layout**: feature tiles, colored icons
+- **Tabs layout**: persistent bottom tab bar, greeting, daily AI tips, recent activity with today's reminders
+- Layout toggle in Settings
+- Lock/unlock from both layouts (PIN + biometric)
 
+### Security
 | Feature | Details |
 |---------|---------|
 | Encryption | AES-256-GCM with 12-byte IV and 128-bit tag |
-| Key Storage | Two-layer architecture: KEK in Android Keystore (TEE/StrongBox) wraps DEK |
+| Key Storage | Two-layer: KEK in Android Keystore (TEE/StrongBox) wraps DEK |
 | Authentication | Biometric (fingerprint/face) or app PIN |
-| Emergency PIN | Shows empty vault (EMPTY_ONLY) or wipes all data (WIPE mode) |
-| EXIF Stripping | GPS, device info, timestamps removed from all shared images |
+| Emergency PIN | Empty-vault mode (reusable) or full wipe mode |
+| Calculator Disguise | App appears as "Calculator" in launcher; PIN+= unlocks Privora; duress PIN+= triggers wipe |
+| Intruder Alerts | Silent front-camera capture on wrong PIN (Camera2 API), encrypted, auto-deletes after 30 days |
+| EXIF Stripping | GPS, device info, timestamps removed from all shared media |
 | Face Blur | Automatic face detection and pixelation before sharing |
 | Screenshot Protection | FLAG_SECURE blocks screenshots and screen recording |
 | Auto-lock | Configurable grace period (immediate to 2 minutes) |
-| Backup | Encrypted .paicbackup format with PBKDF2-SHA256 (600K iterations) |
+| Notification Privacy | Reminder content hidden on phone lock screen |
+| PIN Rate Limiting | Escalating cooldowns: 30s → 2min → 5min → 15min |
+| Backup | Encrypted .paicbackup with PBKDF2-SHA256 (600K iterations) |
 
 ---
 
 ## Tech Stack
 
-- **Language**: Kotlin
+- **Language**: Kotlin 2.3.20
 - **UI**: Jetpack Compose + Material Design 3
-- **Camera**: CameraX (Preview + VideoCapture + ImageAnalysis)
-- **AI**: ONNX Runtime (YOLOv8n for object detection)
+- **Camera**: CameraX 1.4.2 (Preview + VideoCapture + ImageAnalysis)
+- **On-Device AI**: Gemma 4 E2B via LiteRT-LM 0.10.0 (GPU-first, CPU fallback)
+- **Object Detection**: ONNX Runtime (YOLOv8n, 640x640, fully offline)
 - **ML Kit**: Document scanner, OCR, barcode scanning, translation, face detection
+- **Database**: SQLCipher (encrypted contacts, photo index)
+- **Scheduler**: AlarmManager + WorkManager (reminders, missed sweep)
 - **Min SDK**: 26 (Android 8.0)
 - **Target SDK**: 35 (Android 15)
-
----
-
-## Architecture
-
-```
-Privora
-├── UI Layer (Jetpack Compose)
-│   ├── 13 screens with Material Design 3
-│   └── NavHost with 14 routes
-├── Security Layer
-│   ├── CryptoManager (AES-256-GCM)
-│   ├── KeyManager (Android Keystore)
-│   ├── VaultRepository (encrypted photo/video storage)
-│   ├── NoteRepository (encrypted notes)
-│   ├── InsightsRepository (encrypted personal data)
-│   ├── FolderManager (custom vault folders)
-│   ├── DuressManager (emergency PIN)
-│   └── BackupManager (encrypted backup/restore)
-├── AI Layer
-│   └── OnnxDetector (YOLOv8n, 640x640 input)
-├── Camera Layer (CameraX)
-│   └── Photo, video, face detection
-└── Service Layer
-    ├── CrashHandler (local logging)
-    ├── DeviceProfiler (performance benchmarking)
-    └── StorageManager (size tracking)
-```
 
 ---
 
@@ -120,6 +132,7 @@ Privora
 | Arabic (RTL) | Complete |
 | Spanish | Complete |
 | French | Complete |
+| Chinese | Complete |
 
 In-app language switcher available in Settings.
 
@@ -142,8 +155,8 @@ See [PRIVACY.md](PRIVACY.md) for our full privacy policy.
 # Release AAB (requires keystore.properties)
 ./gradlew bundleRelease
 
-# Run tests
-./gradlew testDebugUnitTest
+# Install on connected device
+./gradlew installDebug
 ```
 
 ---
