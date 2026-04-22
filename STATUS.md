@@ -1,13 +1,14 @@
 # Privora — Project Status
 
-Last updated: 2026-04-20
+Last updated: 2026-04-22
 
 ---
 
 ## Current Version
 
 **Branch**: `v5-dev-gemma4`
-**Latest commit**: `bb519ce` — Calculator disguise + Share-to-Privora + duress from calculator
+**Latest commit**: `c5d9e91` — Translate AI + grammar + alternatives, vault hidden folder, home redesign
+**Uncommitted**: Wi-Fi Transfer (encrypted), Files category, vault crash fix, file type display
 
 ---
 
@@ -75,14 +76,13 @@ Last updated: 2026-04-20
 
 | Feature | Status | Key Files |
 |---------|--------|-----------|
-| One-time + recurring reminders | DONE | `ui/insights/ScheduleTab.kt` (body), `ui/reminders/RemindersScreen.kt` (host) |
+| One-time + recurring reminders | DONE | `ui/insights/ScheduleTab.kt`, `ui/reminders/RemindersScreen.kt` |
 | AlarmManager with exact alarms | DONE | `service/ReminderScheduler.kt` |
 | Done / Skip / Missed tracking | DONE | `service/ReminderActionReceiver.kt`, `service/MissedSweepWorker.kt` |
 | Boot persistence | DONE | `service/BootReceiver.kt` |
 | Med/Habit → Reminder linking | DONE | `ui/reminders/ReminderLinker.kt`, `ui/reminders/RemindersEditor.kt` |
-| Habit auto-tick on Done | DONE | `service/ReminderActionReceiver.kt` (propagates to HabitLog) |
-| One-shot Done/Skip fix | DONE | Time-key normalization ONESHOT → HH:mm |
-| Notification privacy | DONE | VISIBILITY_SECRET on lock screen |
+| Habit auto-tick on Done | DONE | Propagates to HabitLog |
+| Notification privacy (VISIBILITY_SECRET) | DONE | `service/ReminderReceiver.kt` |
 
 ### Home Layout (v1.3 — DONE)
 
@@ -90,10 +90,11 @@ Last updated: 2026-04-20
 |---------|--------|-----------|
 | Grid layout (default) | DONE | `ui/home/HomeScreen.kt` |
 | Tabs layout (persistent bottom bar) | DONE | `ui/home/HomeTabsLayout.kt`, `ui/home/PrivoraBottomTabs.kt` |
-| Tab bar hides with keyboard | DONE | `ui/PrivateAICameraApp.kt` (IME check) |
-| Lock/unlock in both top bars | DONE | PIN dialog + biometric, Grid + Tabs |
+| Tab bar hides with keyboard | DONE | `ui/PrivateAICameraApp.kt` |
+| Lock/unlock in both top bars (PIN + biometric) | DONE | `ui/home/HomeScreen.kt`, `HomeTabsLayout.kt` |
 | Today's reminders in Recent Activity | DONE | `ui/home/HomeTabsLayout.kt` |
-| Daily AI tips above Recent Activity | DONE | Reordered in Tabs layout |
+| Tips above Recent Activity | DONE | Reordered in Tabs layout |
+| Home redesign (gradient tip, mini-cards, photo stack, bold greeting) | DONE | `ui/home/HomeTabsLayout.kt` |
 
 ### AI Assistant (v1.4 — DONE)
 
@@ -105,11 +106,12 @@ Last updated: 2026-04-20
 | Markdown rendering (bold, italic, bullets, headers) | DONE | `ui/assistant/ChatBubble.kt` |
 | Dynamic temperature (data vs creative) | DONE | 0.3 data / 0.7 creative |
 | Persistent session (in-memory) | DONE | Singleton `AssistantSession` |
-| Tappable data refs (notes, reminders, habits, health) | DONE | `DataRef` + `RefKind` |
+| Tappable data refs (single-topic: notes, reminders, habits, health) | DONE | `DataRef` + `RefKind` |
 | Deep-link to specific notes | DONE | `notes?openNoteId=` route |
 | New chat button | DONE | Top bar `+` icon |
-| JSON cleanup (malformed model output) | DONE | Multi-layer regex in `ParsedReply.cleanupText()` |
-| completeJson() tolerant parser | DONE | `GemmaRunner.kt` |
+| JSON cleanup (malformed model output) | DONE | `ParsedReply.cleanupText()` |
+| Refined prompt (few-shot, personality, markdown guidance) | DONE | `bridge/AssistantPrompts.kt` |
+| Deeper history (16 messages / 8 exchanges) | DONE | `bridge/AssistantPrompts.kt` |
 
 ### Market Readiness Fixes (v1.5 — DONE)
 
@@ -117,20 +119,62 @@ Last updated: 2026-04-20
 |---------|--------|-----------|
 | Notification privacy (VISIBILITY_SECRET) | DONE | `service/ReminderReceiver.kt` |
 | Share-to-Privora (ACTION_SEND) | DONE | `AndroidManifest.xml`, `MainActivity.kt`, `VaultScreen.kt`, `NotesScreen.kt` |
-| Break-in / intruder alerts | DONE | `security/IntruderCapture.kt` (Camera2 API) |
-| Calculator disguise | DONE | `ui/disguise/CalculatorScreen.kt`, `CalculatorActivity.kt`, `DisguiseManager.kt` |
-| Duress from calculator | DONE | Duress PIN + = triggers vault wipe |
+| Break-in / intruder alerts (Camera2) | DONE | `security/IntruderCapture.kt` |
+| Calculator disguise (PIN+= unlock, duress) | DONE | `ui/disguise/CalculatorScreen.kt`, `CalculatorActivity.kt`, `DisguiseManager.kt` |
+
+### Translation Enhancements (v1.6 — DONE)
+
+| Feature | Status | Key Files |
+|---------|--------|-----------|
+| 8s timeout on ML Kit translation | DONE | `ui/translate/TranslateScreen.kt` |
+| AI grammar fix button (Gemma) | DONE | `ui/translate/TranslateScreen.kt` |
+| Side-by-side Translate + AI Translate buttons | DONE | ML Kit for words, Gemma for sentences |
+| Alternative translations with context notes | DONE | `getAlternativeTranslations()` |
+| Keyboard dismiss on translate | DONE | `focusManager.clearFocus()` |
+| Stale alternatives clear on re-translate | DONE | Tracked by `lastAltSource` |
+
+### Vault Enhancements (v1.6 — DONE)
+
+| Feature | Status | Key Files |
+|---------|--------|-----------|
+| Hidden folder (tap title N times to reveal) | DONE | `ui/vault/VaultScreen.kt` |
+| Hidden folder config (tap count 3-15) | DONE | `ui/settings/SettingsScreen.kt` |
+| Hidden folder suppressed during duress | DONE | No toasts, no tap counting |
+| Move to Hidden from gallery | DONE | Move dialog red "Hidden folder" option |
+| Vault UI polish (shadows, pill search, icon circles) | DONE | `CompactCategoryCard`, search bar |
+| Smart filter icons (Duplicates, Blurry) | DONE | Leading icons on FilterChips |
+| "+ New Folder" pill button | DONE | TextButton replaces lone + icon |
+| Files category card on vault grid | DONE | Was missing, now visible |
+| FILE media type for documents | DONE | `.file.enc` extension, `VaultMediaType.FILE` |
+| File display (icon + name + size + type badge) | DONE | PDF + FILE rendering in gallery |
+
+### Wi-Fi Transfer (v1.6 — DONE)
+
+| Feature | Status | Key Files |
+|---------|--------|-----------|
+| NanoHTTPD embedded server | DONE | `service/WifiTransferServer.kt` |
+| QR code + URL + PIN display | DONE | `ui/vault/WifiTransferScreen.kt` |
+| Browser-side AES-256-CTR encryption | DONE | Pure JS, no crypto.subtle needed |
+| Server-side decryption with PIN-derived key | DONE | `decryptWithPin()` |
+| PIN never sent over network | DONE | Both sides derive key from PIN+salt |
+| Images → Received folder, PDFs → Scans, Docs → Files | DONE | Auto-routing by MIME type |
+| Configurable size limit (50MB-1GB) | DONE | Advanced Settings |
+| 3 wrong PINs = server lockout | DONE | `MAX_PIN_FAILURES = 3` |
+| Wi-Fi IP detection (wlan0 + fallback) | DONE | `getLocalIpAddress()` |
+| 📶 icon in vault top bar | DONE | Hidden during duress |
 
 ---
 
 ## Known Issues / Limitations
 
-| Issue | Impact | Workaround |
-|-------|--------|------------|
-| Gemma 4 vision crashes (LiteRT-LM 0.10.0) | Photo Q&A disabled | Waiting for 0.10.1 Maven release |
-| Intruder capture may fail on some devices | Camera2 headless capture is device-dependent | Photo saved as plain JPEG in app-private dir |
-| Calculator disguise disables MainActivity component | Sharing/deep-links to Privora won't work while disguised | Toggle off disguise to use share-to-Privora |
-| AI assistant doesn't stream responses | Full response appears after 3-10s wait | Architecture ready, not wired yet |
+| Issue | Impact | Status |
+|-------|--------|--------|
+| Gemma 4 vision crashes (LiteRT-LM 0.10.0) | Photo Q&A disabled | Waiting for 0.10.1 |
+| Intruder capture device-dependent | Camera2 headless may fail on some devices | Plain JPEG fallback |
+| Calculator disguise disables MainActivity | Share-to-Privora won't work while disguised | Toggle off to use share |
+| Duress mode crashes on Insights/Notes entry | Concurrent file deletion during navigation | Needs null-safety guards |
+| AI streaming not implemented | Full response after 3-10s wait | Architecture ready |
+| Wi-Fi transfer encryption key derivation is custom | Not PBKDF2, uses iterative mixing | Acceptable for ephemeral transfers |
 
 ---
 
@@ -140,16 +184,14 @@ Last updated: 2026-04-20
 
 | Feature | Priority | Effort |
 |---------|----------|--------|
+| Fix duress mode crashes (Insights/Notes) | High | 1 day |
 | AI streaming responses (token-by-token) | Medium | 1 day |
 | AI voice input (on-device SpeechRecognizer) | Low | 2 days |
-| AI action proposals (create reminder, add expense from chat) | Medium | 2-3 days |
+| AI action proposals (create reminder from chat) | Medium | 2-3 days |
 | Gemma vision (photo Q&A) | Blocked | Waiting for LiteRT-LM 0.10.1 |
-| Home screen widgets (quick note, locked capture) | Low | 1-2 days |
-| Video editor (trim, filter) | Low | 3-5 days |
-| Health app integration (Google Fit) | Low | 2-3 days |
+| Home screen widgets | Low | 1-2 days |
 | Audio transcription in notes | Medium | 2 days |
 | Cross-device sync (encrypted cloud) | High | 2-3 weeks |
-| Desktop/iOS port | Future | Months |
 
 ### Play Store Readiness
 
@@ -173,55 +215,56 @@ Last updated: 2026-04-20
 Privora (Kotlin + Jetpack Compose + Material 3)
 ├── UI Layer
 │   ├── Camera (CaptureScreen, CameraScreen, PhotoEditor)
-│   ├── Vault (VaultScreen, folders, viewer, video player)
+│   ├── Vault (VaultScreen, folders, hidden folder, viewer, video player, Wi-Fi transfer)
 │   ├── Notes (NotesScreen, NoteEditorScreen, AI sheet)
-│   ├── Scanner (ScannerScreen + OCR)
+│   ├── Scanner (ScannerScreen + OCR + AI receipt extraction)
 │   ├── QR (QrScannerScreen + generator)
-│   ├── Translate (TranslateScreen + TTS)
+│   ├── Translate (TranslateScreen + AI translate + grammar fix + alternatives)
 │   ├── Contacts (ContactsScreen)
-│   ├── Insights (Expenses, Health, Meds, Habits)
+│   ├── Insights (Expenses, Health + AI summary, Meds, Habits)
 │   ├── Reminders (RemindersScreen, RemindersEditor, ReminderLinker)
-│   ├── Assistant (AssistantScreen, ChatBubble, markdown)
-│   ├── Disguise (CalculatorScreen, CalculatorActivity)
-│   ├── Home (Grid + Tabs layouts, daily tips, recent activity)
-│   ├── Settings (features, security, storage, AI, disguise, intruder)
+│   ├── Assistant (AssistantScreen, ChatBubble + markdown, data refs)
+│   ├── Disguise (CalculatorScreen, CalculatorActivity, DisguiseManager)
+│   ├── Home (Grid + Tabs layouts, gradient tips, mini-card activity, photo stack)
+│   ├── Settings (features, security, AI, disguise, intruder alerts, hidden folder, transfer limit)
 │   └── Onboarding (welcome, auth, PIN, benchmark)
 ├── Bridge Layer (AI)
-│   ├── GemmaRunner (LiteRT-LM engine, GPU/CPU, mutex)
-│   ├── GemmaPrompts (notes AI templates)
-│   ├── AssistantPrompts (chat system instruction)
-│   ├── AssistantTools (search_notes, fetch_note, summarize_expenses)
+│   ├── GemmaRunner (LiteRT-LM engine, GPU/CPU, mutex, completeJson)
+│   ├── GemmaPrompts (notes AI + FIX_GRAMMAR)
+│   ├── AssistantPrompts (chat system instruction, few-shot, markdown)
+│   ├── AssistantTools (search_notes, fetch_note, summarize_expenses, ParsedReply)
 │   ├── KnowledgeSnapshot (compact data builder, 8KB cap)
 │   └── GemmaModelManager (download service)
 ├── Security Layer
 │   ├── CryptoManager (AES-256-GCM, KEK/DEK)
-│   ├── VaultRepository (encrypted photo/video storage)
+│   ├── VaultRepository (photos, videos, PDFs, files with .file.enc)
 │   ├── NoteRepository (encrypted notes)
-│   ├── InsightsRepository (encrypted expenses/health/habits/meds/schedule)
+│   ├── InsightsRepository (expenses/health/habits/meds/schedule)
 │   ├── ContactRepository (encrypted contacts, self profile)
 │   ├── PrivoraDatabase (SQLCipher)
 │   ├── VaultLockManager (grace period, duress state)
 │   ├── DuressManager (emergency PIN, wipe)
-│   ├── PinRateLimiter (escalating cooldowns)
+│   ├── PinRateLimiter (escalating cooldowns + intruder trigger)
 │   ├── IntruderCapture (Camera2 front capture on wrong PIN)
 │   ├── BackupManager (export/import .paicbackup)
 │   └── FolderManager (custom vault folders)
 ├── Service Layer
+│   ├── WifiTransferServer (NanoHTTPD + pure-JS AES-256-CTR encryption)
 │   ├── ReminderScheduler (AlarmManager wrapper)
-│   ├── ReminderReceiver (notification with Done/Skip)
+│   ├── ReminderReceiver (notification with Done/Skip + VISIBILITY_SECRET)
 │   ├── ReminderActionReceiver (mark done/skip + habit propagation)
 │   ├── BootReceiver (re-register alarms)
 │   ├── MissedSweepWorker (daily WorkManager)
 │   ├── GemmaDownloadService (foreground model download)
-│   ├── CrashHandler (local logging)
-│   └── DeviceProfiler (benchmark)
+│   └── CrashHandler (local logging)
 └── Dependencies
     ├── CameraX 1.4.2
     ├── LiteRT-LM 0.10.0 (Gemma 4)
     ├── ONNX Runtime 1.21.0 (YOLOv8n)
+    ├── NanoHTTPD 2.3.1 (Wi-Fi transfer)
     ├── ML Kit (scanner, OCR, barcode, translate, face detection)
     ├── SQLCipher (encrypted database)
-    ├── WorkManager 2.9.1 (missed sweep)
+    ├── WorkManager 2.9.1
     ├── AndroidX Biometric 1.1.0
     ├── Navigation Compose 2.9.0
     └── Kotlin 2.3.20, AGP 8.9.3, minSdk 26, targetSdk 35
@@ -231,10 +274,12 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 
 | Commit | Date | Description |
 |--------|------|-------------|
+| `c5d9e91` | 2026-04-22 | Translate AI + grammar + alternatives, vault hidden folder, home redesign |
+| `15d65b7` | 2026-04-20 | Update README, PLAN, and add STATUS.md |
 | `bb519ce` | 2026-04-16 | Calculator disguise + Share-to-Privora + duress from calculator |
 | `28cc0f0` | 2026-04-16 | AI Assistant + intruder alerts + notification privacy + home UX polish |
 | `59c6f52` | 2026-04-15 | Insights redesign + standalone Reminders feature |
 | `5db4a9f` | 2026-04-14 | Home layout: Grid/Tabs option + dynamic landing with AI tips |
-| `38fcaa1` | 2026-04-13 | GPU backend with CPU fallback, OpenCL manifest fix, vision disabled |
-| `42b14cf` | 2026-04-13 | Phase 3: Photo Intelligence DB + Vision (disabled pending 0.10.1) |
+| `38fcaa1` | 2026-04-13 | GPU backend with CPU fallback, OpenCL manifest fix |
+| `42b14cf` | 2026-04-13 | Phase 3: Photo Intelligence DB + Vision (disabled) |
 | `1dc8c36` | 2026-04-12 | Gemma 4 Phase 1: Notes Intelligence with on-device LLM |

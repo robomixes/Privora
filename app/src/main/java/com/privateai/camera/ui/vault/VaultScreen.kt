@@ -77,6 +77,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -161,7 +162,7 @@ import com.privateai.camera.security.PhotoIndex
 import com.privateai.camera.security.PrivoraDatabase
 
 // Screens: LOCKED -> CATEGORIES -> GALLERY -> VIEWER / VIDEO_PLAYER
-private enum class VaultPage { LOCKED, CATEGORIES, GALLERY, VIEWER, VIDEO_PLAYER, FOLDER_VIEW, TRASH }
+private enum class VaultPage { LOCKED, CATEGORIES, GALLERY, VIEWER, VIDEO_PLAYER, FOLDER_VIEW, TRASH, WIFI_TRANSFER }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -775,6 +776,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
             VaultMediaType.PHOTO -> context.getString(R.string.type_photo_jpeg)
             VaultMediaType.VIDEO -> context.getString(R.string.type_video_mp4)
             VaultMediaType.PDF -> context.getString(R.string.type_pdf_document)
+            VaultMediaType.FILE -> item.id.substringAfterLast('.', "File").uppercase()
         }
 
         // Import progress dialog
@@ -942,6 +944,26 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             }, modifier = Modifier.fillMaxWidth()) {
                                 Text(path, modifier = Modifier.fillMaxWidth())
                             }
+                        }
+                    }
+
+                    // Move to Hidden folder
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider()
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = {
+                        val hiddenDir = java.io.File(context.filesDir, "vault/hidden").also { it.mkdirs() }
+                        val toMove = photos.filter { it.id in selectedIds }
+                        toMove.forEach { photo -> vault.moveToFolder(photo, hiddenDir) }
+                        photos = photos.filter { it.id !in selectedIds }
+                        selectedIds = emptySet(); isSelectionMode = false
+                        if (!isDuressActive) { categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders(); trashCount = vault.trashCount() }
+                        showMoveDialog = false
+                        Toast.makeText(context, "Moved ${toMove.size} item(s) to Hidden", Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.Lock, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                            Text("Hidden folder", color = MaterialTheme.colorScheme.error, modifier = Modifier.fillMaxWidth())
                         }
                     }
                 }
@@ -1362,6 +1384,12 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             onBack()
                         }
                     }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                }, actions = {
+                    if (!isDuressActive) {
+                        IconButton(onClick = { page = VaultPage.WIFI_TRANSFER }) {
+                            Icon(Icons.Default.Wifi, contentDescription = stringResource(R.string.wifi_transfer_title), tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                 })
             }) { padding ->
                 Column(
@@ -1996,6 +2024,17 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
                                                         Icon(Icons.Default.PictureAsPdf, stringResource(R.string.cd_pdf_document), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp))
                                                         Text(photo.id.let { if (it.length > 15) it.take(12) + "..." else it }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                        val sizeKB = photo.encryptedFile.length() / 1024
+                                                        Text(if (sizeKB > 1024) "${"%.1f".format(sizeKB / 1024.0)} MB" else "$sizeKB KB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                                    }
+                                                } else if (photo.mediaType == VaultMediaType.FILE) {
+                                                    val ext = photo.id.substringAfterLast('.', "").lowercase()
+                                                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
+                                                        Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                                                        Text(photo.id.let { if (it.length > 15) it.take(12) + "..." else it }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                                                        val sizeKB = photo.encryptedFile.length() / 1024
+                                                        Text(if (sizeKB > 1024) "${"%.1f".format(sizeKB / 1024.0)} MB" else "$sizeKB KB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                                        Text(ext.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                                                     }
                                                 } else if (thumb != null) {
                                                     Image(thumb.asImageBitmap(), if (photo.mediaType == VaultMediaType.VIDEO) stringResource(R.string.cd_video_thumbnail) else stringResource(R.string.cd_photo_thumbnail), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -2076,6 +2115,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             CompactCategoryCard(stringResource(R.string.category_scans), categoryCounts[VaultCategory.SCAN] ?: 0, Icons.Default.DocumentScanner, halfWidth) { openCategory(VaultCategory.SCAN) }
                             CompactCategoryCard(stringResource(R.string.category_detections), categoryCounts[VaultCategory.DETECT] ?: 0, Icons.Default.CameraAlt, halfWidth) { openCategory(VaultCategory.DETECT) }
                             CompactCategoryCard(stringResource(R.string.category_reports), categoryCounts[VaultCategory.REPORTS] ?: 0, Icons.Default.Description, halfWidth) { openCategory(VaultCategory.REPORTS) }
+                            CompactCategoryCard(stringResource(R.string.category_files), categoryCounts[VaultCategory.FILES] ?: 0, Icons.Default.Folder, halfWidth) { openCategory(VaultCategory.FILES) }
                         }
 
                         // Hidden folder — only visible after tap-to-reveal
@@ -2153,21 +2193,20 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             if (hiddenPhotos.isEmpty()) {
                                 Text("Empty — import files to hide them here", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else {
-                                // Grid of hidden photos
-                                LazyVerticalGrid(
-                                    columns = GridCells.Fixed(3),
-                                    modifier = Modifier.fillMaxWidth().height((((hiddenPhotos.size + 2) / 3) * 120).dp.coerceAtMost(360.dp)),
+                                // Grid of hidden photos — FlowRow instead of LazyVerticalGrid
+                                // to avoid nested scrollable conflicts with the outer Column
+                                @OptIn(ExperimentalLayoutApi::class)
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    items(hiddenPhotos.size) { i ->
-                                        val photo = hiddenPhotos[i]
+                                    hiddenPhotos.forEachIndexed { i, photo ->
                                         val thumb = hiddenThumbs[photo.id]
                                         Box(
-                                            Modifier.size(110.dp).clip(RoundedCornerShape(8.dp))
+                                            Modifier.size(100.dp).clip(RoundedCornerShape(8.dp))
                                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                                 .clickable {
-                                                    // Open in viewer
                                                     scope.launch {
                                                         val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(photo) }
                                                         viewerPhoto = photo
@@ -2438,6 +2477,17 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
                                                         Icon(Icons.Default.PictureAsPdf, stringResource(R.string.cd_pdf_document), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp))
                                                         Text(photo.id.let { if (it.length > 15) it.take(12) + "..." else it }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                                        val sizeKB = photo.encryptedFile.length() / 1024
+                                                        Text(if (sizeKB > 1024) "${"%.1f".format(sizeKB / 1024.0)} MB" else "$sizeKB KB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                                    }
+                                                } else if (photo.mediaType == VaultMediaType.FILE) {
+                                                    val ext = photo.id.substringAfterLast('.', "").lowercase()
+                                                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
+                                                        Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                                                        Text(photo.id.let { if (it.length > 15) it.take(12) + "..." else it }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                                                        val sizeKB = photo.encryptedFile.length() / 1024
+                                                        Text(if (sizeKB > 1024) "${"%.1f".format(sizeKB / 1024.0)} MB" else "$sizeKB KB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                                        Text(ext.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                                                     }
                                                 } else if (thumb != null) {
                                                     Image(thumb.asImageBitmap(), if (photo.mediaType == VaultMediaType.VIDEO) stringResource(R.string.cd_video_thumbnail) else stringResource(R.string.cd_photo_thumbnail), contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -3272,6 +3322,10 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                     }
                 }
             }
+        }
+
+        VaultPage.WIFI_TRANSFER -> {
+            WifiTransferScreen(onBack = { page = VaultPage.CATEGORIES })
         }
     }
 

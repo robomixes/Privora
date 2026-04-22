@@ -112,6 +112,9 @@ dependencies {
     implementation(libs.sqlcipher)
     implementation(libs.sqlite.ktx)
 
+    // Wi-Fi Transfer (embedded HTTP server)
+    implementation(libs.nanohttpd)
+
     // ZXing (QR code generation)
     implementation(libs.zxing.core)
 

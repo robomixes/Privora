@@ -83,6 +83,15 @@
     <string name="intruder_alerts_desc">التقاط صورة بالكاميرا الأمامية عند إدخال رمز PIN خاطئ</string>
     <string name="intruder_view_captures">عرض الصور الملتقطة (%d)</string>
     <string name="intruder_clear_all">مسح الكل</string>
+    <string name="wifi_transfer_title">الاستلام من الكمبيوتر</string>
+    <string name="wifi_transfer_instructions">افتح هذا الرابط في متصفح الكمبيوتر وأدخل رمز PIN لإرسال الملفات مباشرة إلى خزنتك.</string>
+    <string name="wifi_transfer_pin_label">رمز PIN</string>
+    <string name="wifi_transfer_files">ملفات</string>
+    <string name="wifi_transfer_total">تم نقلها</string>
+    <string name="wifi_transfer_limit">الحد الأقصى %d ميغابايت لكل ملف</string>
+    <string name="wifi_transfer_stop">إيقاف النقل</string>
+    <string name="wifi_transfer_size_title">حد حجم الملف</string>
+    <string name="wifi_transfer_size_desc">الحد الأقصى للحجم: %s</string>
     <string name="hidden_folder_title">المجلد المخفي</string>
     <string name="hidden_folder_desc">اضغط على عنوان الخزنة %d مرات للكشف. المحتوى غير قابل للبحث.</string>
     <string name="disguise_calculator_name">الآلة الحاسبة</string>

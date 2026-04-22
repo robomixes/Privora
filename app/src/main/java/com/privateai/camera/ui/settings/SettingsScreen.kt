@@ -919,6 +919,47 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     } else {
                         // ─── Unlocked: show all critical settings ───
 
+                        // Wi-Fi Transfer size limit
+                        val sizeOptions = listOf(50, 100, 250, 500, 1024)
+                        val sizeLabels = listOf("50 MB", "100 MB", "250 MB", "500 MB", "1 GB")
+                        var transferMaxMB by remember {
+                            mutableStateOf(
+                                context.getSharedPreferences("wifi_transfer", android.content.Context.MODE_PRIVATE)
+                                    .getInt("max_file_mb", 100)
+                            )
+                        }
+                        val currentSizeIdx = sizeOptions.indexOf(transferMaxMB).coerceAtLeast(0)
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(Icons.Default.Info, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.wifi_transfer_size_title), style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    stringResource(R.string.wifi_transfer_size_desc, sizeLabels[currentSizeIdx]),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(onClick = {
+                                    val idx = (currentSizeIdx - 1).coerceAtLeast(0)
+                                    transferMaxMB = sizeOptions[idx]
+                                    context.getSharedPreferences("wifi_transfer", android.content.Context.MODE_PRIVATE)
+                                        .edit().putInt("max_file_mb", transferMaxMB).apply()
+                                }, modifier = Modifier.size(32.dp)) { Text("−", style = MaterialTheme.typography.titleMedium) }
+                                Text(sizeLabels[currentSizeIdx], style = MaterialTheme.typography.bodyMedium)
+                                IconButton(onClick = {
+                                    val idx = (currentSizeIdx + 1).coerceAtMost(sizeOptions.size - 1)
+                                    transferMaxMB = sizeOptions[idx]
+                                    context.getSharedPreferences("wifi_transfer", android.content.Context.MODE_PRIVATE)
+                                        .edit().putInt("max_file_mb", transferMaxMB).apply()
+                                }, modifier = Modifier.size(32.dp)) { Text("+", style = MaterialTheme.typography.titleMedium) }
+                            }
+                        }
+
                         // Hidden folder tap count
                         var hiddenTapCount by remember {
                             mutableStateOf(

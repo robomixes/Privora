@@ -9,7 +9,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
 
-enum class VaultMediaType { PHOTO, VIDEO, PDF }
+enum class VaultMediaType { PHOTO, VIDEO, PDF, FILE }
 
 enum class VaultCategory(val label: String, val dirName: String) {
     CAMERA("Camera", "camera"),
@@ -248,16 +248,26 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
 
         val items = mutableListOf<VaultPhoto>()
 
-        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, .pdf.enc, _tobedeleted_)
+        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, .pdf.enc, .file.enc, _tobedeleted_)
         files.filter {
             it.name.endsWith(".enc") &&
                 !it.name.endsWith(".thumb.enc") &&
                 !it.name.endsWith(".vid.enc") &&
                 !it.name.endsWith(".pdf.enc") &&
+                !it.name.endsWith(".file.enc") &&
                 !it.name.startsWith("_tobedeleted_")
         }.forEach { file ->
             val id = file.name.removeSuffix(".enc")
             items.add(VaultPhoto(id, file.lastModified(), category, file, File(dir, "$id.thumb.enc"), VaultMediaType.PHOTO))
+        }
+
+        // Generic files: {name}.file.enc (docs, spreadsheets, text, etc.)
+        files.filter {
+            it.name.endsWith(".file.enc") &&
+                !it.name.startsWith("_tobedeleted_")
+        }.forEach { file ->
+            val id = file.name.removeSuffix(".file.enc")
+            items.add(VaultPhoto(id, file.lastModified(), category, file, file, VaultMediaType.FILE))
         }
 
         // Videos: {id}.vid.enc (excluding .vid.thumb.enc, _tobedeleted_)
@@ -329,7 +339,9 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
      */
     fun saveFile(data: ByteArray, filename: String, category: VaultCategory = VaultCategory.FILES): File {
         val dir = categoryDir(category)
-        val encFile = File(dir, "$filename.enc")
+        // Use .pdf.enc for PDFs, .file.enc for everything else (distinct from .enc photos)
+        val ext = if (filename.lowercase().endsWith(".pdf")) ".pdf.enc" else ".file.enc"
+        val encFile = File(dir, "$filename$ext")
         crypto.encryptToFile(data, encFile)
         Log.d(TAG, "File saved: $filename ($category, ${data.size / 1024}KB)")
         return encFile

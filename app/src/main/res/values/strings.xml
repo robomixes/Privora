@@ -86,6 +86,16 @@
     <string name="intruder_view_captures">View captures (%d)</string>
     <string name="intruder_clear_all">Clear all</string>
     <!-- Calculator disguise -->
+    <!-- Wi-Fi Transfer -->
+    <string name="wifi_transfer_title">Receive from PC</string>
+    <string name="wifi_transfer_instructions">Open this URL on your PC browser and enter the PIN to upload files directly to your vault.</string>
+    <string name="wifi_transfer_pin_label">PIN</string>
+    <string name="wifi_transfer_files">files</string>
+    <string name="wifi_transfer_total">transferred</string>
+    <string name="wifi_transfer_limit">Max %d MB per file</string>
+    <string name="wifi_transfer_stop">Stop Transfer</string>
+    <string name="wifi_transfer_size_title">Transfer File Limit</string>
+    <string name="wifi_transfer_size_desc">Maximum file size: %s</string>
     <string name="hidden_folder_title">Hidden Folder</string>
     <string name="hidden_folder_desc">Tap vault title %d times to reveal. Content is not searchable.</string>
     <string name="disguise_calculator_name">Calculator</string>
@@ -396,6 +406,7 @@
     <string name="category_scans">Scans</string>
     <string name="category_detections">Detections</string>
     <string name="category_reports">Reports</string>
+    <string name="category_files">Files</string>
     <string name="category_with_count">%1$s (%2$d)</string>
     <string name="my_folders">My Folders</string>
     <string name="new_folder">New Folder</string>

@@ -83,6 +83,15 @@
     <string name="intruder_alerts_desc">Capturer une photo frontale lors de tentatives de PIN incorrectes</string>
     <string name="intruder_view_captures">Voir les captures (%d)</string>
     <string name="intruder_clear_all">Tout effacer</string>
+    <string name="wifi_transfer_title">Recevoir depuis PC</string>
+    <string name="wifi_transfer_instructions">Ouvrez cette URL dans le navigateur de votre PC et entrez le code PIN pour envoyer des fichiers directement dans votre coffre.</string>
+    <string name="wifi_transfer_pin_label">Code PIN</string>
+    <string name="wifi_transfer_files">fichiers</string>
+    <string name="wifi_transfer_total">transférés</string>
+    <string name="wifi_transfer_limit">Max %d Mo par fichier</string>
+    <string name="wifi_transfer_stop">Arrêter le transfert</string>
+    <string name="wifi_transfer_size_title">Limite de taille</string>
+    <string name="wifi_transfer_size_desc">Taille maximale : %s</string>
     <string name="hidden_folder_title">Dossier caché</string>
     <string name="hidden_folder_desc">Appuyez %d fois sur le titre du coffre pour révéler. Non indexé.</string>
     <string name="disguise_calculator_name">Calculatrice</string>

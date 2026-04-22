@@ -83,6 +83,15 @@
     <string name="intruder_alerts_desc">输入错误 PIN 时用前置摄像头拍照</string>
     <string name="intruder_view_captures">查看拍摄记录 (%d)</string>
     <string name="intruder_clear_all">全部清除</string>
+    <string name="wifi_transfer_title">从电脑接收</string>
+    <string name="wifi_transfer_instructions">在电脑浏览器中打开此网址并输入 PIN 码，即可将文件直接上传到您的保险库。</string>
+    <string name="wifi_transfer_pin_label">PIN 码</string>
+    <string name="wifi_transfer_files">文件</string>
+    <string name="wifi_transfer_total">已传输</string>
+    <string name="wifi_transfer_limit">每个文件最大 %d MB</string>
+    <string name="wifi_transfer_stop">停止传输</string>
+    <string name="wifi_transfer_size_title">传输文件限制</string>
+    <string name="wifi_transfer_size_desc">最大文件大小：%s</string>
     <string name="hidden_folder_title">隐藏文件夹</string>
     <string name="hidden_folder_desc">点击保险库标题 %d 次以显示。内容不可搜索。</string>
     <string name="disguise_calculator_name">计算器</string>
