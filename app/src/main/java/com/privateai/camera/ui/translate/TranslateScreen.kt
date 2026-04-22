@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,10 +29,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Spellcheck
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.VolumeUp
@@ -108,6 +111,7 @@ fun TranslateScreen(onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
 
     var sourceText by remember { mutableStateOf("") }
     var translatedText by remember { mutableStateOf("") }
@@ -180,6 +184,7 @@ fun TranslateScreen(onBack: (() -> Unit)? = null) {
 
     fun translateText() {
         if (sourceText.isBlank()) return
+        focusManager.clearFocus() // dismiss keyboard so translated text is visible
 
         // If we have an image, re-process it with new language
         val imgFile = lastImageFile
@@ -199,8 +204,9 @@ fun TranslateScreen(onBack: (() -> Unit)? = null) {
             return
         }
 
-        // Text-only translation
+        // Text-only translation — always ML Kit (best for words + short phrases)
         isTranslating = true
+        translatedText = "" // clear old result + alternatives immediately
         statusMessage = "Translating..."
         val options = TranslatorOptions.Builder()
             .setSourceLanguage(sourceLang.code)
@@ -210,9 +216,15 @@ fun TranslateScreen(onBack: (() -> Unit)? = null) {
         scope.launch {
             try {
                 translator.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
-                val result = translator.translate(sourceText).await()
-                translatedText = result
-                statusMessage = ""
+                val result = kotlinx.coroutines.withTimeoutOrNull(8000L) {
+                    translator.translate(sourceText).await()
+                }
+                if (result != null) {
+                    translatedText = result
+                    statusMessage = ""
+                } else {
+                    statusMessage = "Translation timed out — the word may not exist in this language."
+                }
             } catch (e: Exception) {
                 statusMessage = "Translation failed: ${e.message}"
             } finally {
@@ -280,6 +292,47 @@ fun TranslateScreen(onBack: (() -> Unit)? = null) {
                 }
             )
 
+            // AI grammar check — fix spelling/grammar before translating (only when AI active)
+            val aiAvailable = remember { com.privateai.camera.bridge.GemmaRunner.isAvailable(context) }
+            var isFixingGrammar by remember { mutableStateOf(false) }
+            if (aiAvailable && sourceText.isNotBlank()) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            isFixingGrammar = true
+                            scope.launch {
+                                val fixed = com.privateai.camera.bridge.GemmaRunner.complete(
+                                    context,
+                                    com.privateai.camera.bridge.GemmaPrompts.rewrite(sourceText, com.privateai.camera.bridge.RewriteStyle.FIX_GRAMMAR),
+                                    com.privateai.camera.bridge.GemmaPrompts.NOTES_SYSTEM,
+                                    temperature = 0.2
+                                )
+                                isFixingGrammar = false
+                                if (!fixed.isNullOrBlank() && fixed.trim() != sourceText.trim()) {
+                                    sourceText = fixed.trim()
+                                    statusMessage = "Grammar fixed by AI"
+                                } else {
+                                    statusMessage = "No grammar issues found"
+                                }
+                            }
+                        },
+                        enabled = !isFixingGrammar && !isTranslating
+                    ) {
+                        if (isFixingGrammar) {
+                            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp))
+                        }
+                        Spacer(Modifier.size(4.dp))
+                        Text("Fix grammar", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+
             // Action buttons
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = { cameraLauncher.launch(photoUri) }, enabled = !isProcessing, modifier = Modifier.weight(1f)) {
@@ -292,17 +345,63 @@ fun TranslateScreen(onBack: (() -> Unit)? = null) {
                 }
             }
 
-            Button(
-                onClick = { translateText() },
-                enabled = sourceText.isNotBlank() && !isTranslating,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                if (isTranslating || isProcessing) {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                } else {
-                    Icon(Icons.Default.Translate, null, Modifier.size(18.dp))
+            // Translate buttons — ML Kit (default) + AI (when active, better for sentences/paragraphs)
+            var isAiTranslating by remember { mutableStateOf(false) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { translateText() },
+                    enabled = sourceText.isNotBlank() && !isTranslating && !isAiTranslating,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (isTranslating || isProcessing) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Icon(Icons.Default.Translate, null, Modifier.size(18.dp))
+                    }
+                    Text("  Translate")
                 }
-                Text("  Translate")
+
+                // AI Translate — better for longer text, no per-language download
+                if (aiAvailable) {
+                    OutlinedButton(
+                        onClick = {
+                            focusManager.clearFocus() // dismiss keyboard
+                            isAiTranslating = true
+                            translatedText = "" // clear old result + alternatives
+                            statusMessage = "✨ AI translating..."
+                            scope.launch {
+                                try {
+                                    val prompt = "Translate the following text from ${sourceLang.name} to ${targetLang.name}. " +
+                                        "Output ONLY the translation, nothing else.\n\n" + sourceText
+                                    val result = com.privateai.camera.bridge.GemmaRunner.complete(
+                                        context, prompt,
+                                        systemInstruction = "You are a professional translator. Output only the translated text.",
+                                        maxTokens = 1024, temperature = 0.3
+                                    )
+                                    if (!result.isNullOrBlank()) {
+                                        translatedText = result.trim()
+                                        statusMessage = "✨ Translated with AI"
+                                    } else {
+                                        statusMessage = "AI returned empty — use Translate instead"
+                                    }
+                                } catch (e: Exception) {
+                                    statusMessage = "AI translation failed: ${e.message}"
+                                } finally {
+                                    isAiTranslating = false
+                                }
+                            }
+                        },
+                        enabled = sourceText.isNotBlank() && !isTranslating && !isAiTranslating,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isAiTranslating) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp))
+                        }
+                        Text("  AI")
+                    }
+                }
             }
 
             // Status
@@ -331,13 +430,40 @@ fun TranslateScreen(onBack: (() -> Unit)? = null) {
                 )
             }
 
-            // Translation text result
+            // Translation text result — alternatives reset when source text or translated text changes
+            var alternatives by remember { mutableStateOf<List<TranslationAlt>>(emptyList()) }
+            var isLoadingAlts by remember { mutableStateOf(false) }
+            var lastAltSource by remember { mutableStateOf("") }
+
+            // Clear stale alternatives when source or result changes
+            if (sourceText != lastAltSource) {
+                alternatives = emptyList()
+            }
+
             if (translatedText.isNotBlank()) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(targetLang.name, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                             Row {
+                                // "Show alternatives" button — AI only
+                                if (aiAvailable && !isLoadingAlts) {
+                                    IconButton(onClick = {
+                                        isLoadingAlts = true
+                                        alternatives = emptyList()
+                                        lastAltSource = sourceText
+                                        scope.launch {
+                                            val alts = getAlternativeTranslations(context, sourceText, sourceLang.name, targetLang.name)
+                                            alternatives = alts
+                                            isLoadingAlts = false
+                                        }
+                                    }) {
+                                        Icon(Icons.Default.AutoAwesome, "Alternatives", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                                if (isLoadingAlts) {
+                                    CircularProgressIndicator(Modifier.size(20.dp).padding(4.dp), strokeWidth = 2.dp)
+                                }
                                 IconButton(onClick = { speakText(translatedText, targetLang.code) }) { Icon(Icons.Default.VolumeUp, "Listen") }
                                 IconButton(onClick = {
                                     clipboardManager.setText(AnnotatedString(translatedText))
@@ -347,6 +473,31 @@ fun TranslateScreen(onBack: (() -> Unit)? = null) {
                         }
                         Spacer(Modifier.height(8.dp))
                         Text(translatedText, style = MaterialTheme.typography.bodyLarge)
+
+                        // Alternative translations from Gemma
+                        if (alternatives.isNotEmpty()) {
+                            Spacer(Modifier.height(12.dp))
+                            Text("Alternatives", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.height(6.dp))
+                            alternatives.forEach { alt ->
+                                Card(
+                                    Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                                        .clickable {
+                                            translatedText = alt.text
+                                            clipboardManager.setText(AnnotatedString(alt.text))
+                                            Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                                        },
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                ) {
+                                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(alt.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                        if (alt.context.isNotBlank()) {
+                                            Text(alt.context, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -515,4 +666,47 @@ private fun LanguageDropdown(
             }
         }
     }
+}
+
+/** A single translation alternative with optional context note. */
+private data class TranslationAlt(val text: String, val context: String)
+
+/**
+ * Ask Gemma for 2-4 alternative translations with context notes.
+ * Returns parsed alternatives, or empty list if AI fails.
+ */
+private suspend fun getAlternativeTranslations(
+    context: android.content.Context,
+    sourceText: String,
+    sourceLang: String,
+    targetLang: String
+): List<TranslationAlt> {
+    val prompt = buildString {
+        append("Provide 2-4 alternative translations of the following text from $sourceLang to $targetLang.\n")
+        append("For each alternative, give the translation and a SHORT context note (3-5 words) explaining when to use it.\n")
+        append("Format each line as: translation — context note\n")
+        append("Output ONLY the numbered list, nothing else.\n\n")
+        append("Text: $sourceText")
+    }
+    val raw = com.privateai.camera.bridge.GemmaRunner.complete(
+        context, prompt,
+        systemInstruction = "You are a professional translator. Output only the numbered alternatives list.",
+        maxTokens = 512, temperature = 0.5
+    ) ?: return emptyList()
+
+    // Parse lines like "1. بنك — financial institution" or "- ضفة — river bank"
+    return raw.lines()
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .mapNotNull { line ->
+            // Strip leading numbering: "1. ", "1) ", "- ", "• "
+            val cleaned = line.replace(Regex("^\\d+[.)\\-]\\s*"), "")
+                .removePrefix("- ").removePrefix("• ").trim()
+            if (cleaned.isBlank()) return@mapNotNull null
+            val parts = cleaned.split(Regex("\\s*[—–-]\\s*"), limit = 2)
+            val text = parts[0].trim()
+            val ctx = parts.getOrNull(1)?.trim() ?: ""
+            if (text.isNotBlank()) TranslationAlt(text, ctx) else null
+        }
+        .take(4)
 }

@@ -86,6 +86,8 @@
     <string name="intruder_view_captures">View captures (%d)</string>
     <string name="intruder_clear_all">Clear all</string>
     <!-- Calculator disguise -->
+    <string name="hidden_folder_title">Hidden Folder</string>
+    <string name="hidden_folder_desc">Tap vault title %d times to reveal. Content is not searchable.</string>
     <string name="disguise_calculator_name">Calculator</string>
     <string name="disguise_title">Calculator Disguise</string>
     <string name="disguise_enabled_desc">App appears as \"Calculator\" in launcher. Enter your PIN + = to unlock.</string>

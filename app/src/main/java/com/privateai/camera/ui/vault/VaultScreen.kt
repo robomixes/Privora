@@ -54,7 +54,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -109,6 +111,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -207,6 +210,15 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
 
     // Search
     var searchQuery by remember { mutableStateOf(initialSearchQuery) }
+
+    // Hidden folder — tap vault title N times to reveal (like Android dev options)
+    val hiddenTapThreshold = remember {
+        context.getSharedPreferences("vault_hidden", android.content.Context.MODE_PRIVATE)
+            .getInt("tap_count", 7)
+    }
+    var hiddenTapCount by remember { mutableStateOf(0) }
+    var isHiddenFolderActive by remember { mutableStateOf(false) }
+    var hiddenLastTapTime by remember { mutableLongStateOf(0L) }
     var searchResults by remember { mutableStateOf<List<VaultPhoto>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchThumbnails by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
@@ -1305,7 +1317,31 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
 
         VaultPage.CATEGORIES -> {
             Scaffold(topBar = {
-                TopAppBar(title = { Text(stringResource(R.string.encrypted_vault)) }, navigationIcon = {
+                TopAppBar(title = {
+                    Text(
+                        stringResource(R.string.encrypted_vault),
+                        modifier = Modifier.clickable {
+                            if (isDuressActive) return@clickable // no hidden folder during duress
+                            val now = System.currentTimeMillis()
+                            if (now - hiddenLastTapTime > 1000L) hiddenTapCount = 0
+                            hiddenLastTapTime = now
+                            hiddenTapCount++
+                            val remaining = hiddenTapThreshold - hiddenTapCount
+                            if (remaining in 1..3) {
+                                android.widget.Toast.makeText(context, "$remaining taps to go", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                            if (hiddenTapCount >= hiddenTapThreshold) {
+                                isHiddenFolderActive = !isHiddenFolderActive
+                                hiddenTapCount = 0
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (isHiddenFolderActive) "Hidden folder revealed" else "Hidden folder closed",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    )
+                }, navigationIcon = {
                     if (onBack != null) IconButton(onClick = {
                         if (showFaceGroups) {
                             if (selectedFaceGroup != null) {
@@ -1400,7 +1436,12 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                 }
                             }
                         },
-                        singleLine = true
+                        singleLine = true,
+                        shape = RoundedCornerShape(28.dp),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        )
                     )
 
                     // Auto-suggest
@@ -1515,7 +1556,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                             }
                                         }
                                     },
-                                    label = { Text(if (duplicateGroupCount > 0) "Duplicates ($duplicateGroupCount)" else "Duplicates") }
+                                    label = { Text(if (duplicateGroupCount > 0) "Duplicates ($duplicateGroupCount)" else "Duplicates") },
+                                    leadingIcon = { Icon(Icons.Default.ContentCopy, null, Modifier.size(16.dp)) }
                                 )
 
                                 FilterChip(
@@ -1544,7 +1586,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                             }
                                         }
                                     },
-                                    label = { Text(if (blurryCount > 0) "Blurry ($blurryCount)" else "Blurry") }
+                                    label = { Text(if (blurryCount > 0) "Blurry ($blurryCount)" else "Blurry") },
+                                    leadingIcon = { Icon(Icons.Default.BlurOn, null, Modifier.size(16.dp)) }
                                 )
 
                                 FilterChip(
@@ -2035,6 +2078,123 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             CompactCategoryCard(stringResource(R.string.category_reports), categoryCounts[VaultCategory.REPORTS] ?: 0, Icons.Default.Description, halfWidth) { openCategory(VaultCategory.REPORTS) }
                         }
 
+                        // Hidden folder — only visible after tap-to-reveal
+                        if (isHiddenFolderActive && !isDuressActive) {
+                            Spacer(Modifier.height(12.dp))
+                            HorizontalDivider()
+                            Spacer(Modifier.height(8.dp))
+
+                            // Hidden folder section
+                            val hiddenDir = remember { java.io.File(context.filesDir, "vault/hidden").also { it.mkdirs() } }
+                            var hiddenPhotos by remember { mutableStateOf<List<VaultPhoto>>(emptyList()) }
+                            var hiddenThumbs by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
+
+                            LaunchedEffect(isHiddenFolderActive) {
+                                withContext(Dispatchers.IO) {
+                                    hiddenPhotos = vault.listFolderItems(hiddenDir)
+                                    val thumbMap = mutableMapOf<String, Bitmap>()
+                                    hiddenPhotos.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                                    hiddenThumbs = thumbMap
+                                }
+                            }
+
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.Lock, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                                    Text("Hidden", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
+                                    Text("${hiddenPhotos.size}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Row {
+                                    // Import to hidden folder
+                                    val hiddenImportLauncher = rememberLauncherForActivityResult(
+                                        contract = ActivityResultContracts.OpenMultipleDocuments()
+                                    ) { uris ->
+                                        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+                                        scope.launch {
+                                            withContext(Dispatchers.IO) {
+                                                uris.forEach { uri ->
+                                                    try {
+                                                        val mimeType = context.contentResolver.getType(uri)
+                                                        if (mimeType?.startsWith("video/") == true) {
+                                                            val tempFile = java.io.File(context.cacheDir, "hidden_vid_${System.currentTimeMillis()}.mp4")
+                                                            context.contentResolver.openInputStream(uri)?.use { input -> tempFile.outputStream().use { output -> input.copyTo(output) } }
+                                                            vault.saveVideo(tempFile, VaultCategory.VIDEO)
+                                                            val vid = vault.listPhotos(VaultCategory.VIDEO).firstOrNull()
+                                                            vid?.let { vault.moveToFolder(it, hiddenDir) }
+                                                        } else {
+                                                            val bytes = context.contentResolver.openInputStream(uri)?.readBytes() ?: return@forEach
+                                                            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@forEach
+                                                            vault.savePhotoToFolder(bitmap, hiddenDir)
+                                                            bitmap.recycle()
+                                                        }
+                                                    } catch (_: Exception) {}
+                                                }
+                                                hiddenPhotos = vault.listFolderItems(hiddenDir)
+                                                val thumbMap = mutableMapOf<String, Bitmap>()
+                                                hiddenPhotos.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                                                hiddenThumbs = thumbMap
+                                            }
+                                        }
+                                    }
+                                    IconButton(onClick = { hiddenImportLauncher.launch(arrayOf("image/*", "video/*")) }) {
+                                        Icon(Icons.Default.Add, "Import to hidden", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                                    }
+                                    // Close hidden folder
+                                    IconButton(onClick = { isHiddenFolderActive = false }) {
+                                        Icon(Icons.Default.Close, "Close hidden", Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+
+                            if (hiddenPhotos.isEmpty()) {
+                                Text("Empty — import files to hide them here", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                // Grid of hidden photos
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(3),
+                                    modifier = Modifier.fillMaxWidth().height((((hiddenPhotos.size + 2) / 3) * 120).dp.coerceAtMost(360.dp)),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    items(hiddenPhotos.size) { i ->
+                                        val photo = hiddenPhotos[i]
+                                        val thumb = hiddenThumbs[photo.id]
+                                        Box(
+                                            Modifier.size(110.dp).clip(RoundedCornerShape(8.dp))
+                                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                .clickable {
+                                                    // Open in viewer
+                                                    scope.launch {
+                                                        val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(photo) }
+                                                        viewerPhoto = photo
+                                                        viewerBitmap = bmp
+                                                        photos = hiddenPhotos
+                                                        thumbnails = hiddenThumbs
+                                                        page = VaultPage.VIEWER
+                                                    }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (thumb != null) {
+                                                Image(
+                                                    bitmap = thumb.asImageBitmap(),
+                                                    contentDescription = null,
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            } else {
+                                                Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         Spacer(Modifier.height(12.dp))
                         HorizontalDivider()
                         Spacer(Modifier.height(8.dp))
@@ -2046,8 +2206,13 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(stringResource(R.string.my_folders), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                            IconButton(onClick = { showCreateFolderDialog = true }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Default.Add, stringResource(R.string.new_folder), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                            androidx.compose.material3.TextButton(
+                                onClick = { showCreateFolderDialog = true },
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                            ) {
+                                Icon(Icons.Default.Add, null, Modifier.size(16.dp))
+                                Spacer(Modifier.size(4.dp))
+                                Text(stringResource(R.string.new_folder), style = MaterialTheme.typography.labelMedium)
                             }
                         }
 
@@ -3186,12 +3351,30 @@ private fun CompactCategoryCard(
     width: androidx.compose.ui.unit.Dp,
     onClick: () -> Unit
 ) {
-    Card(Modifier.size(width, 70.dp).clickable(onClick = onClick)) {
-        Row(Modifier.fillMaxSize().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(icon, label, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+    Card(
+        modifier = Modifier.size(width, 76.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = androidx.compose.material3.CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Row(
+            Modifier.fillMaxSize().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                Modifier.size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, label, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+            }
             Column {
-                Text(label, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                Text("$count", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1)
+                Text("$count items", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

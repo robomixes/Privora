@@ -919,6 +919,50 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     } else {
                         // ─── Unlocked: show all critical settings ───
 
+                        // Hidden folder tap count
+                        var hiddenTapCount by remember {
+                            mutableStateOf(
+                                context.getSharedPreferences("vault_hidden", android.content.Context.MODE_PRIVATE)
+                                    .getInt("tap_count", 7)
+                            )
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(Icons.Default.Lock, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.hidden_folder_title), style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    stringResource(R.string.hidden_folder_desc, hiddenTapCount),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(onClick = {
+                                    if (hiddenTapCount > 3) {
+                                        hiddenTapCount--
+                                        context.getSharedPreferences("vault_hidden", android.content.Context.MODE_PRIVATE)
+                                            .edit().putInt("tap_count", hiddenTapCount).apply()
+                                    }
+                                }, modifier = Modifier.size(32.dp)) {
+                                    Text("−", style = MaterialTheme.typography.titleMedium)
+                                }
+                                Text("$hiddenTapCount", style = MaterialTheme.typography.titleMedium)
+                                IconButton(onClick = {
+                                    if (hiddenTapCount < 15) {
+                                        hiddenTapCount++
+                                        context.getSharedPreferences("vault_hidden", android.content.Context.MODE_PRIVATE)
+                                            .edit().putInt("tap_count", hiddenTapCount).apply()
+                                    }
+                                }, modifier = Modifier.size(32.dp)) {
+                                    Text("+", style = MaterialTheme.typography.titleMedium)
+                                }
+                            }
+                        }
+
                         // Calculator disguise — swap launcher icon
                         var disguiseEnabled by remember {
                             mutableStateOf(com.privateai.camera.ui.disguise.DisguiseManager.isDisguiseEnabled(context))

@@ -83,6 +83,8 @@
     <string name="intruder_alerts_desc">输入错误 PIN 时用前置摄像头拍照</string>
     <string name="intruder_view_captures">查看拍摄记录 (%d)</string>
     <string name="intruder_clear_all">全部清除</string>
+    <string name="hidden_folder_title">隐藏文件夹</string>
+    <string name="hidden_folder_desc">点击保险库标题 %d 次以显示。内容不可搜索。</string>
     <string name="disguise_calculator_name">计算器</string>
     <string name="disguise_title">计算器伪装</string>
     <string name="disguise_enabled_desc">应用在启动器中显示为\"计算器\"。输入 PIN + = 解锁。</string>

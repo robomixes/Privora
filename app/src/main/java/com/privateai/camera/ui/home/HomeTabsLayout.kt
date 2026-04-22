@@ -264,13 +264,21 @@ private fun GreetingHeader(isVaultUnlocked: Boolean) {
     }
 
     val name = selfName
-    Text(
-        if (!name.isNullOrBlank() && name != context.getString(R.string.health_myself)) "$greeting, $name"
-        else greeting,
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurface
-    )
+    Column {
+        Text(
+            greeting,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (!name.isNullOrBlank() && name != context.getString(R.string.health_myself)) {
+            Text(
+                name,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
 }
 
 @Composable
@@ -325,12 +333,21 @@ private fun DailyTipCard(isVaultUnlocked: Boolean) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
-        )
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Row(
-            Modifier.padding(16.dp),
+            Modifier
+                .background(
+                    brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.2f)
+                        )
+                    )
+                )
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -487,67 +504,96 @@ private fun RecentActivityCard(onFeatureClick: (String) -> Unit) {
         }
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(
-                stringResource(R.string.home_recent_activity),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.height(12.dp))
+    // Section header
+    Text(
+        stringResource(R.string.home_recent_activity),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary
+    )
+    Spacer(Modifier.height(8.dp))
 
-            // Today's reminders
-            if (todayReminders.isNotEmpty()) {
-                todayReminders.forEach { rem ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { onFeatureClick("reminders") }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            if (rem.isDone) Icons.Default.CheckCircle else Icons.Default.Schedule,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = if (rem.isDone) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            rem.time,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (rem.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
-                        )
+    // Today's reminders — individual mini-cards
+    if (todayReminders.isNotEmpty()) {
+        todayReminders.forEach { rem ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (rem.isDone)
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    else
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                )
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onFeatureClick("reminders") }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        if (rem.isDone) Icons.Default.CheckCircle else Icons.Default.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = if (rem.isDone) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
+                    )
+                    Column(Modifier.weight(1f)) {
                         Text(
                             rem.title,
                             style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             textDecoration = if (rem.isDone) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
                             color = if (rem.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                         )
                     }
+                    Text(
+                        rem.time,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (rem.isDone) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary
+                    )
                 }
-                Spacer(Modifier.height(8.dp))
             }
+        }
+        Spacer(Modifier.height(4.dp))
+    }
 
-            // Latest photo row
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { onFeatureClick("vault") }
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+    // Latest photo — larger preview with stack hint
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { onFeatureClick("vault") }
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Photo stack effect — slightly larger thumbnail with layered background
+            Box(contentAlignment = Alignment.Center) {
+                // Stack shadow layers
                 Box(
-                    Modifier.size(56.dp).clip(RoundedCornerShape(12.dp))
+                    Modifier.size(68.dp)
+                        .padding(start = 6.dp, top = 6.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                )
+                Box(
+                    Modifier.size(68.dp)
+                        .padding(start = 3.dp, top = 3.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+                )
+                // Main thumbnail
+                Box(
+                    Modifier.size(68.dp).clip(RoundedCornerShape(14.dp))
                         .background(MaterialTheme.colorScheme.surface),
                     contentAlignment = Alignment.Center
                 ) {
@@ -557,63 +603,61 @@ private fun RecentActivityCard(onFeatureClick: (String) -> Unit) {
                             bitmap = thumb.asImageBitmap(),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp))
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp))
                         )
                     } else {
-                        Icon(
-                            Icons.Default.Photo,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Icon(Icons.Default.Photo, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        stringResource(R.string.home_latest_photo),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        stringResource(R.string.home_photos_count, photoCount),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.home_latest_photo),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    stringResource(R.string.home_photos_count, photoCount),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 
-            // Latest note row
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { onFeatureClick("notes") }
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+    // Latest note — its own mini-card
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { onFeatureClick("notes") }
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(
+                Modifier.size(48.dp).clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surface),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    Modifier.size(56.dp).clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surface),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.NoteAlt,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        latestNoteTitle ?: stringResource(R.string.home_latest_note),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1
-                    )
-                    Text(
-                        stringResource(R.string.home_notes_count, noteCount),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Icon(Icons.Default.NoteAlt, null, tint = MaterialTheme.colorScheme.primary)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    latestNoteTitle ?: stringResource(R.string.home_latest_note),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+                Text(
+                    stringResource(R.string.home_notes_count, noteCount),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
