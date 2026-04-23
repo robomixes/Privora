@@ -1,14 +1,14 @@
 # Privora — Project Status
 
-Last updated: 2026-04-22
+Last updated: 2026-04-23
 
 ---
 
 ## Current Version
 
 **Branch**: `v5-dev-gemma4`
-**Latest commit**: `c5d9e91` — Translate AI + grammar + alternatives, vault hidden folder, home redesign
-**Uncommitted**: Wi-Fi Transfer (encrypted), Files category, vault crash fix, file type display
+**Latest commit**: `735437c` — Vault: Files as universal explorer with filters, translations, scroll + nav fixes
+**Uncommitted**: Duress leak fixes, all-files-to-Received routing, PDF type detection fix, folder multi-select, pinch-to-zoom viewer
 
 ---
 
@@ -139,14 +139,27 @@ Last updated: 2026-04-22
 |---------|--------|-----------|
 | Hidden folder (tap title N times to reveal) | DONE | `ui/vault/VaultScreen.kt` |
 | Hidden folder config (tap count 3-15) | DONE | `ui/settings/SettingsScreen.kt` |
-| Hidden folder suppressed during duress | DONE | No toasts, no tap counting |
-| Move to Hidden from gallery | DONE | Move dialog red "Hidden folder" option |
+| Hidden folder suppressed during duress (no toasts) | DONE | `isDuressActive` guard |
+| Move to Hidden from gallery/folder | DONE | Move dialog red "Hidden folder" option |
+| Hidden folder viewer back → categories (not gallery) | DONE | `viewerFromHidden` flag |
 | Vault UI polish (shadows, pill search, icon circles) | DONE | `CompactCategoryCard`, search bar |
 | Smart filter icons (Duplicates, Blurry) | DONE | Leading icons on FilterChips |
 | "+ New Folder" pill button | DONE | TextButton replaces lone + icon |
-| Files category card on vault grid | DONE | Was missing, now visible |
+| Files as universal explorer (ALL vault items) | DONE | Loads all categories + folders |
+| File type filter chips (All/Photos/Videos/PDF/Other) | DONE | `filesFilter` state in gallery |
 | FILE media type for documents | DONE | `.file.enc` extension, `VaultMediaType.FILE` |
-| File display (icon + name + size + type badge) | DONE | PDF + FILE rendering in gallery |
+| PDF detection in `.file.enc` (Wi-Fi transferred PDFs) | DONE | Checks filename for `.pdf` |
+| File display (icon + name + size + type badge) | DONE | PDF + FILE rendering in gallery + folder view |
+| Folder multi-select (long-press → move/share/delete) | DONE | `combinedClickable` + selection action bar |
+| Folder viewer back → folder (not gallery) | DONE | `viewerFromFolder` flag |
+| Pinch-to-zoom image viewer (1x-5x) | DONE | `detectTransformGestures` + `graphicsLayer` |
+| Double-tap zoom toggle (1x ↔ 2.5x) | DONE | `detectTapGestures(onDoubleTap)` |
+| Pan when zoomed + swipe when not zoomed | DONE | Gesture mode switches on scale |
+| Categories page scrollable (folders + trash reachable) | DONE | `verticalScroll` on normal view only |
+| Duress leak fix: Photos/Videos/Files virtual views | DONE | Redirect to `openCategory()` in duress |
+| Duress leak fix: folder counts show 0 | DONE | `if (isDuressActive) 0` |
+| Translations: Photos, Videos, Files in AR/FR/ES/ZH | DONE | All 4 locales |
+| All Wi-Fi received files → Received folder | DONE | Images, videos, PDFs, docs — all in one folder |
 
 ### Wi-Fi Transfer (v1.6 — DONE)
 
@@ -154,14 +167,15 @@ Last updated: 2026-04-22
 |---------|--------|-----------|
 | NanoHTTPD embedded server | DONE | `service/WifiTransferServer.kt` |
 | QR code + URL + PIN display | DONE | `ui/vault/WifiTransferScreen.kt` |
-| Browser-side AES-256-CTR encryption | DONE | Pure JS, no crypto.subtle needed |
+| Browser-side AES-256-CTR encryption (pure JS) | DONE | No crypto.subtle needed, works on HTTP |
 | Server-side decryption with PIN-derived key | DONE | `decryptWithPin()` |
 | PIN never sent over network | DONE | Both sides derive key from PIN+salt |
-| Images → Received folder, PDFs → Scans, Docs → Files | DONE | Auto-routing by MIME type |
+| All files → Received folder | DONE | Images, videos, PDFs, docs unified |
 | Configurable size limit (50MB-1GB) | DONE | Advanced Settings |
 | 3 wrong PINs = server lockout | DONE | `MAX_PIN_FAILURES = 3` |
 | Wi-Fi IP detection (wlan0 + fallback) | DONE | `getLocalIpAddress()` |
 | 📶 icon in vault top bar | DONE | Hidden during duress |
+| Fallback: multipart + PIN when encryption fails | DONE | Dual-mode upload handler |
 
 ---
 
@@ -174,7 +188,8 @@ Last updated: 2026-04-22
 | Calculator disguise disables MainActivity | Share-to-Privora won't work while disguised | Toggle off to use share |
 | Duress mode crashes on Insights/Notes entry | Concurrent file deletion during navigation | Needs null-safety guards |
 | AI streaming not implemented | Full response after 3-10s wait | Architecture ready |
-| Wi-Fi transfer encryption key derivation is custom | Not PBKDF2, uses iterative mixing | Acceptable for ephemeral transfers |
+| Wi-Fi transfer key derivation is custom mixing | Not PBKDF2, uses 10K-round iterative mix | Acceptable for ephemeral transfers |
+| PDFs open in external reader (Google Drive/Files) | Decrypted PDF touches external app briefly | Built-in PDF viewer would be better |
 
 ---
 
@@ -274,6 +289,8 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 
 | Commit | Date | Description |
 |--------|------|-------------|
+| `735437c` | 2026-04-23 | Vault: Files as universal explorer with filters, translations, scroll + nav fixes |
+| `3b819f1` | 2026-04-22 | Wi-Fi Transfer with browser-side encryption, Files category, vault fixes |
 | `c5d9e91` | 2026-04-22 | Translate AI + grammar + alternatives, vault hidden folder, home redesign |
 | `15d65b7` | 2026-04-20 | Update README, PLAN, and add STATUS.md |
 | `bb519ce` | 2026-04-16 | Calculator disguise + Share-to-Privora + duress from calculator |

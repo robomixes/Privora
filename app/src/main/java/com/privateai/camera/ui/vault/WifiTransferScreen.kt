@@ -117,6 +117,7 @@ fun WifiTransferScreen(onBack: () -> Unit) {
             onFileReceived = { fileName, bytes, mimeType ->
                 try {
                     val ext = fileName.substringAfterLast('.', "").lowercase()
+                    // ALL files go to the Received folder regardless of type
                     when {
                         mimeType.startsWith("image/") -> {
                             val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
@@ -130,20 +131,15 @@ fun WifiTransferScreen(onBack: () -> Unit) {
                             val tempFile = File(context.cacheDir, "transfer_${System.currentTimeMillis()}.$ext")
                             tempFile.writeBytes(bytes)
                             vault.saveVideo(tempFile, VaultCategory.VIDEO)
-                            // Move last saved video to Received folder
                             vault.listPhotos(VaultCategory.VIDEO).firstOrNull()?.let {
                                 vault.moveToFolder(it, receivedDir)
                             }
                             null
                         }
-                        ext == "pdf" -> {
-                            // PDFs → Scans category (has proper PDF viewer support)
-                            vault.saveFile(bytes, fileName, VaultCategory.SCAN)
-                            null
-                        }
                         else -> {
-                            // Docs (docx, xlsx, txt, etc.) → Files category
-                            vault.saveFile(bytes, fileName, VaultCategory.FILES)
+                            // PDFs, docs, spreadsheets, etc. → encrypt directly to Received folder
+                            val encFile = File(receivedDir, "${System.currentTimeMillis()}_$fileName.file.enc")
+                            crypto.encryptToFile(bytes, encFile)
                             null
                         }
                     }

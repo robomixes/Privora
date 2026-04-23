@@ -262,12 +262,14 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         }
 
         // Generic files: {name}.file.enc (docs, spreadsheets, text, etc.)
+        // If original filename contains .pdf, treat as PDF (Wi-Fi transfer saves PDFs with .file.enc)
         files.filter {
             it.name.endsWith(".file.enc") &&
                 !it.name.startsWith("_tobedeleted_")
         }.forEach { file ->
             val id = file.name.removeSuffix(".file.enc")
-            items.add(VaultPhoto(id, file.lastModified(), category, file, file, VaultMediaType.FILE))
+            val isPdf = id.lowercase().endsWith(".pdf") || id.lowercase().contains(".pdf")
+            items.add(VaultPhoto(id, file.lastModified(), category, file, file, if (isPdf) VaultMediaType.PDF else VaultMediaType.FILE))
         }
 
         // Videos: {id}.vid.enc (excluding .vid.thumb.enc, _tobedeleted_)
@@ -406,17 +408,21 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         val files = folderDir.listFiles() ?: return emptyList()
         val items = mutableListOf<VaultPhoto>()
 
+        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, .pdf.enc, .file.enc, and any file containing .pdf)
         files.filter {
             it.isFile && it.name.endsWith(".enc") &&
                 !it.name.endsWith(".thumb.enc") &&
                 !it.name.endsWith(".vid.enc") &&
                 !it.name.endsWith(".pdf.enc") &&
+                !it.name.endsWith(".file.enc") &&
+                !it.name.contains(".pdf.") &&
                 !it.name.startsWith("_tobedeleted_")
         }.forEach { file ->
             val id = file.name.removeSuffix(".enc")
             items.add(VaultPhoto(id, file.lastModified(), VaultCategory.FILES, file, File(folderDir, "$id.thumb.enc")))
         }
 
+        // Videos
         files.filter {
             it.name.endsWith(".vid.enc") && !it.name.endsWith(".vid.thumb.enc") && !it.name.startsWith("_tobedeleted_")
         }.forEach { file ->
@@ -424,11 +430,23 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
             items.add(VaultPhoto(id, file.lastModified(), VaultCategory.FILES, file, File(folderDir, "$id.vid.thumb.enc"), VaultMediaType.VIDEO))
         }
 
+        // PDFs
         files.filter {
             it.name.endsWith(".pdf.enc") && !it.name.startsWith("_tobedeleted_")
         }.forEach { file ->
             val id = file.name.removeSuffix(".pdf.enc")
             items.add(VaultPhoto(id, file.lastModified(), VaultCategory.FILES, file, file, VaultMediaType.PDF))
+        }
+
+        // Generic files (docs, spreadsheets, etc.) — PDFs detected by name get PDF type
+        files.filter {
+            it.name.endsWith(".file.enc") && !it.name.startsWith("_tobedeleted_")
+        }.forEach { file ->
+            val id = file.name.removeSuffix(".file.enc")
+            val isPdf = id.lowercase().endsWith(".pdf") || id.lowercase().contains(".pdf")
+            if (items.none { it.encryptedFile == file }) {
+                items.add(VaultPhoto(id, file.lastModified(), VaultCategory.FILES, file, file, if (isPdf) VaultMediaType.PDF else VaultMediaType.FILE))
+            }
         }
 
         return items.sortedByDescending { it.timestamp }
