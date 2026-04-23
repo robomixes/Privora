@@ -393,6 +393,13 @@
     <string name="category_scans">扫描</string>
     <string name="category_detections">检测</string>
     <string name="category_reports">报告</string>
+    <string name="category_files">文件</string>
+    <string name="filter_all">全部</string>
+    <string name="filter_photos">照片</string>
+    <string name="filter_videos">视频</string>
+    <string name="filter_other">其他</string>
+    <string name="all_photos">照片</string>
+    <string name="all_videos">视频</string>
     <string name="category_with_count">%1$s（%2$d）</string>
     <string name="my_folders">我的文件夹</string>
     <string name="new_folder">新建文件夹</string>

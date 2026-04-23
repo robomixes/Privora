@@ -391,6 +391,13 @@
     <string name="category_scans">المستندات الممسوحة</string>
     <string name="category_detections">نتائج الكشف</string>
     <string name="category_reports">التقارير</string>
+    <string name="category_files">الملفات</string>
+    <string name="filter_all">الكل</string>
+    <string name="filter_photos">صور</string>
+    <string name="filter_videos">فيديو</string>
+    <string name="filter_other">أخرى</string>
+    <string name="all_photos">الصور</string>
+    <string name="all_videos">مقاطع الفيديو</string>
     <string name="category_with_count">%1$s (%2$d)</string>
     <string name="my_folders">مجلداتي</string>
     <string name="new_folder">مجلد جديد</string>

@@ -407,6 +407,10 @@
     <string name="category_detections">Detections</string>
     <string name="category_reports">Reports</string>
     <string name="category_files">Files</string>
+    <string name="filter_all">All</string>
+    <string name="filter_photos">Photos</string>
+    <string name="filter_videos">Videos</string>
+    <string name="filter_other">Other</string>
     <string name="category_with_count">%1$s (%2$d)</string>
     <string name="my_folders">My Folders</string>
     <string name="new_folder">New Folder</string>

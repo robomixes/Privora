@@ -212,6 +212,9 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
     // Search
     var searchQuery by remember { mutableStateOf(initialSearchQuery) }
 
+    // Track if viewer was opened from hidden folder (for correct back navigation)
+    var viewerFromHidden by remember { mutableStateOf(false) }
+
     // Hidden folder — tap vault title N times to reveal (like Android dev options)
     val hiddenTapThreshold = remember {
         context.getSharedPreferences("vault_hidden", android.content.Context.MODE_PRIVATE)
@@ -259,6 +262,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
     // Virtual smart views
     var isVirtualPhotos by remember { mutableStateOf(false) }
     var isVirtualVideos by remember { mutableStateOf(false) }
+    var isVirtualFiles by remember { mutableStateOf(false) }
+    var filesFilter by remember { mutableStateOf("all") } // "all", "photo", "video", "pdf", "other"
 
     // Auto-lock with shared grace period
     DisposableEffect(lifecycleOwner) {
@@ -1155,7 +1160,10 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
             selectedFaceGroup != null -> { selectedFaceGroup = null; searchResults = emptyList() }
             showFaceGroups -> { showFaceGroups = false; isSmartLoading = false }
             isSearching || smartMode != null -> { isSearching = false; smartMode = null; isSmartLoading = false; searchResults = emptyList() }
-            page == VaultPage.VIEWER -> page = VaultPage.GALLERY
+            page == VaultPage.VIEWER -> {
+                if (viewerFromHidden) { page = VaultPage.CATEGORIES; viewerFromHidden = false }
+                else page = VaultPage.GALLERY
+            }
             page == VaultPage.GALLERY -> page = VaultPage.CATEGORIES
             page == VaultPage.FOLDER_VIEW -> page = VaultPage.CATEGORIES
             page == VaultPage.TRASH -> page = VaultPage.CATEGORIES
@@ -2059,7 +2067,11 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             }
                         }
                     } else {
-                        // Normal categories view
+                        // Normal categories view — scrollable (no LazyColumn children here)
+                        Column(
+                            Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
                         @OptIn(ExperimentalLayoutApi::class)
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2115,7 +2127,32 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             CompactCategoryCard(stringResource(R.string.category_scans), categoryCounts[VaultCategory.SCAN] ?: 0, Icons.Default.DocumentScanner, halfWidth) { openCategory(VaultCategory.SCAN) }
                             CompactCategoryCard(stringResource(R.string.category_detections), categoryCounts[VaultCategory.DETECT] ?: 0, Icons.Default.CameraAlt, halfWidth) { openCategory(VaultCategory.DETECT) }
                             CompactCategoryCard(stringResource(R.string.category_reports), categoryCounts[VaultCategory.REPORTS] ?: 0, Icons.Default.Description, halfWidth) { openCategory(VaultCategory.REPORTS) }
-                            CompactCategoryCard(stringResource(R.string.category_files), categoryCounts[VaultCategory.FILES] ?: 0, Icons.Default.Folder, halfWidth) { openCategory(VaultCategory.FILES) }
+                            // Files — shows ALL vault items (except hidden) as a file explorer
+                            val totalFileCount = if (!isDuressActive) VaultCategory.entries.sumOf { categoryCounts[it] ?: 0 } else 0
+                            CompactCategoryCard(stringResource(R.string.category_files), totalFileCount, Icons.Default.Folder, halfWidth) {
+                                isVirtualFiles = true
+                                isVirtualPhotos = false
+                                isVirtualVideos = false
+                                filesFilter = "all"
+                                scope.launch {
+                                    val allItems = withContext(Dispatchers.IO) { vault.listAllPhotos() }
+                                    // Also include folder items
+                                    val folderItems = withContext(Dispatchers.IO) {
+                                        folderManager.listAllFolders().flatMap { folder ->
+                                            vault.listFolderItems(folderManager.getFolderDir(folder.id))
+                                        }
+                                    }
+                                    photos = (allItems + folderItems).distinctBy { it.id }.sortedByDescending { it.timestamp }
+                                    thumbnails = emptyMap()
+                                    currentCategory = VaultCategory.FILES
+                                    page = VaultPage.GALLERY
+                                    scope.launch {
+                                        val thumbMap = mutableMapOf<String, Bitmap>()
+                                        withContext(Dispatchers.IO) { photos.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } } }
+                                        thumbnails = thumbMap
+                                    }
+                                }
+                            }
                         }
 
                         // Hidden folder — only visible after tap-to-reveal
@@ -2213,6 +2250,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                                         viewerBitmap = bmp
                                                         photos = hiddenPhotos
                                                         thumbnails = hiddenThumbs
+                                                        viewerFromHidden = true
                                                         page = VaultPage.VIEWER
                                                     }
                                                 },
@@ -2319,6 +2357,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                 }
                             }
                         }
+                    } // end scrollable Column
                     } // end if/else isSearching
                 }
             }
@@ -2352,16 +2391,17 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                 when {
                                     isVirtualPhotos -> "${stringResource(R.string.all_photos)} (${photos.size})"
                                     isVirtualVideos -> "${stringResource(R.string.all_videos)} (${photos.size})"
+                                    isVirtualFiles -> "${stringResource(R.string.category_files)} (${photos.size})"
                                     else -> stringResource(R.string.category_with_count, currentCategory.label, photos.size)
                                 }
                             )
                         },
                         navigationIcon = {
                             IconButton(onClick = {
-                                // thumbnails cleared — GC handles bitmap recycling (Compose may still be drawing)
                                 thumbnails = emptyMap()
                                 isVirtualPhotos = false
                                 isVirtualVideos = false
+                                isVirtualFiles = false
                                 if (!isDuressActive) categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders()
                                 page = VaultPage.CATEGORIES
                             }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
@@ -2374,7 +2414,17 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                         Text(stringResource(R.string.no_items_yet), style = MaterialTheme.typography.bodyLarge)
                     }
                 } else {
-                    val grouped = remember(photos) { groupPhotosByDate(photos) }
+                    // Apply files filter if in virtual files mode
+                    val displayPhotos = if (isVirtualFiles && filesFilter != "all") {
+                        when (filesFilter) {
+                            "photo" -> photos.filter { it.mediaType == VaultMediaType.PHOTO }
+                            "video" -> photos.filter { it.mediaType == VaultMediaType.VIDEO }
+                            "pdf" -> photos.filter { it.mediaType == VaultMediaType.PDF }
+                            "other" -> photos.filter { it.mediaType == VaultMediaType.FILE }
+                            else -> photos
+                        }
+                    } else photos
+                    val grouped = remember(displayPhotos) { groupPhotosByDate(displayPhotos) }
 
                     val galleryGridWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 16.dp
                     LazyColumn(
@@ -2382,6 +2432,30 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                         verticalArrangement = Arrangement.spacedBy(3.dp),
                         modifier = Modifier.padding(padding)
                     ) {
+                        // File type filter chips (only in virtual files mode)
+                        if (isVirtualFiles) {
+                            item {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    val filters = listOf(
+                                        "all" to stringResource(R.string.filter_all),
+                                        "photo" to stringResource(R.string.filter_photos),
+                                        "video" to stringResource(R.string.filter_videos),
+                                        "pdf" to "PDF",
+                                        "other" to stringResource(R.string.filter_other)
+                                    )
+                                    filters.forEach { (key, label) ->
+                                        FilterChip(
+                                            selected = filesFilter == key,
+                                            onClick = { filesFilter = key },
+                                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         grouped.forEach { (header, groupPhotos) ->
                             item {
                                 Text(
