@@ -29,6 +29,7 @@ import com.privateai.camera.ui.notes.NotesScreen
 import com.privateai.camera.ui.onboarding.OnboardingScreen
 import com.privateai.camera.ui.onboarding.completeOnboardingQuick
 import com.privateai.camera.ui.onboarding.isOnboardingComplete
+import com.privateai.camera.ui.passwords.PasswordHintsScreen
 import com.privateai.camera.ui.qrscanner.QrScannerScreen
 import com.privateai.camera.ui.reminders.RemindersScreen
 import com.privateai.camera.ui.scanner.ScannerScreen
@@ -43,7 +44,7 @@ import com.privateai.camera.ui.vault.VaultScreen
 
 /** Top-level routes where the persistent bottom tab bar is shown (Tabs layout only). */
 private val TAB_VISIBLE_ROUTES = setOf(
-    "home", "vault", "notes", "insights", "reminders", "contacts", "tools", "qrscanner", "translate", "detect", "scan"
+    "home", "vault", "notes", "insights", "reminders", "passwords", "contacts", "tools", "qrscanner", "translate", "detect", "scan"
 )
 
 @Composable
@@ -207,6 +208,9 @@ fun PrivateAICameraApp() {
             }
             composable("reminders") {
                 RemindersScreen(onBack = safeBack)
+            }
+            composable("passwords") {
+                PasswordHintsScreen(onBack = safeBack)
             }
             composable("tools") {
                 UnitConverterScreen(onBack = safeBack)

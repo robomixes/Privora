@@ -7,8 +7,8 @@ Last updated: 2026-04-23
 ## Current Version
 
 **Branch**: `v5-dev-gemma4`
-**Latest commit**: `735437c` — Vault: Files as universal explorer with filters, translations, scroll + nav fixes
-**Uncommitted**: Duress leak fixes, all-files-to-Received routing, PDF type detection fix, folder multi-select, pinch-to-zoom viewer
+**Latest commit**: `4e4913a` — Duress fixes, PDF detection, folder multi-select, pinch-to-zoom, all-to-Received
+**Uncommitted**: Password Hints feature (new top-level feature)
 
 ---
 
@@ -177,6 +177,25 @@ Last updated: 2026-04-23
 | 📶 icon in vault top bar | DONE | Hidden during duress |
 | Fallback: multipart + PIN when encryption fails | DONE | Dual-mode upload handler |
 
+### Password Hints (v1.7 — DONE)
+
+| Feature | Status | Key Files |
+|---------|--------|-----------|
+| Encrypted hint vault (new top-level feature) | DONE | `security/PasswordHintRepository.kt` |
+| 8 color-coded categories (Email, Social, Banking, etc.) | DONE | `HintCategory` enum |
+| Favorites / starred entries pinned to top | DONE | `isFavorite` field |
+| Search across service name, hints, notes | DONE | `PasswordHintRepository.search()` |
+| Category filter chips | DONE | Horizontal scroll row |
+| Add/Edit dialog with all fields | DONE | `ui/passwords/PasswordHintDialog.kt` |
+| Password generator (SecureRandom, length slider, options) | DONE | `ui/passwords/PasswordGenerator.kt` |
+| Copy with 30s auto-clear clipboard | DONE | `copyWithAutoClear()` |
+| Auth gate (PIN / biometric) | DONE | Same pattern as Vault/Notes |
+| Duress mode: empty list | DONE | `isDuressActive` guard |
+| Home tile (🔑 purple) | DONE | `ui/home/HomeScreen.kt` |
+| Settings feature toggle | DONE | `FeatureToggleManager` + `SettingsScreen` |
+| Included in backup/restore automatically | DONE | `.hint.enc` files in `vault/passwords/` |
+| 5-locale translations (22 keys) | DONE | EN/AR/FR/ES/ZH |
+
 ---
 
 ## Known Issues / Limitations
@@ -238,6 +257,7 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 │   ├── Contacts (ContactsScreen)
 │   ├── Insights (Expenses, Health + AI summary, Meds, Habits)
 │   ├── Reminders (RemindersScreen, RemindersEditor, ReminderLinker)
+│   ├── Passwords (PasswordHintsScreen, PasswordHintDialog, PasswordGenerator)
 │   ├── Assistant (AssistantScreen, ChatBubble + markdown, data refs)
 │   ├── Disguise (CalculatorScreen, CalculatorActivity, DisguiseManager)
 │   ├── Home (Grid + Tabs layouts, gradient tips, mini-card activity, photo stack)
@@ -255,6 +275,7 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 │   ├── VaultRepository (photos, videos, PDFs, files with .file.enc)
 │   ├── NoteRepository (encrypted notes)
 │   ├── InsightsRepository (expenses/health/habits/meds/schedule)
+│   ├── PasswordHintRepository (encrypted password hints)
 │   ├── ContactRepository (encrypted contacts, self profile)
 │   ├── PrivoraDatabase (SQLCipher)
 │   ├── VaultLockManager (grace period, duress state)
@@ -289,6 +310,7 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 
 | Commit | Date | Description |
 |--------|------|-------------|
+| `4e4913a` | 2026-04-23 | Duress fixes, PDF detection, folder multi-select, pinch-to-zoom, all-to-Received |
 | `735437c` | 2026-04-23 | Vault: Files as universal explorer with filters, translations, scroll + nav fixes |
 | `3b819f1` | 2026-04-22 | Wi-Fi Transfer with browser-side encryption, Files category, vault fixes |
 | `c5d9e91` | 2026-04-22 | Translate AI + grammar + alternatives, vault hidden folder, home redesign |

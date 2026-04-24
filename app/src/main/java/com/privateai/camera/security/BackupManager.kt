@@ -132,6 +132,17 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
             onProgress(index + 1, totalFiles, "Backing up files...")
         }
 
+        // Write SQLCipher database (contacts + photo_index) if it exists
+        val dbFile = context.getDatabasePath("privora.db")
+        if (dbFile.exists()) {
+            // Close the database before copying to avoid corruption
+            try { PrivoraDatabase.closeInstance() } catch (_: Exception) {}
+            zos.putNextEntry(ZipEntry("__database__/privora.db"))
+            FileInputStream(dbFile).use { fis -> fis.copyTo(zos) }
+            zos.closeEntry()
+            Log.i(TAG, "Database backed up: ${dbFile.length() / 1024}KB")
+        }
+
         // Write SharedPreferences as JSON entries
         prefsToBackup.forEach { prefName ->
             val prefs = context.getSharedPreferences(prefName, Context.MODE_PRIVATE)
@@ -170,33 +181,28 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
         password: String,
         onProgress: (current: Int, total: Int, label: String) -> Unit
     ): Pair<Int, Int> {
-        // 1. Open zip and read key entry first
-        val zis = ZipInputStream(BufferedInputStream(FileInputStream(backupFile)))
+        // PASS 1: Read only the key entry and count files (small memory footprint)
         var keyData: ByteArray? = null
-        val entries = mutableListOf<Pair<String, ByteArray>>()
-
-        val prefEntries = mutableListOf<Pair<String, ByteArray>>()
-
-        var entry = zis.nextEntry
-        while (entry != null) {
-            if (entry.name == KEY_ENTRY) {
-                keyData = zis.readBytes()
-            } else if (entry.name.startsWith(prefsDirInZip)) {
-                prefEntries.add(entry.name to zis.readBytes())
-            } else {
-                entries.add(entry.name to zis.readBytes())
+        var totalEntries = 0
+        ZipInputStream(BufferedInputStream(FileInputStream(backupFile))).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) {
+                if (entry.name == KEY_ENTRY) {
+                    keyData = zis.readBytes()
+                } else {
+                    totalEntries++
+                }
+                zis.closeEntry()
+                entry = zis.nextEntry
             }
-            zis.closeEntry()
-            entry = zis.nextEntry
         }
-        zis.close()
 
         requireNotNull(keyData) { "Invalid backup: no key found" }
 
         // 2. Unwrap backup DEK
-        val backupDekBytes = readKeyEntry(keyData, password)
+        val backupDekBytes = readKeyEntry(keyData!!, password)
 
-        // 3. Check if device has existing encrypted data that needs re-encryption
+        // 3. Handle existing data re-encryption
         val vaultDir = File(context.filesDir, "vault")
         val existingFiles = if (vaultDir.exists()) {
             vaultDir.walkTopDown()
@@ -207,78 +213,113 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
         val hasExistingData = existingFiles.isNotEmpty() && crypto.isUnlocked()
 
         if (hasExistingData) {
-            // 3a. Decrypt all existing files with the OLD DEK
+            // Re-encrypt existing files one at a time (no bulk memory allocation)
             Log.i(TAG, "Re-encrypting ${existingFiles.size} existing files with imported key...")
-            val decryptedFiles = mutableListOf<Pair<File, ByteArray>>()
+            val oldDecrypted = mutableListOf<Pair<File, ByteArray>>()
 
             existingFiles.forEachIndexed { index, file ->
                 try {
                     val plaintext = crypto.decryptFile(file)
-                    decryptedFiles.add(file to plaintext)
+                    oldDecrypted.add(file to plaintext)
                 } catch (e: Exception) {
                     Log.w(TAG, "Skip re-encrypt (decrypt failed): ${file.name}: ${e.message}")
                 }
                 onProgress(index + 1, existingFiles.size, "Re-encrypting existing data...")
             }
 
-            // 3b. Switch to the imported DEK
             crypto.importDek(backupDekBytes)
             backupDekBytes.fill(0)
 
-            // 3c. Re-encrypt all existing files with the NEW DEK
-            decryptedFiles.forEachIndexed { index, (file, plaintext) ->
+            oldDecrypted.forEachIndexed { index, (file, plaintext) ->
                 try {
                     crypto.encryptToFile(plaintext, file)
                 } catch (e: Exception) {
                     Log.e(TAG, "Re-encrypt failed: ${file.name}: ${e.message}")
                 }
-                plaintext.fill(0) // zero plaintext immediately
-                onProgress(index + 1, decryptedFiles.size, "Securing existing data...")
+                plaintext.fill(0)
+                onProgress(index + 1, oldDecrypted.size, "Securing existing data...")
             }
-
-            Log.i(TAG, "Re-encrypted ${decryptedFiles.size} existing files")
+            Log.i(TAG, "Re-encrypted ${oldDecrypted.size} existing files")
         } else {
-            // No existing data — just import the DEK
             crypto.importDek(backupDekBytes)
             backupDekBytes.fill(0)
         }
 
-        // 4. Extract backup files to vault
-        val totalFiles = entries.size
+        // PASS 2: Stream files directly to disk (no bulk memory — handles 380MB+ backups)
         var imported = 0
         var skipped = 0
+        var fileIndex = 0
 
-        entries.forEachIndexed { index, (name, data) ->
-            val targetFile = File(context.filesDir, name)
-            if (targetFile.exists()) {
-                skipped++
-            } else {
-                targetFile.parentFile?.mkdirs()
-                targetFile.writeBytes(data)
-                imported++
-            }
-            onProgress(index + 1, totalFiles, "Restoring files...")
-        }
+        ZipInputStream(BufferedInputStream(FileInputStream(backupFile), 8192)).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) {
+                if (entry.name == KEY_ENTRY) {
+                    // Already processed in pass 1 — skip
+                    zis.closeEntry()
+                    entry = zis.nextEntry
+                    continue
+                }
 
-        // 5. Restore SharedPreferences
-        prefEntries.forEach { (name, data) ->
-            try {
-                val prefName = name.removePrefix(prefsDirInZip).removeSuffix(".json")
-                val json = org.json.JSONObject(String(data, Charsets.UTF_8))
-                val editor = context.getSharedPreferences(prefName, Context.MODE_PRIVATE).edit()
-                json.keys().forEach { key ->
-                    when (val v = json.get(key)) {
-                        is String -> editor.putString(key, v)
-                        is Int -> editor.putInt(key, v)
-                        is Long -> editor.putLong(key, v)
-                        is Double -> editor.putFloat(key, v.toFloat())
-                        is Boolean -> editor.putBoolean(key, v)
+                fileIndex++
+
+                if (entry.name.startsWith("__database__/")) {
+                    // SQLCipher database (contacts + photo_index) — stream to databases dir
+                    try {
+                        val dbName = entry.name.removePrefix("__database__/")
+                        val dbFile = context.getDatabasePath(dbName)
+                        // Close existing DB before overwriting
+                        try { PrivoraDatabase.closeInstance() } catch (_: Exception) {}
+                        dbFile.parentFile?.mkdirs()
+                        dbFile.outputStream().use { out -> zis.copyTo(out, bufferSize = 8192) }
+                        Log.i(TAG, "Database restored: $dbName (${dbFile.length() / 1024}KB)")
+                        imported++
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to restore database: ${entry.name}: ${e.message}")
+                        skipped++
+                    }
+                } else if (entry.name.startsWith(prefsDirInZip)) {
+                    // SharedPreferences — small JSON, safe to read into memory
+                    try {
+                        val data = zis.readBytes()
+                        val prefName = entry.name.removePrefix(prefsDirInZip).removeSuffix(".json")
+                        val json = org.json.JSONObject(String(data, Charsets.UTF_8))
+                        val editor = context.getSharedPreferences(prefName, Context.MODE_PRIVATE).edit()
+                        json.keys().forEach { key ->
+                            when (val v = json.get(key)) {
+                                is String -> editor.putString(key, v)
+                                is Int -> editor.putInt(key, v)
+                                is Long -> editor.putLong(key, v)
+                                is Double -> editor.putFloat(key, v.toFloat())
+                                is Boolean -> editor.putBoolean(key, v)
+                            }
+                        }
+                        editor.apply()
+                        Log.d(TAG, "Restored preferences: $prefName")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to restore prefs: ${entry.name}: ${e.message}")
+                    }
+                } else {
+                    // Vault file — stream directly to disk (no readBytes into memory)
+                    val targetFile = File(context.filesDir, entry.name)
+                    if (targetFile.exists()) {
+                        skipped++
+                    } else {
+                        try {
+                            targetFile.parentFile?.mkdirs()
+                            targetFile.outputStream().use { out ->
+                                zis.copyTo(out, bufferSize = 8192)
+                            }
+                            imported++
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to extract: ${entry.name}: ${e.message}")
+                            skipped++
+                        }
                     }
                 }
-                editor.apply()
-                Log.d(TAG, "Restored preferences: $prefName")
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to restore prefs: ${name}: ${e.message}")
+
+                onProgress(fileIndex, totalEntries, "Restoring files...")
+                zis.closeEntry()
+                entry = zis.nextEntry
             }
         }
 

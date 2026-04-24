@@ -205,6 +205,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 "notes" to Triple(stringResource(R.string.feature_notes), stringResource(R.string.feature_notes_desc), Icons.Default.NoteAlt),
                 "insights" to Triple(stringResource(R.string.feature_insights), stringResource(R.string.feature_insights_desc), Icons.Default.Info),
                 "reminders" to Triple(stringResource(R.string.feature_reminders), stringResource(R.string.feature_reminders_desc), Icons.Default.Notifications),
+                "passwords" to Triple(stringResource(R.string.feature_passwords), stringResource(R.string.feature_passwords_desc), Icons.Default.Lock),
                 "tools" to Triple(stringResource(R.string.feature_tools), stringResource(R.string.feature_tools_desc), Icons.Default.Info),
                 "contacts" to Triple(stringResource(R.string.feature_contacts), stringResource(R.string.feature_contacts_desc), Icons.Default.Person)
             )
