@@ -38,14 +38,15 @@ object DisguiseManager {
         val pm = context.packageManager
         val pkg = context.packageName
 
-        // MainActivity has the default MAIN/LAUNCHER — disable it to hide "Privora" from launcher
-        val mainActivity = ComponentName(pkg, "$pkg.MainActivity")
+        // Toggle the two launcher aliases. MainActivity itself stays enabled so
+        // CalculatorActivity can always start it via Intent(MainActivity::class).
+        val defaultAlias = ComponentName(pkg, "$pkg.LauncherDefault")
         val calcAlias = ComponentName(pkg, "$pkg.LauncherCalculator")
 
         if (enabled) {
             // Hide Privora, show Calculator
             pm.setComponentEnabledSetting(
-                mainActivity,
+                defaultAlias,
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                 PackageManager.DONT_KILL_APP
             )
@@ -57,7 +58,7 @@ object DisguiseManager {
         } else {
             // Show Privora, hide Calculator
             pm.setComponentEnabledSetting(
-                mainActivity,
+                defaultAlias,
                 PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
                 PackageManager.DONT_KILL_APP
             )

@@ -35,10 +35,6 @@
             android:exported="true"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
 
             <!-- Share-to-Privora: receive images, videos, text, PDFs from other apps -->
             <intent-filter>
@@ -79,10 +75,27 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
 
+        <!-- Default launcher alias: "Privora" icon + name in the launcher.
+             Enabled by default. Toggled OFF when disguise is active.
+             MainActivity itself stays enabled so CalculatorActivity can launch it. -->
+        <activity-alias
+            android:name=".LauncherDefault"
+            android:targetActivity=".MainActivity"
+            android:exported="true"
+            android:enabled="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- Calculator disguise alias: "Calculator" icon + name in the launcher.
              Disabled by default. When user enables disguise in Settings:
              - This alias is ENABLED (shows "Calculator" in launcher)
-             - MainActivity's launcher component is DISABLED (hides "Privora")
+             - LauncherDefault is DISABLED (hides "Privora" from launcher)
              User opens "Calculator" → CalculatorActivity → types PIN+= → MainActivity launches. -->
         <activity-alias
             android:name=".LauncherCalculator"

@@ -1,6 +1,8 @@
 package com.privateai.camera.ui.disguise
 
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -50,6 +52,18 @@ class CalculatorActivity : ComponentActivity() {
     }
 
     private fun launchPrivora() {
+        // Heal legacy state: older builds disabled MainActivity's component to hide
+        // it from the launcher, which made it impossible to start from here. Reset
+        // to the manifest default (enabled) so the intent below always succeeds.
+        try {
+            val mainComponent = ComponentName(this, MainActivity::class.java)
+            packageManager.setComponentEnabledSetting(
+                mainComponent,
+                PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,
+                PackageManager.DONT_KILL_APP
+            )
+        } catch (_: Exception) {
+        }
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
