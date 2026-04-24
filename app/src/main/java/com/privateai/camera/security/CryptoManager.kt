@@ -142,9 +142,17 @@ class CryptoManager(private val context: Context) {
      * Supports both original format (small files) and chunked format (large files).
      * Never writes decrypted data to disk.
      */
-    fun decryptFile(encryptedFile: File): ByteArray {
-        if (cachedDEK == null) initialize()
-        val dek = cachedDEK ?: throw IllegalStateException("CryptoManager not initialized")
+    fun decryptFile(encryptedFile: File): ByteArray = decryptFileWithDek(encryptedFile, null)
+
+    /**
+     * Decrypt a file using an explicit DEK (for re-encryption flows where both
+     * old and new DEKs must be held concurrently). Falls back to the cached DEK.
+     */
+    fun decryptFileWithDek(encryptedFile: File, explicitDek: SecretKey?): ByteArray {
+        val dek = explicitDek ?: run {
+            if (cachedDEK == null) initialize()
+            cachedDEK ?: throw IllegalStateException("CryptoManager not initialized")
+        }
 
         // Guard against OOM: reject files that would exceed available memory
         val fileSize = encryptedFile.length()
@@ -229,6 +237,13 @@ class CryptoManager(private val context: Context) {
         val dek = cachedDEK ?: throw IllegalStateException("CryptoManager not initialized")
         return dek.encoded.copyOf()
     }
+
+    /**
+     * Get the current DEK as a SecretKey (for re-encryption flows that need to
+     * hold the old DEK across an importDek() call).
+     */
+    fun getCurrentDekKey(): SecretKey =
+        cachedDEK ?: throw IllegalStateException("CryptoManager not initialized")
 
     /**
      * Import a DEK from backup and re-wrap with this device's KEK.

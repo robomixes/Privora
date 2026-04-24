@@ -213,33 +213,28 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
         val hasExistingData = existingFiles.isNotEmpty() && crypto.isUnlocked()
 
         if (hasExistingData) {
-            // Re-encrypt existing files one at a time (no bulk memory allocation)
+            // Re-encrypt existing files one at a time — keep old DEK local, swap
+            // cached DEK to the imported one, then process each file: decrypt with
+            // old key → encrypt with new key → release plaintext. Never holds more
+            // than a single plaintext in memory (was OOMing on large vaults).
             Log.i(TAG, "Re-encrypting ${existingFiles.size} existing files with imported key...")
-            val oldDecrypted = mutableListOf<Pair<File, ByteArray>>()
-
-            existingFiles.forEachIndexed { index, file ->
-                try {
-                    val plaintext = crypto.decryptFile(file)
-                    oldDecrypted.add(file to plaintext)
-                } catch (e: Exception) {
-                    Log.w(TAG, "Skip re-encrypt (decrypt failed): ${file.name}: ${e.message}")
-                }
-                onProgress(index + 1, existingFiles.size, "Re-encrypting existing data...")
-            }
-
+            val oldDekKey = crypto.getCurrentDekKey()
             crypto.importDek(backupDekBytes)
             backupDekBytes.fill(0)
 
-            oldDecrypted.forEachIndexed { index, (file, plaintext) ->
+            var reEncrypted = 0
+            existingFiles.forEachIndexed { index, file ->
                 try {
+                    val plaintext = crypto.decryptFileWithDek(file, oldDekKey)
                     crypto.encryptToFile(plaintext, file)
+                    plaintext.fill(0)
+                    reEncrypted++
                 } catch (e: Exception) {
-                    Log.e(TAG, "Re-encrypt failed: ${file.name}: ${e.message}")
+                    Log.w(TAG, "Skip re-encrypt (failed): ${file.name}: ${e.message}")
                 }
-                plaintext.fill(0)
-                onProgress(index + 1, oldDecrypted.size, "Securing existing data...")
+                onProgress(index + 1, existingFiles.size, "Re-encrypting existing data...")
             }
-            Log.i(TAG, "Re-encrypted ${oldDecrypted.size} existing files")
+            Log.i(TAG, "Re-encrypted $reEncrypted / ${existingFiles.size} existing files")
         } else {
             crypto.importDek(backupDekBytes)
             backupDekBytes.fill(0)
