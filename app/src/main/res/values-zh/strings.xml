@@ -98,6 +98,16 @@
     <string name="disguise_title">计算器伪装</string>
     <string name="disguise_enabled_desc">应用在启动器中显示为\"计算器\"。输入 PIN + = 解锁。</string>
     <string name="disguise_disabled_desc">应用在启动器中显示为\"Privora\"。</string>
+    <string name="change_pin_title">更改 PIN</string>
+    <string name="change_pin_subtitle">更新您的解锁 PIN</string>
+    <string name="change_pin_current">当前 PIN</string>
+    <string name="change_pin_new">新 PIN</string>
+    <string name="change_pin_confirm">确认新 PIN</string>
+    <string name="change_pin_error_wrong_current">当前 PIN 不正确</string>
+    <string name="change_pin_error_same">新 PIN 必须与当前 PIN 不同</string>
+    <string name="change_pin_error_duress_collision">新 PIN 不能与紧急 PIN 相同</string>
+    <string name="change_pin_error_mismatch">PIN 不匹配</string>
+    <string name="change_pin_saved">PIN 已更改</string>
     <string name="assistant_copied">已复制到剪贴板</string>
     <string name="assistant_new_chat">新对话</string>
     <string name="feature_tools">工具</string>

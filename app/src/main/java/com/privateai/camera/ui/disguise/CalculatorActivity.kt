@@ -9,9 +9,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import com.privateai.camera.MainActivity
+import com.privateai.camera.security.AppPinManager
 import com.privateai.camera.security.DuressManager
 import com.privateai.camera.security.VaultLockManager
-import com.privateai.camera.ui.onboarding.getAppPin
 
 /**
  * Launcher activity for the calculator disguise.
@@ -36,13 +36,12 @@ class CalculatorActivity : ComponentActivity() {
             window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         }
 
-        val appPin = getAppPin(this)
         val duressEnabled = DuressManager.isEnabled(this)
 
         setContent {
             MaterialTheme {
                 CalculatorScreen(
-                    appPin = appPin,
+                    isAppPin = { pin -> AppPinManager.verify(this, pin) },
                     onNormalUnlock = { launchPrivora() },
                     isDuressPin = { pin -> duressEnabled && DuressManager.isDuressPin(this, pin) },
                     onDuressUnlock = { launchPrivoraWithDuress() }

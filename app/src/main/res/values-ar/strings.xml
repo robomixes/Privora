@@ -98,6 +98,16 @@
     <string name="disguise_title">تمويه الآلة الحاسبة</string>
     <string name="disguise_enabled_desc">يظهر التطبيق كـ\"آلة حاسبة\". أدخل رمز PIN + = للفتح.</string>
     <string name="disguise_disabled_desc">يظهر التطبيق كـ\"Privora\".</string>
+    <string name="change_pin_title">تغيير رمز PIN</string>
+    <string name="change_pin_subtitle">قم بتحديث رمز الفتح الخاص بك</string>
+    <string name="change_pin_current">رمز PIN الحالي</string>
+    <string name="change_pin_new">رمز PIN الجديد</string>
+    <string name="change_pin_confirm">تأكيد رمز PIN الجديد</string>
+    <string name="change_pin_error_wrong_current">رمز PIN الحالي غير صحيح</string>
+    <string name="change_pin_error_same">يجب أن يختلف الرمز الجديد عن الحالي</string>
+    <string name="change_pin_error_duress_collision">لا يمكن أن يطابق الرمز الجديد رمز الطوارئ</string>
+    <string name="change_pin_error_mismatch">رموز PIN غير متطابقة</string>
+    <string name="change_pin_saved">تم تغيير رمز PIN</string>
     <string name="assistant_copied">تم النسخ</string>
     <string name="assistant_new_chat">محادثة جديدة</string>
     <string name="feature_tools">الأدوات</string>

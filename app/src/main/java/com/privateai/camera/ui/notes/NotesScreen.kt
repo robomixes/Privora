@@ -348,8 +348,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null, op
             return
         }
 
-        val appPin = com.privateai.camera.ui.onboarding.getAppPin(context)
-        if (appPin != null && enteredPin == appPin) {
+        if (com.privateai.camera.security.AppPinManager.verify(context, enteredPin)) {
             PinRateLimiter.recordSuccess(context)
             if (crypto.initialize()) {
                 isDuressActive = false

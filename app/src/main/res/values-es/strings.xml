@@ -98,6 +98,16 @@
     <string name="disguise_title">Disfraz de calculadora</string>
     <string name="disguise_enabled_desc">La app aparece como \"Calculadora\". Introduce tu PIN + = para desbloquear.</string>
     <string name="disguise_disabled_desc">La app aparece como \"Privora\".</string>
+    <string name="change_pin_title">Cambiar PIN</string>
+    <string name="change_pin_subtitle">Actualiza tu PIN de desbloqueo</string>
+    <string name="change_pin_current">PIN actual</string>
+    <string name="change_pin_new">Nuevo PIN</string>
+    <string name="change_pin_confirm">Confirmar nuevo PIN</string>
+    <string name="change_pin_error_wrong_current">PIN actual incorrecto</string>
+    <string name="change_pin_error_same">El nuevo PIN debe ser diferente del actual</string>
+    <string name="change_pin_error_duress_collision">El nuevo PIN no puede coincidir con tu PIN de emergencia</string>
+    <string name="change_pin_error_mismatch">Los PIN no coinciden</string>
+    <string name="change_pin_saved">PIN cambiado</string>
     <string name="assistant_copied">Copiado al portapapeles</string>
     <string name="assistant_new_chat">Nuevo chat</string>
     <string name="feature_tools">Herramientas</string>

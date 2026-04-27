@@ -149,8 +149,7 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
             return
         }
 
-        val appPin = com.privateai.camera.ui.onboarding.getAppPin(context)
-        if (appPin != null && pin == appPin) {
+        if (com.privateai.camera.security.AppPinManager.verify(context, pin)) {
             PinRateLimiter.recordSuccess(context)
             if (crypto.initialize()) { isDuressActive = false; VaultLockManager.clearDuress(); VaultLockManager.markUnlocked(); isLocked = false; pinInput = ""; pinError = null }
             return

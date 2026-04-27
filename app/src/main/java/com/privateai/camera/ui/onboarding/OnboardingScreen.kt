@@ -61,7 +61,6 @@ import com.privateai.camera.R
 
 private const val PREFS_NAME = "privateai_prefs"
 private const val KEY_ONBOARDING_DONE = "onboarding_done"
-private const val KEY_APP_PIN = "app_pin"
 private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
 private const val KEY_AUTH_MODE = "auth_mode" // "phone_lock" or "app_pin"
 
@@ -84,20 +83,15 @@ fun isOnboardingComplete(context: Context): Boolean {
         .getBoolean(KEY_ONBOARDING_DONE, false)
 }
 
-fun getAppPin(context: Context): String? {
-    return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        .getString(KEY_APP_PIN, null)
-}
-
 fun isBiometricEnabled(context: Context): Boolean {
     return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         .getBoolean(KEY_BIOMETRIC_ENABLED, false)
 }
 
 private fun completeOnboarding(context: Context, pin: String, biometric: Boolean) {
+    com.privateai.camera.security.AppPinManager.setPin(context, pin)
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
         .putBoolean(KEY_ONBOARDING_DONE, true)
-        .putString(KEY_APP_PIN, pin)
         .putBoolean(KEY_BIOMETRIC_ENABLED, biometric)
         .apply()
 }

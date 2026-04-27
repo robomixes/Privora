@@ -98,6 +98,16 @@
     <string name="disguise_title">Déguisement calculatrice</string>
     <string name="disguise_enabled_desc">L\'app apparaît comme \"Calculatrice\". Entrez votre PIN + = pour déverrouiller.</string>
     <string name="disguise_disabled_desc">L\'app apparaît comme \"Privora\".</string>
+    <string name="change_pin_title">Modifier le code PIN</string>
+    <string name="change_pin_subtitle">Mettre à jour votre code de déverrouillage</string>
+    <string name="change_pin_current">Code PIN actuel</string>
+    <string name="change_pin_new">Nouveau code PIN</string>
+    <string name="change_pin_confirm">Confirmer le nouveau code</string>
+    <string name="change_pin_error_wrong_current">Code PIN actuel incorrect</string>
+    <string name="change_pin_error_same">Le nouveau code doit être différent de l\'actuel</string>
+    <string name="change_pin_error_duress_collision">Le nouveau code ne peut pas être identique au code d\'urgence</string>
+    <string name="change_pin_error_mismatch">Les codes PIN ne correspondent pas</string>
+    <string name="change_pin_saved">Code PIN modifié</string>
     <string name="assistant_copied">Copié dans le presse-papier</string>
     <string name="assistant_new_chat">Nouveau chat</string>
     <string name="feature_tools">Outils</string>

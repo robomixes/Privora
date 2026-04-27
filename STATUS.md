@@ -1,14 +1,14 @@
 # Privora — Project Status
 
-Last updated: 2026-04-23
+Last updated: 2026-04-27
 
 ---
 
 ## Current Version
 
 **Branch**: `v5-dev-gemma4`
-**Latest commit**: `4e4913a` — Duress fixes, PDF detection, folder multi-select, pinch-to-zoom, all-to-Received
-**Uncommitted**: Password Hints feature (new top-level feature)
+**Latest commit**: `0f4340d` — Fix OOM when restoring backup over a populated vault
+**Uncommitted**: Change PIN + AppPinManager (PBKDF2 hardening), MARKETING.md monetization strategy
 
 ---
 
@@ -177,6 +177,19 @@ Last updated: 2026-04-23
 | 📶 icon in vault top bar | DONE | Hidden during duress |
 | Fallback: multipart + PIN when encryption fails | DONE | Dual-mode upload handler |
 
+### Security & Stability (v1.8 — DONE)
+
+| Feature | Status | Key Files |
+|---------|--------|-----------|
+| Change PIN flow (current → new → confirm) | DONE | `ui/settings/ChangePinScreen.kt` |
+| App PIN hardened with PBKDF2 (10K iter, 256-bit, salted) | DONE | `security/AppPinManager.kt` |
+| Lazy migration: legacy plaintext PINs re-hashed on first unlock | DONE | `AppPinManager.verify()` |
+| Duress-collision guard (new PIN can't equal duress PIN) | DONE | `ChangePinScreen.kt` |
+| Calculator screen takes verifier lambda (no raw PIN in memory) | DONE | `CalculatorScreen.kt` |
+| Calculator disguise crash on PIN + = unlock — FIXED | DONE | `LauncherDefault` alias keeps MainActivity enabled |
+| Backup OOM on 380MB+ restore over populated vault — FIXED | DONE | Streaming re-encrypt, one plaintext at a time |
+| 5-locale translations for Change PIN (10 keys × 5) | DONE | EN/AR/FR/ES/ZH |
+
 ### Password Hints (v1.7 — DONE)
 
 | Feature | Status | Key Files |
@@ -204,7 +217,6 @@ Last updated: 2026-04-23
 |-------|--------|--------|
 | Gemma 4 vision crashes (LiteRT-LM 0.10.0) | Photo Q&A disabled | Waiting for 0.10.1 |
 | Intruder capture device-dependent | Camera2 headless may fail on some devices | Plain JPEG fallback |
-| Calculator disguise disables MainActivity | Share-to-Privora won't work while disguised | Toggle off to use share |
 | Duress mode crashes on Insights/Notes entry | Concurrent file deletion during navigation | Needs null-safety guards |
 | AI streaming not implemented | Full response after 3-10s wait | Architecture ready |
 | Wi-Fi transfer key derivation is custom mixing | Not PBKDF2, uses 10K-round iterative mix | Acceptable for ephemeral transfers |
@@ -280,6 +292,7 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 │   ├── PrivoraDatabase (SQLCipher)
 │   ├── VaultLockManager (grace period, duress state)
 │   ├── DuressManager (emergency PIN, wipe)
+│   ├── AppPinManager (PBKDF2-hashed app PIN, lazy migration from legacy plaintext)
 │   ├── PinRateLimiter (escalating cooldowns + intruder trigger)
 │   ├── IntruderCapture (Camera2 front capture on wrong PIN)
 │   ├── BackupManager (export/import .paicbackup)
@@ -310,6 +323,9 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 
 | Commit | Date | Description |
 |--------|------|-------------|
+| `0f4340d` | 2026-04-24 | Fix OOM when restoring backup over a populated vault (streaming re-encrypt) |
+| `ccb1d5a` | 2026-04-24 | Fix calculator disguise crash on PIN + = (LauncherDefault alias, MainActivity stays enabled) |
+| `12b4352` | 2026-04-24 | Password Hints feature + backup streaming fix + contacts in backup |
 | `4e4913a` | 2026-04-23 | Duress fixes, PDF detection, folder multi-select, pinch-to-zoom, all-to-Received |
 | `735437c` | 2026-04-23 | Vault: Files as universal explorer with filters, translations, scroll + nav fixes |
 | `3b819f1` | 2026-04-22 | Wi-Fi Transfer with browser-side encryption, Files category, vault fixes |

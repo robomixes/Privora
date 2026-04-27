@@ -398,8 +398,7 @@ fun VaultPinDialog(
             return
         }
 
-        val appPin = com.privateai.camera.ui.onboarding.getAppPin(context)
-        if (appPin != null && pin == appPin) {
+        if (com.privateai.camera.security.AppPinManager.verify(context, pin)) {
             com.privateai.camera.security.PinRateLimiter.recordSuccess(context)
             if (crypto.initialize()) {
                 VaultLockManager.clearDuress()

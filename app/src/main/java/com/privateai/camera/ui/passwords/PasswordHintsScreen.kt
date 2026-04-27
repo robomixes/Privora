@@ -72,12 +72,12 @@ import com.privateai.camera.R
 import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.DuressManager
 import com.privateai.camera.security.HintCategory
+import com.privateai.camera.security.AppPinManager
 import com.privateai.camera.security.PasswordHint
 import com.privateai.camera.security.PasswordHintRepository
 import com.privateai.camera.security.PinRateLimiter
 import com.privateai.camera.security.VaultLockManager
 import com.privateai.camera.ui.onboarding.AuthMode
-import com.privateai.camera.ui.onboarding.getAppPin
 import com.privateai.camera.ui.onboarding.getAuthMode
 import java.io.File
 
@@ -159,8 +159,7 @@ fun PasswordHintsScreen(onBack: (() -> Unit)? = null) {
         if (!PinRateLimiter.canAttempt(context)) {
             pinInput = ""; isLockedOut = true; lockoutRemainingMs = PinRateLimiter.remainingLockoutMs(context); return
         }
-        val appPin = getAppPin(context)
-        if (appPin != null && pin == appPin) {
+        if (AppPinManager.verify(context, pin)) {
             PinRateLimiter.recordSuccess(context)
             if (crypto.initialize()) { isDuressActive = false; VaultLockManager.clearDuress(); VaultLockManager.markUnlocked(); isLocked = false; pinInput = ""; pinError = null }
             return

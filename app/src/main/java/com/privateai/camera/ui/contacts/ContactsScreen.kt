@@ -118,12 +118,12 @@ import com.privateai.camera.security.ContactRepository
 import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.PrivoraDatabase
 import com.privateai.camera.R
+import com.privateai.camera.security.AppPinManager
 import com.privateai.camera.security.DuressManager
 import com.privateai.camera.security.PinRateLimiter
 import com.privateai.camera.security.PrivateContact
 import com.privateai.camera.security.VaultLockManager
 import com.privateai.camera.ui.onboarding.AuthMode
-import com.privateai.camera.ui.onboarding.getAppPin
 import com.privateai.camera.ui.onboarding.getAuthMode
 import java.io.File
 import android.Manifest
@@ -562,8 +562,7 @@ fun ContactsScreen(
             return
         }
 
-        val appPin = getAppPin(context)
-        if (appPin != null && enteredPin == appPin) {
+        if (AppPinManager.verify(context, enteredPin)) {
             PinRateLimiter.recordSuccess(context)
             if (crypto.initialize()) {
                 isDuressActive = false

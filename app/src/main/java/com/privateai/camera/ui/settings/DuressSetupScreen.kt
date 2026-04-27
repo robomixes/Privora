@@ -46,9 +46,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.privateai.camera.security.AppPinManager
 import com.privateai.camera.security.DuressManager
 import com.privateai.camera.security.DuressMode
-import com.privateai.camera.ui.onboarding.getAppPin
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -242,10 +242,12 @@ fun DuressSetupScreen(onBack: (() -> Unit)? = null) {
                     }
                 )
 
-                val appPin = getAppPin(context)
-                val canSave = pin.length >= 4 && pin == confirmPin && pin != appPin
+                val collidesWithAppPin = remember(pin) {
+                    pin.length >= 4 && AppPinManager.verify(context, pin)
+                }
+                val canSave = pin.length >= 4 && pin == confirmPin && !collidesWithAppPin
 
-                if (pin.isNotEmpty() && pin == appPin) {
+                if (collidesWithAppPin) {
                     Text("Must differ from your app PIN", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
 
@@ -309,10 +311,12 @@ fun DuressSetupScreen(onBack: (() -> Unit)? = null) {
                     }
                 )
 
-                val appPin = getAppPin(context)
-                val canSave = pin.length >= 4 && pin == confirmPin && pin != appPin
+                val collidesWithAppPin = remember(pin) {
+                    pin.length >= 4 && AppPinManager.verify(context, pin)
+                }
+                val canSave = pin.length >= 4 && pin == confirmPin && !collidesWithAppPin
 
-                if (pin.isNotEmpty() && pin == appPin) {
+                if (collidesWithAppPin) {
                     Text("Must differ from your app PIN", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
 

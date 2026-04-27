@@ -102,6 +102,16 @@
     <string name="disguise_title">Calculator Disguise</string>
     <string name="disguise_enabled_desc">App appears as \"Calculator\" in launcher. Enter your PIN + = to unlock.</string>
     <string name="disguise_disabled_desc">App appears as \"Privora\" in launcher.</string>
+    <string name="change_pin_title">Change PIN</string>
+    <string name="change_pin_subtitle">Update your unlock PIN</string>
+    <string name="change_pin_current">Current PIN</string>
+    <string name="change_pin_new">New PIN</string>
+    <string name="change_pin_confirm">Confirm new PIN</string>
+    <string name="change_pin_error_wrong_current">Current PIN is incorrect</string>
+    <string name="change_pin_error_same">New PIN must be different from current</string>
+    <string name="change_pin_error_duress_collision">New PIN can\'t match your emergency PIN</string>
+    <string name="change_pin_error_mismatch">PINs don\'t match</string>
+    <string name="change_pin_saved">PIN changed</string>
     <string name="assistant_copied">Copied to clipboard</string>
     <string name="assistant_new_chat">New chat</string>
     <string name="feature_tools">Tools</string>

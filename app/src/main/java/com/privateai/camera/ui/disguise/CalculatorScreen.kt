@@ -38,13 +38,13 @@ import androidx.compose.ui.unit.sp
  */
 @Composable
 /**
- * @param appPin The app's unlock PIN. If null, secret unlock is disabled.
+ * @param isAppPin Checker for the app PIN (hashed, so can't compare directly).
  * @param onNormalUnlock Called when digits match the normal app PIN.
- * @param isDuressPin Checker for duress PIN (hashed, so can't compare directly).
+ * @param isDuressPin Checker for the duress PIN (also hashed).
  * @param onDuressUnlock Called when digits match the duress PIN.
  */
 fun CalculatorScreen(
-    appPin: String?,
+    isAppPin: (String) -> Boolean,
     onNormalUnlock: () -> Unit,
     isDuressPin: (String) -> Boolean = { false },
     onDuressUnlock: () -> Unit = {}
@@ -91,8 +91,8 @@ fun CalculatorScreen(
 
     fun pressEquals() {
         // Secret unlock: check digit buffer against normal PIN and duress PIN
-        if (digitBuffer.length >= 4) {
-            if (appPin != null && digitBuffer == appPin) {
+        if (digitBuffer.length in 4..8) {
+            if (isAppPin(digitBuffer)) {
                 onNormalUnlock()
                 return
             }

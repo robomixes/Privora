@@ -87,18 +87,18 @@ import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.PinRateLimiter
 import com.privateai.camera.security.VaultCategory
 import com.privateai.camera.security.VaultLockManager
+import com.privateai.camera.security.AppPinManager
 import com.privateai.camera.security.VaultRepository
 import com.privateai.camera.security.NoteRepository
 import com.privateai.camera.service.DeviceProfiler
 import com.privateai.camera.service.StorageManager
 import com.privateai.camera.ui.onboarding.AuthMode
-import com.privateai.camera.ui.onboarding.getAppPin
 import com.privateai.camera.ui.onboarding.getAuthMode
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = null, onDuressClick: (() -> Unit)? = null) {
+fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = null, onDuressClick: (() -> Unit)? = null, onChangePinClick: (() -> Unit)? = null) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
@@ -898,8 +898,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                             advPinError = context.getString(R.string.pin_locked_out, "%d:%02d".format(seconds / 60, seconds % 60))
                                             return@TextButton
                                         }
-                                        val storedPin = getAppPin(context)
-                                        if (storedPin != null && advPin == storedPin) {
+                                        if (AppPinManager.verify(context, advPin)) {
                                             PinRateLimiter.recordSuccess(context)
                                             advancedUnlocked = true
                                             showAdvancedPinDialog = false
@@ -1032,6 +1031,22 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                 disguiseEnabled = it
                                 com.privateai.camera.ui.disguise.DisguiseManager.setDisguiseEnabled(context, it)
                             })
+                        }
+
+                        // Change PIN — full-screen flow (current → new → confirm)
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable { onChangePinClick?.invoke() }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(Icons.Default.Lock, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.change_pin_title), style = MaterialTheme.typography.bodyLarge)
+                                Text(stringResource(R.string.change_pin_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
 
                         // Intruder alerts — front camera on wrong PIN

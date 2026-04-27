@@ -34,6 +34,7 @@ import com.privateai.camera.ui.qrscanner.QrScannerScreen
 import com.privateai.camera.ui.reminders.RemindersScreen
 import com.privateai.camera.ui.scanner.ScannerScreen
 import com.privateai.camera.ui.settings.BackupScreen
+import com.privateai.camera.ui.settings.ChangePinScreen
 import com.privateai.camera.ui.settings.DuressSetupScreen
 import com.privateai.camera.ui.settings.FeatureToggleManager
 import com.privateai.camera.ui.settings.HomeLayout
@@ -233,11 +234,15 @@ fun PrivateAICameraApp() {
                 SettingsScreen(
                     onBack = safeBack,
                     onBackupClick = { navController.navigate("backup") },
-                    onDuressClick = { navController.navigate("duress_setup") }
+                    onDuressClick = { navController.navigate("duress_setup") },
+                    onChangePinClick = { navController.navigate("change_pin") }
                 )
             }
             composable("duress_setup") {
                 DuressSetupScreen(onBack = safeBack)
+            }
+            composable("change_pin") {
+                ChangePinScreen(onBack = safeBack)
             }
             composable("backup") {
                 BackupScreen(onBack = safeBack)
