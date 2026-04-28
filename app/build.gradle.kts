@@ -49,6 +49,26 @@ android {
         }
     }
 
+    // Distribution flavors. Both produce a working APK today; the split exists
+    // so future Pro / Sync code (Play Store only) can be cleanly excluded from
+    // the F-Droid build, and so each flavor can show a different "Support
+    // development" link in Settings without runtime branching elsewhere.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("fdroid") {
+            dimension = "distribution"
+            buildConfigField("boolean", "IS_FDROID", "true")
+            buildConfigField("String", "DISTRIBUTION", "\"fdroid\"")
+        }
+        create("playstore") {
+            dimension = "distribution"
+            // Default flavor — `./gradlew installDebug` resolves to installPlaystoreDebug.
+            isDefault = true
+            buildConfigField("boolean", "IS_FDROID", "false")
+            buildConfigField("String", "DISTRIBUTION", "\"playstore\"")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -56,6 +76,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
 }

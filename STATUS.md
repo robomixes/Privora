@@ -1,14 +1,14 @@
 # Privora — Project Status
 
-Last updated: 2026-04-27
+Last updated: 2026-04-28
 
 ---
 
 ## Current Version
 
 **Branch**: `v5-dev-gemma4`
-**Latest commit**: `0f4340d` — Fix OOM when restoring backup over a populated vault
-**Uncommitted**: Change PIN + AppPinManager (PBKDF2 hardening), MARKETING.md monetization strategy
+**Latest commit**: `e18b559` — Sprint 2: AI streaming, action proposals, and home-screen widgets
+**Uncommitted**: none
 
 ---
 
@@ -177,6 +177,33 @@ Last updated: 2026-04-27
 | 📶 icon in vault top bar | DONE | Hidden during duress |
 | Fallback: multipart + PIN when encryption fails | DONE | Dual-mode upload handler |
 
+### Sprint 2: Assistant Upgrades + Widgets (v1.9 — DONE)
+
+| Feature | Status | Key Files |
+|---------|--------|-----------|
+| AI streaming responses (token-by-token) | DONE | `bridge/GemmaRunner.completeStreaming`, `ui/assistant/AssistantScreen.streamAndCollect` |
+| Progressive JSON `text` field decoder (no flashing wrapper) | DONE | `extractJsonStringPartial`, `TextFieldMarker` regex |
+| AI action proposals — 7 types with one-tap confirm | DONE | `bridge/AssistantActions.kt`, `ChatBubble.ActionCard` |
+| Reminder action (one-shot, ISO timestamp) | DONE | `ProposedAction.Reminder` → `ReminderScheduler.scheduleItem` |
+| Expense action (8 categories, defaults to "Other") | DONE | `ProposedAction.Expense` → `InsightsRepository.saveExpense` |
+| Note action | DONE | `ProposedAction.Note` → `NoteRepository.createNote` |
+| Health record action (any subset of metrics) | DONE | `ProposedAction.HealthRecord` → `saveHealthEntry` |
+| Contact action (name + optional phone/email/notes) | DONE | `ProposedAction.Contact` → `ContactRepository.saveContact` |
+| Medication action | DONE | `ProposedAction.MedicationAction` → `saveMedication` |
+| Habit action | DONE | `ProposedAction.HabitAction` → `saveHabits` |
+| Action card states: Pending / Added ✓ / Failed → Retry / Dismissed | DONE | `ActionStatus` enum + `ActionCard` composable |
+| Built-in PDF viewer (no external Intent handoff) | DONE | `ui/vault/PdfViewerScreen.kt` (PdfRenderer + LazyColumn) |
+| Pinch-to-zoom on PDF viewer | DONE | `detectTransformGestures` + `graphicsLayer` |
+| Status-bar inset on PDF top bar | DONE | `statusBarsPadding()` |
+| Duress-mode crash on Insights entry — FIXED | DONE | Composition-time I/O isolated in nested try/catch + skip on duress |
+| `_tobedeleted_` filter on Insights + PasswordHint repos | DONE | Defense-in-depth against background-deletion races |
+| Home-screen widget: Quick Note (1×1) | DONE | `widget/QuickNoteWidget.kt` |
+| Home-screen widget: Reminders (1×1) | DONE | `widget/RemindersWidget.kt` |
+| Home-screen widget: AI Assistant (1×1) | DONE | `widget/AssistantWidget.kt` |
+| Shared widget layout + custom rounded background | DONE | `layout/widget_action.xml`, `drawable/widget_bg.xml` |
+| `__new__` deep-link to NotesScreen for Quick Note widget | DONE | `NotesScreen.openNoteId == "__new__"` |
+| 13 new strings × 5 locales | DONE | EN/AR/FR/ES/ZH |
+
 ### Security & Stability (v1.8 — DONE)
 
 | Feature | Status | Key Files |
@@ -217,10 +244,7 @@ Last updated: 2026-04-27
 |-------|--------|--------|
 | Gemma 4 vision crashes (LiteRT-LM 0.10.0) | Photo Q&A disabled | Waiting for 0.10.1 |
 | Intruder capture device-dependent | Camera2 headless may fail on some devices | Plain JPEG fallback |
-| Duress mode crashes on Insights/Notes entry | Concurrent file deletion during navigation | Needs null-safety guards |
-| AI streaming not implemented | Full response after 3-10s wait | Architecture ready |
 | Wi-Fi transfer key derivation is custom mixing | Not PBKDF2, uses 10K-round iterative mix | Acceptable for ephemeral transfers |
-| PDFs open in external reader (Google Drive/Files) | Decrypted PDF touches external app briefly | Built-in PDF viewer would be better |
 
 ---
 
@@ -230,14 +254,13 @@ Last updated: 2026-04-27
 
 | Feature | Priority | Effort |
 |---------|----------|--------|
-| Fix duress mode crashes (Insights/Notes) | High | 1 day |
-| AI streaming responses (token-by-token) | Medium | 1 day |
-| AI voice input (on-device SpeechRecognizer) | Low | 2 days |
-| AI action proposals (create reminder from chat) | Medium | 2-3 days |
+| Build flavors (`fdroid` / `playstore`) | High | 1 day |
+| AGPL-3.0 license + public README + threat model | High | 1-2 days |
+| F-Droid submission (reproducible build manifest) | High | 1 day |
+| Audio transcription in notes (Vosk or Android on-device) | Medium | Deferred — privacy approach pending |
 | Gemma vision (photo Q&A) | Blocked | Waiting for LiteRT-LM 0.10.1 |
-| Home screen widgets | Low | 1-2 days |
-| Audio transcription in notes | Medium | 2 days |
-| Cross-device sync (encrypted cloud) | High | 2-3 weeks |
+| Cross-device sync (E2E encrypted, AGPL server) | High | 2-3 weeks (Phase 3 of monetization plan) |
+| Iterate AI action prompts based on real usage | Medium | Ongoing |
 
 ### Play Store Readiness
 
@@ -323,6 +346,11 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 
 | Commit | Date | Description |
 |--------|------|-------------|
+| `e18b559` | 2026-04-28 | Sprint 2: AI streaming, action proposals (7 kinds), home-screen widgets |
+| `1e6cc25` | 2026-04-27 | Fix PDF viewer back button hidden behind status bar |
+| `0ba1630` | 2026-04-27 | Built-in PDF viewer (no external app handoff) |
+| `51d92d3` | 2026-04-27 | Fix duress-mode crash on Insights entry |
+| `0a9e35c` | 2026-04-27 | Change PIN flow + PBKDF2 hardening for app PIN |
 | `0f4340d` | 2026-04-24 | Fix OOM when restoring backup over a populated vault (streaming re-encrypt) |
 | `ccb1d5a` | 2026-04-24 | Fix calculator disguise crash on PIN + = (LauncherDefault alias, MainActivity stays enabled) |
 | `12b4352` | 2026-04-24 | Password Hints feature + backup streaming fix + contacts in backup |
