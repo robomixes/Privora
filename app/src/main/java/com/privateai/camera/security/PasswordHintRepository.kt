@@ -63,7 +63,7 @@ class PasswordHintRepository(private val baseDir: File, private val crypto: Cryp
 
     fun listAll(): List<PasswordHint> {
         return (hintsDir.listFiles() ?: emptyArray())
-            .filter { it.name.endsWith(".hint.enc") }
+            .filter { it.name.endsWith(".hint.enc") && !it.name.startsWith("_tobedeleted_") }
             .mapNotNull { file ->
                 try {
                     val json = String(crypto.decryptFile(file), Charsets.UTF_8)

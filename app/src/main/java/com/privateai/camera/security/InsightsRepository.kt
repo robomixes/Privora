@@ -176,7 +176,7 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
 
     fun listExpenses(): List<Expense> {
         return (expensesDir.listFiles() ?: emptyArray())
-            .filter { it.name.endsWith(".expense.enc") }
+            .filter { it.name.endsWith(".expense.enc") && !it.name.startsWith("_tobedeleted_") }
             .mapNotNull { file ->
                 try {
                     val json = String(crypto.decryptFile(file), Charsets.UTF_8)
@@ -236,7 +236,7 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
 
     fun listHealthEntries(): List<HealthEntry> {
         return (healthDir.listFiles() ?: emptyArray())
-            .filter { it.name.endsWith(".health.enc") }
+            .filter { it.name.endsWith(".health.enc") && !it.name.startsWith("_tobedeleted_") }
             .mapNotNull { file ->
                 try {
                     val json = String(crypto.decryptFile(file), Charsets.UTF_8)
@@ -452,7 +452,7 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
 
     fun listMedications(): List<Medication> {
         return (medsDir.listFiles() ?: emptyArray())
-            .filter { it.name.endsWith(".med.enc") }
+            .filter { it.name.endsWith(".med.enc") && !it.name.startsWith("_tobedeleted_") }
             .mapNotNull { file ->
                 try {
                     val json = String(crypto.decryptFile(file), Charsets.UTF_8)
@@ -502,7 +502,7 @@ class InsightsRepository(private val baseDir: File, private val crypto: CryptoMa
 
     fun listScheduleItems(): List<ScheduleItem> {
         return (scheduleDir.listFiles() ?: emptyArray())
-            .filter { it.name.endsWith(".sched.enc") }
+            .filter { it.name.endsWith(".sched.enc") && !it.name.startsWith("_tobedeleted_") }
             .mapNotNull { file ->
                 try {
                     val json = String(crypto.decryptFile(file), Charsets.UTF_8)

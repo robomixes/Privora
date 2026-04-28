@@ -217,28 +217,41 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
         stringResource(R.string.tab_habits) to Icons.Default.CheckCircle
     )
 
-    // Shared profile filter — hoisted so all tabs respect the same selection
+    // Shared profile filter — hoisted so all tabs respect the same selection.
+    // All I/O is wrapped: composition must never throw, even immediately after a
+    // duress wipe when the SQLCipher DB and vault files may be in flux.
     var profiles by remember {
-        // One-time orphan cleanup: drop HealthProfiles whose linked contact was deleted
-        try {
-            val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
-            val contactRepo = com.privateai.camera.security.ContactRepository(
-                java.io.File(context.filesDir, "vault/contacts"), crypto, db
-            )
-            val validContactIds = contactRepo.listContacts().map { it.id }.toSet()
-            val all = repo.loadProfiles()
-            val orphans = all.filter { it.personId != null && it.personId !in validContactIds }
-            if (orphans.isNotEmpty()) {
-                // Drop orphans + their health entries
-                val healthEntries = repo.listHealthEntries()
-                orphans.forEach { orphan ->
-                    healthEntries.filter { it.profileId == orphan.id }.forEach { repo.deleteHealthEntry(it.id) }
-                }
-                val cleaned = all.filterNot { orphans.contains(it) }
-                repo.saveProfiles(cleaned)
-                mutableStateOf(cleaned)
-            } else mutableStateOf(all)
-        } catch (_: Exception) { mutableStateOf(repo.loadProfiles()) }
+        val initial = if (isDuressActive) {
+            // Duress mode shows nothing anyway; skip orphan cleanup entirely so we
+            // don't touch a database that may be mid-rebuild.
+            emptyList()
+        } else {
+            try {
+                val all = try { repo.loadProfiles() } catch (_: Exception) { emptyList() }
+                val validContactIds = try {
+                    val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+                    val contactRepo = com.privateai.camera.security.ContactRepository(
+                        java.io.File(context.filesDir, "vault/contacts"), crypto, db
+                    )
+                    contactRepo.listContacts().map { it.id }.toSet()
+                } catch (_: Exception) { null }
+                if (validContactIds != null) {
+                    val orphans = all.filter { it.personId != null && it.personId !in validContactIds }
+                    if (orphans.isNotEmpty()) {
+                        try {
+                            val healthEntries = repo.listHealthEntries()
+                            orphans.forEach { orphan ->
+                                healthEntries.filter { it.profileId == orphan.id }.forEach { repo.deleteHealthEntry(it.id) }
+                            }
+                            val cleaned = all.filterNot { orphans.contains(it) }
+                            repo.saveProfiles(cleaned)
+                            cleaned
+                        } catch (_: Exception) { all }
+                    } else all
+                } else all
+            } catch (_: Exception) { emptyList() }
+        }
+        mutableStateOf(initial)
     }
     val initialProfileId = remember(filterPersonId) {
         if (filterPersonId != null) profiles.find { it.personId == filterPersonId }?.id ?: SELF_PROFILE_ID
@@ -247,7 +260,9 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
     var selectedProfileId by remember { mutableStateOf(initialProfileId) }
 
     // Callback that HealthTab can call to refresh the shared profiles list
-    val refreshProfiles: () -> Unit = { profiles = repo.loadProfiles() }
+    val refreshProfiles: () -> Unit = {
+        profiles = try { repo.loadProfiles() } catch (_: Exception) { emptyList() }
+    }
 
     // Contact picker dialog state for linking a new profile
     var showLinkDialog by remember { mutableStateOf(false) }
