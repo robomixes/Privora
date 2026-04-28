@@ -471,6 +471,7 @@
     <string name="open_pdf">فتح PDF</string>
     <string name="failed_to_open_pdf">فشل فتح PDF: %s</string>
     <string name="share_pdf">مشاركة PDF</string>
+    <string name="pdf_page_counter">صفحة %1$d من %2$d</string>
     <string name="share_photo">مشاركة الصورة</string>
     <string name="share_video">مشاركة الفيديو</string>
     <string name="share_n_items">مشاركة %d عنصر</string>

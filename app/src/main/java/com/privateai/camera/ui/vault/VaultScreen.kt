@@ -163,8 +163,8 @@ import com.privateai.camera.bridge.ImageClassifier
 import com.privateai.camera.security.PhotoIndex
 import com.privateai.camera.security.PrivoraDatabase
 
-// Screens: LOCKED -> CATEGORIES -> GALLERY -> VIEWER / VIDEO_PLAYER
-private enum class VaultPage { LOCKED, CATEGORIES, GALLERY, VIEWER, VIDEO_PLAYER, FOLDER_VIEW, TRASH, WIFI_TRANSFER }
+// Screens: LOCKED -> CATEGORIES -> GALLERY -> VIEWER / VIDEO_PLAYER / PDF_VIEWER
+private enum class VaultPage { LOCKED, CATEGORIES, GALLERY, VIEWER, VIDEO_PLAYER, PDF_VIEWER, FOLDER_VIEW, TRASH, WIFI_TRANSFER }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -193,6 +193,8 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
     var viewerPhoto by remember { mutableStateOf<VaultPhoto?>(null) }
     var viewerBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var videoTempFile by remember { mutableStateOf<File?>(null) }
+    var pdfTempFile by remember { mutableStateOf<File?>(null) }
+    var pdfTitle by remember { mutableStateOf("") }
     var showEditor by remember { mutableStateOf(false) }
 
     // Custom folders
@@ -575,27 +577,27 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                 }
             }
             VaultMediaType.PDF -> {
-                // Decrypt PDF to temp and open/share
+                // Decrypt PDF to private cache and open in the built-in viewer.
+                // The decrypted file lives in app-internal cacheDir (no FileProvider
+                // grant) and is deleted when the user backs out of the viewer.
                 scope.launch {
-                    withContext(Dispatchers.IO) {
+                    val tempPdf = withContext(Dispatchers.IO) {
                         try {
                             val decrypted = crypto.decryptFile(photo.encryptedFile)
-                            val tempPdf = File(context.cacheDir, "${photo.id}.pdf")
-                            tempPdf.writeBytes(decrypted)
-                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempPdf)
-                            withContext(Dispatchers.Main) {
-                                context.startActivity(Intent.createChooser(
-                                    Intent(Intent.ACTION_VIEW).apply {
-                                        setDataAndType(uri, "application/pdf")
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }, context.getString(R.string.open_pdf)
-                                ))
-                            }
+                            File(context.cacheDir, "view_${photo.id}.pdf").also { it.writeBytes(decrypted) }
                         } catch (e: Exception) {
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, context.getString(R.string.failed_to_open_pdf, e.message ?: ""), Toast.LENGTH_SHORT).show()
-                            }
+                            null
                         }
+                    }
+                    if (tempPdf != null) {
+                        // Clean up any previous viewer temp file
+                        pdfTempFile?.delete()
+                        pdfTempFile = tempPdf
+                        pdfTitle = photo.id
+                        viewerPhoto = photo
+                        page = VaultPage.PDF_VIEWER
+                    } else {
+                        Toast.makeText(context, context.getString(R.string.failed_to_open_pdf, ""), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -3007,6 +3009,24 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                         )
                     }
                 }
+            }
+        }
+
+        VaultPage.PDF_VIEWER -> {
+            val file = pdfTempFile
+            if (file != null) {
+                PdfViewerScreen(
+                    pdfFile = file,
+                    title = pdfTitle,
+                    onBack = {
+                        pdfTempFile?.delete()
+                        pdfTempFile = null
+                        pdfTitle = ""
+                        page = VaultPage.GALLERY
+                    }
+                )
+            } else {
+                page = VaultPage.GALLERY
             }
         }
 

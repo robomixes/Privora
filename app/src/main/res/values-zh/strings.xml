@@ -473,6 +473,7 @@
     <string name="open_pdf">打开 PDF</string>
     <string name="failed_to_open_pdf">打开 PDF 失败：%s</string>
     <string name="share_pdf">分享 PDF</string>
+    <string name="pdf_page_counter">第 %1$d 页，共 %2$d 页</string>
     <string name="share_photo">分享照片</string>
     <string name="share_video">分享视频</string>
     <string name="share_n_items">分享 %d 个项目</string>

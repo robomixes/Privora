@@ -473,6 +473,7 @@
     <string name="open_pdf">Ouvrir le PDF</string>
     <string name="failed_to_open_pdf">\u00C9chec de l\'ouverture du PDF : %s</string>
     <string name="share_pdf">Partager le PDF</string>
+    <string name="pdf_page_counter">Page %1$d sur %2$d</string>
     <string name="share_photo">Partager la photo</string>
     <string name="share_video">Partager la vidéo</string>
     <string name="share_n_items">Partager %d éléments</string>
