@@ -17,6 +17,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -134,6 +139,7 @@ fun PdfViewerScreen(
                 modifier = Modifier.align(Alignment.Center).padding(24.dp)
             )
         } else {
+            val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -145,7 +151,7 @@ fun PdfViewerScreen(
                     }
                     .graphicsLayer(scaleX = scale, scaleY = scale),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingTop64
+                contentPadding = PaddingValues(top = statusBarTop + 64.dp, bottom = 16.dp)
             ) {
                 itemsIndexed((0 until pageCount).toList()) { _, pageIndex ->
                     PdfPage(
@@ -164,10 +170,11 @@ fun PdfViewerScreen(
         // Top bar overlay: back + page counter + share
         Box(
             Modifier
+                .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .background(Color.Black.copy(alpha = 0.5f))
+                .statusBarsPadding()
                 .padding(horizontal = 8.dp, vertical = 6.dp)
-                .align(Alignment.TopCenter)
         ) {
             IconButton(
                 onClick = onBack,
@@ -202,8 +209,6 @@ fun PdfViewerScreen(
         }
     }
 }
-
-private val PaddingTop64 = androidx.compose.foundation.layout.PaddingValues(top = 56.dp, bottom = 16.dp)
 
 @Composable
 private fun PdfPage(
