@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Anas
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package com.privateai.camera.ui.contacts
 
 import android.content.Context

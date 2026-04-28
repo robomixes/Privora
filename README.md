@@ -7,7 +7,7 @@ Privora is a privacy-first Android app that combines an AI-powered camera, encry
 [![Android](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
 [![API](https://img.shields.io/badge/API-26%2B-blue.svg)](https://developer.android.com/about/versions/oreo)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3.20-purple.svg)](https://kotlinlang.org)
-[![License](https://img.shields.io/badge/License-Proprietary-red.svg)](#license)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](#license)
 
 ---
 
@@ -155,15 +155,47 @@ See [PRIVACY.md](PRIVACY.md) for our full privacy policy.
 # Release AAB (requires keystore.properties)
 ./gradlew bundleRelease
 
-# Install on connected device
-./gradlew installDebug
+# Install Play Store flavor on a connected device (default)
+./gradlew installPlaystoreDebug
+
+# Or build the F-Droid flavor (no IAP code, pure OSS)
+./gradlew installFdroidDebug
 ```
+
+---
+
+## Roadmap
+
+Privora ships on Android today. The on-device-AI architecture, encryption stack, and feature set are designed to port to other platforms:
+
+- **iOS** — planned
+- **Windows** — planned
+- **Linux** — planned
+
+The roadmap order will follow user demand. The free Android build will always remain the reference implementation.
+
+---
+
+## Contributing
+
+Contributions are welcome. Before opening a pull request:
+
+1. Read [CONTRIBUTING.md](CONTRIBUTING.md) for build setup and style.
+2. Sign the [Contributor License Agreement](CLA.md) — first-time contributors will be prompted automatically by [CLA Assistant](https://cla-assistant.io/) on their first PR. The CLA lets the project owner offer a commercial license to embedders who want to ship without AGPL obligations (the same pattern used by Bitwarden, Sentry, GitLab CE).
+
+Security issues should be reported privately — see [SECURITY.md](SECURITY.md).
 
 ---
 
 ## License
 
-Proprietary. All rights reserved.
+Privora is licensed under the **GNU Affero General Public License v3.0 or later** ([AGPL-3.0-or-later](LICENSE)). You can use, study, modify, and redistribute the source under those terms.
+
+A separate **commercial license** is available from the copyright holder for organisations that want to embed Privora in a closed-source product without the AGPL's network-source-distribution obligations. Contact the maintainer for terms.
+
+This dual-licensing approach is what allows future Pro features to ship as a closed module while the core stays open and auditable for everyone.
+
+See [THREAT_MODEL.md](THREAT_MODEL.md) for the security posture and what Privora does (and doesn't) protect against.
 
 ---
 
