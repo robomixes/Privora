@@ -11,13 +11,16 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Parsed reply from the assistant model. Either a final text answer
- * or a tool-call request that the host must execute and feed back.
+ * Parsed reply from the assistant model. Either a final text answer,
+ * a tool-call request the host must execute and feed back, or a write
+ * action proposed for user confirmation.
  */
 sealed class ParsedReply {
     data class Answer(val text: String) : ParsedReply()
     /** A tool call. [query] is the primary param — doubles as query/id/period depending on the tool. */
     data class ToolCall(val name: String, val query: String) : ParsedReply()
+    /** A user-data write the model wants to perform. [text] is the chat-bubble copy; [action] is the proposal. */
+    data class ActionProposal(val text: String, val action: ProposedAction) : ParsedReply()
 
     companion object {
         /**
@@ -43,6 +46,16 @@ sealed class ParsedReply {
                     if (name.isNotBlank() && query.isNotBlank()) {
                         return ToolCall(name, query)
                     }
+                }
+                if (type == "action") {
+                    val parsed = AssistantActions.parse(json)
+                    if (parsed != null) {
+                        // Bubble copy: use the model's `summary` (already mirrored into ProposedAction.summary)
+                        // or the optional `text` field if the model also wrote one.
+                        val bubble = json.optString("text", "").trim().ifEmpty { parsed.summary }
+                        return ActionProposal(cleanupText(bubble), parsed)
+                    }
+                    // Fall through to text extraction if action JSON was malformed
                 }
                 val text = json.optString("text", "").trim()
                 if (text.isNotEmpty()) return Answer(cleanupText(text))

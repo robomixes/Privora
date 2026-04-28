@@ -103,6 +103,9 @@ class MainActivity : AppCompatActivity() {
         when (intent?.action) {
             "OPEN_CAMERA" -> pendingWidgetRoute = "camera"
             "OPEN_VAULT" -> pendingWidgetRoute = "vault"
+            "com.privateai.camera.OPEN_NEW_NOTE" -> pendingWidgetRoute = "notes?openNoteId=__new__"
+            "com.privateai.camera.OPEN_REMINDERS" -> pendingWidgetRoute = "reminders"
+            "com.privateai.camera.OPEN_ASSISTANT" -> pendingWidgetRoute = "assistant"
         }
     }
 

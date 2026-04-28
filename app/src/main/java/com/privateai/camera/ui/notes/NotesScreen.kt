@@ -134,13 +134,20 @@ fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null, op
     var allTags by remember { mutableStateOf<List<String>>(emptyList()) }
     var editingNote by remember { mutableStateOf<SecureNote?>(null) }
 
-    // Deep-link: if openNoteId is provided (e.g. from AI Assistant), jump straight to that note's editor
+    // Deep-link: if openNoteId is provided, jump straight into the editor.
+    //   "__new__"  → blank editor (Quick Note widget)
+    //   <id>       → open that specific note (AI Assistant ref tap)
     var deepLinkHandled by remember { mutableStateOf(false) }
     if (openNoteId != null && !deepLinkHandled && startUnlocked) {
-        val target = noteRepo.listNotes().find { it.id == openNoteId }
-        if (target != null) {
-            editingNote = target
+        if (openNoteId == "__new__") {
+            editingNote = null
             page = NotesPage.EDITOR
+        } else {
+            val target = noteRepo.listNotes().find { it.id == openNoteId }
+            if (target != null) {
+                editingNote = target
+                page = NotesPage.EDITOR
+            }
         }
         deepLinkHandled = true
     }

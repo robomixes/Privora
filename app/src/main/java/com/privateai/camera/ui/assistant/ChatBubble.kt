@@ -15,26 +15,36 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.privateai.camera.R
+import com.privateai.camera.bridge.ProposedAction
+import java.text.DateFormat
+import java.util.Date
 
 /** Type of data item the assistant references in its answer. */
 enum class RefKind { NOTE, REMINDER, HABIT, HEALTH }
@@ -42,15 +52,28 @@ enum class RefKind { NOTE, REMINDER, HABIT, HEALTH }
 /** A tappable reference to an app data item surfaced in an assistant answer. */
 data class DataRef(val kind: RefKind, val id: String, val label: String)
 
+/** Status of an action card the assistant proposed in a message. */
+enum class ActionStatus { PENDING, ADDED, DISMISSED, FAILED }
+
 /** A single message in the chat — user or assistant. */
 sealed class ChatMessage {
     data class User(val text: String) : ChatMessage()
-    data class Assistant(val text: String, val refs: List<DataRef> = emptyList()) : ChatMessage()
+    data class Assistant(
+        val text: String,
+        val refs: List<DataRef> = emptyList(),
+        val proposedAction: ProposedAction? = null,
+        val actionStatus: ActionStatus = ActionStatus.PENDING
+    ) : ChatMessage()
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ChatBubble(message: ChatMessage, onRefClick: ((DataRef) -> Unit)? = null) {
+fun ChatBubble(
+    message: ChatMessage,
+    onRefClick: ((DataRef) -> Unit)? = null,
+    onActionConfirm: ((ProposedAction) -> Unit)? = null,
+    onActionDismiss: (() -> Unit)? = null
+) {
     val isUser = message is ChatMessage.User
     val text = when (message) {
         is ChatMessage.User -> message.text
@@ -99,26 +122,28 @@ fun ChatBubble(message: ChatMessage, onRefClick: ((DataRef) -> Unit)? = null) {
                     modifier = Modifier.size(18.dp).padding(top = 4.dp)
                 )
                 Column(Modifier.weight(1f, fill = false)) {
-                    Card(
-                        modifier = Modifier
-                            .combinedClickable(
-                                onClick = {},
-                                onLongClick = {
-                                    clipboard.setText(AnnotatedString(text))
-                                    Toast.makeText(context, R.string.assistant_copied, Toast.LENGTH_SHORT).show()
-                                }
-                            ),
-                        shape = RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        )
-                    ) {
-                        MarkdownText(
-                            text,
-                            modifier = Modifier.padding(12.dp),
-                            baseStyle = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                    if (text.isNotBlank()) {
+                        Card(
+                            modifier = Modifier
+                                .combinedClickable(
+                                    onClick = {},
+                                    onLongClick = {
+                                        clipboard.setText(AnnotatedString(text))
+                                        Toast.makeText(context, R.string.assistant_copied, Toast.LENGTH_SHORT).show()
+                                    }
+                                ),
+                            shape = RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            )
+                        ) {
+                            MarkdownText(
+                                text,
+                                modifier = Modifier.padding(12.dp),
+                                baseStyle = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                     // Tappable data references (notes, reminders, habits, health)
                     val refs = (message as? ChatMessage.Assistant)?.refs ?: emptyList()
@@ -142,10 +167,153 @@ fun ChatBubble(message: ChatMessage, onRefClick: ((DataRef) -> Unit)? = null) {
                             }
                         }
                     }
+                    // Proposed action card — user must tap to confirm.
+                    val assistantMsg = message as? ChatMessage.Assistant
+                    val action = assistantMsg?.proposedAction
+                    if (action != null) {
+                        Spacer(Modifier.height(6.dp))
+                        ActionCard(
+                            action = action,
+                            status = assistantMsg.actionStatus,
+                            onConfirm = { onActionConfirm?.invoke(action) },
+                            onDismiss = { onActionDismiss?.invoke() }
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+/** Tap-to-confirm card the assistant shows when proposing a write action. */
+@Composable
+private fun ActionCard(
+    action: ProposedAction,
+    status: ActionStatus,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val (icon, label, detail) = when (action) {
+        is ProposedAction.Reminder -> Triple(
+            Icons.Default.Notifications,
+            stringResource(R.string.action_kind_reminder),
+            "${action.title}\n${formatDateTime(action.whenMillis)}"
+        )
+        is ProposedAction.Expense -> Triple(
+            Icons.Default.AttachMoney,
+            stringResource(R.string.action_kind_expense),
+            "${"%.2f".format(action.amount)} ${action.currency} — ${action.description}\n${action.category}"
+        )
+        is ProposedAction.Note -> Triple(
+            Icons.Default.NoteAlt,
+            stringResource(R.string.action_kind_note),
+            buildString {
+                append(action.title)
+                if (action.body.isNotEmpty()) {
+                    append("\n")
+                    append(action.body.take(120))
+                    if (action.body.length > 120) append("…")
+                }
+            }
+        )
+        is ProposedAction.HealthRecord -> Triple(
+            Icons.Default.FitnessCenter,
+            stringResource(R.string.action_kind_health),
+            buildString {
+                val parts = mutableListOf<String>()
+                action.weight?.let { parts += "${it} kg" }
+                action.sleepHours?.let { parts += "${it}h sleep" }
+                action.mood?.let { parts += "mood ${it}/5" }
+                action.painLevel?.let { parts += "pain ${it}/10" }
+                action.temperature?.let { parts += "${it}°" }
+                action.steps?.let { parts += "${it} steps" }
+                action.heartRate?.let { parts += "${it} bpm" }
+                if (action.systolic != null && action.diastolic != null) parts += "${action.systolic}/${action.diastolic}"
+                append(parts.joinToString(" · "))
+                action.notes?.let { append("\n$it") }
+            }
+        )
+        is ProposedAction.Contact -> Triple(
+            Icons.Default.Person,
+            stringResource(R.string.action_kind_contact),
+            buildString {
+                append(action.name)
+                action.phone?.let { append("\n$it") }
+                action.email?.let { append("\n$it") }
+            }
+        )
+        is ProposedAction.MedicationAction -> Triple(
+            Icons.Default.LocalPharmacy,
+            stringResource(R.string.action_kind_medication),
+            buildString {
+                append(action.name)
+                action.dosage?.let { append(" — $it") }
+                action.instructions?.let { append("\n$it") }
+            }
+        )
+        is ProposedAction.HabitAction -> Triple(
+            Icons.Default.CheckCircle,
+            stringResource(R.string.action_kind_habit),
+            buildString {
+                action.icon?.let { append("$it  ") }
+                append(action.name)
+            }
+        )
+    }
+
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = when (status) {
+                ActionStatus.ADDED -> MaterialTheme.colorScheme.tertiaryContainer
+                ActionStatus.FAILED -> MaterialTheme.colorScheme.errorContainer
+                else -> MaterialTheme.colorScheme.surface
+            }
+        )
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
+            }
+            Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+
+            when (status) {
+                ActionStatus.PENDING -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.action_dismiss))
+                        }
+                        Button(onClick = onConfirm, modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.action_add))
+                        }
+                    }
+                }
+                ActionStatus.ADDED -> {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                        Text(stringResource(R.string.action_added), style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+                ActionStatus.DISMISSED -> {
+                    Text(stringResource(R.string.action_dismissed_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                ActionStatus.FAILED -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.action_failed), color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                        Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                            Text(stringResource(R.string.action_retry))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatDateTime(millis: Long): String {
+    val df = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+    return df.format(Date(millis))
 }
 
 /** Pulsing "thinking" indicator shown while the model is generating. */

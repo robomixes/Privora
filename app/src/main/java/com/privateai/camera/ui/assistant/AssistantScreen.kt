@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -49,9 +50,11 @@ import com.privateai.camera.bridge.AssistantTools
 import com.privateai.camera.bridge.GemmaRunner
 import com.privateai.camera.bridge.KnowledgeSnapshot
 import com.privateai.camera.bridge.ParsedReply
+import com.privateai.camera.bridge.ProposedAction
 import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.NoteRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -106,13 +109,43 @@ fun AssistantScreen(
         messages += ChatMessage.User(text)
         thinking = true
 
+        // Streaming index is allocated lazily — set when the first non-empty
+        // chunk arrives, so the typing indicator is replaced cleanly by a real
+        // bubble (no empty placeholder rendered alongside it).
+        var streamIndex = -1
+
         scope.launch {
             try {
-                val (answerText, refs) = withContext(Dispatchers.IO) { runAssistantTurn(context, messages, text) }
-                messages += ChatMessage.Assistant(answerText, refs)
+                val historySnapshot = messages.toList()
+                val turn = withContext(Dispatchers.IO) {
+                    runAssistantTurn(context, historySnapshot, text) { partial ->
+                        if (partial.isEmpty()) return@runAssistantTurn
+                        // Tokens arrive on IO. Hop to main to mutate Compose state.
+                        scope.launch {
+                            if (streamIndex < 0) {
+                                streamIndex = messages.size
+                                messages += ChatMessage.Assistant(partial, emptyList())
+                                thinking = false
+                            } else if (streamIndex < messages.size) {
+                                messages[streamIndex] = ChatMessage.Assistant(partial, emptyList())
+                            }
+                        }
+                    }
+                }
+                // Final pass: replace the streaming bubble with the cleaned
+                // answer + any proposed action (or append a fresh one if nothing
+                // streamed — e.g. the model emitted only an action JSON we held back).
+                val finalMsg = ChatMessage.Assistant(turn.text, turn.refs, turn.action)
+                if (streamIndex < 0) {
+                    messages += finalMsg
+                } else if (streamIndex < messages.size) {
+                    messages[streamIndex] = finalMsg
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Assistant error: ${e.message}", e)
-                messages += ChatMessage.Assistant(context.getString(R.string.assistant_error_generic))
+                val errMsg = ChatMessage.Assistant(context.getString(R.string.assistant_error_generic), emptyList())
+                if (streamIndex < 0) messages += errMsg
+                else if (streamIndex < messages.size) messages[streamIndex] = errMsg
             } finally {
                 thinking = false
             }
@@ -206,16 +239,35 @@ fun AssistantScreen(
                     }
                 }
 
-                items(messages) { msg ->
-                    ChatBubble(msg, onRefClick = { ref ->
-                        val route = when (ref.kind) {
-                            RefKind.NOTE -> "notes?openNoteId=${ref.id}"
-                            RefKind.REMINDER -> "reminders"
-                            RefKind.HABIT -> "insights?tab=habits"
-                            RefKind.HEALTH -> "insights?tab=health"
+                itemsIndexed(messages) { msgIndex, msg ->
+                    ChatBubble(
+                        message = msg,
+                        onRefClick = { ref ->
+                            val route = when (ref.kind) {
+                                RefKind.NOTE -> "notes?openNoteId=${ref.id}"
+                                RefKind.REMINDER -> "reminders"
+                                RefKind.HABIT -> "insights?tab=habits"
+                                RefKind.HEALTH -> "insights?tab=health"
+                            }
+                            onNavigate?.invoke(route)
+                        },
+                        onActionConfirm = { action ->
+                            val current = messages.getOrNull(msgIndex) as? ChatMessage.Assistant ?: return@ChatBubble
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) {
+                                    com.privateai.camera.bridge.AssistantActions.execute(context, action)
+                                }
+                                val updated = current.copy(
+                                    actionStatus = if (ok) ActionStatus.ADDED else ActionStatus.FAILED
+                                )
+                                if (msgIndex < messages.size) messages[msgIndex] = updated
+                            }
+                        },
+                        onActionDismiss = {
+                            val current = messages.getOrNull(msgIndex) as? ChatMessage.Assistant ?: return@ChatBubble
+                            messages[msgIndex] = current.copy(actionStatus = ActionStatus.DISMISSED)
                         }
-                        onNavigate?.invoke(route)
-                    })
+                    )
                 }
 
                 if (thinking) {
@@ -262,16 +314,30 @@ fun AssistantScreen(
     }
 }
 
+/** Result of one assistant turn — final cleaned text + any data refs + an optional proposed action. */
+private data class TurnResult(
+    val text: String,
+    val refs: List<DataRef>,
+    val action: ProposedAction? = null
+)
+
 /**
- * Execute one assistant turn: build snapshot → Gemma → optional tool → answer.
- * Returns the answer text + any note references from a search_notes tool call.
+ * Execute one assistant turn: build snapshot → Gemma → optional tool → answer
+ * (or action proposal).
+ *
+ * Streams partial text via [onChunk] as tokens arrive. JSON-shaped output (tool
+ * calls or wrapped answers / actions) is parsed atomically at the end so the
+ * user never sees raw JSON in the chat — chunks only flow when the model is
+ * producing free-text markdown inside the `text` field.
+ *
  * Must be called on a background dispatcher.
  */
 private suspend fun runAssistantTurn(
     context: android.content.Context,
     allMessages: List<ChatMessage>,
-    userText: String
-): Pair<String, List<DataRef>> {
+    userText: String,
+    onChunk: (String) -> Unit
+): TurnResult {
     // 1. Build knowledge snapshot
     val snapshot = KnowledgeSnapshot.build(context)
     val snapshotJson = snapshot.toJson()
@@ -290,19 +356,18 @@ private suspend fun runAssistantTurn(
     // 3. Dynamic temperature — creative tasks get warmer output, data queries stay precise
     val temp = classifyTemperature(userText)
 
-    // 4. First Gemma call (blocking — need full JSON to detect tool calls)
+    // 4. First turn — stream and decide free-text vs JSON-wrapped on the fly
     val prompt = AssistantPrompts.formatTurn(snapshotJson, history, userText)
-    val rawFirst = GemmaRunner.complete(
-        context, prompt, AssistantPrompts.SYSTEM,
-        maxTokens = 1024, temperature = temp
-    )
-    Log.d(TAG, "First reply (raw): ${rawFirst?.take(200)}")
+    val rawFirst = streamAndCollect(context, prompt, temp, onChunk)
+    Log.d(TAG, "First reply (raw): ${rawFirst.take(200)}")
 
     val firstReply = ParsedReply.parse(rawFirst)
     val contextRefs = buildContextRefs(snapshot, userText)
 
     return when (firstReply) {
-        is ParsedReply.Answer -> firstReply.text to contextRefs
+        is ParsedReply.Answer -> TurnResult(firstReply.text, contextRefs)
+
+        is ParsedReply.ActionProposal -> TurnResult(firstReply.text, contextRefs, firstReply.action)
 
         is ParsedReply.ToolCall -> {
             // 5. Execute the tool
@@ -329,7 +394,6 @@ private suspend fun runAssistantTurn(
                 }
                 "fetch_note" -> {
                     val resultJson = AssistantTools.fetchNote(noteRepo, firstReply.query)
-                    // Add a ref for the fetched note
                     try {
                         val obj = org.json.JSONObject(resultJson)
                         val title = obj.optString("title", "")
@@ -344,24 +408,152 @@ private suspend fun runAssistantTurn(
             }
             Log.d(TAG, "Tool '${firstReply.name}' result: ${toolResult.take(200)}, refs=${toolRefs.size}")
 
-            // 6. Second Gemma call with tool results
+            // 6. Second turn with tool results — also streams
             val followUp = AssistantPrompts.formatToolFollowup(
                 snapshotJson, userText, firstReply.name, firstReply.query, toolResult
             )
-            val rawSecond = GemmaRunner.complete(
-                context, followUp, AssistantPrompts.SYSTEM,
-                maxTokens = 1024, temperature = temp
-            )
-            Log.d(TAG, "Second reply (raw): ${rawSecond?.take(200)}")
+            val rawSecond = streamAndCollect(context, followUp, temp, onChunk)
+            Log.d(TAG, "Second reply (raw): ${rawSecond.take(200)}")
 
             val secondReply = ParsedReply.parse(rawSecond)
-            val answerText = when (secondReply) {
-                is ParsedReply.Answer -> secondReply.text
-                is ParsedReply.ToolCall -> "I found some results but couldn't summarize them. Please try rephrasing."
+            val (answerText, secondAction) = when (secondReply) {
+                is ParsedReply.Answer -> secondReply.text to null
+                is ParsedReply.ActionProposal -> secondReply.text to secondReply.action
+                is ParsedReply.ToolCall -> "I found some results but couldn't summarize them. Please try rephrasing." to null
             }
-            answerText to (toolRefs.ifEmpty { contextRefs })
+            TurnResult(answerText, toolRefs.ifEmpty { contextRefs }, secondAction)
         }
     }
+}
+
+/**
+ * Drive [GemmaRunner.completeStreaming] with progressive parsing.
+ *
+ * The system prompt instructs the model to wrap every reply in
+ * `{"type":"answer","text":"..."}` JSON. Naively forwarding chunks would flash
+ * raw JSON in the chat; suppressing all JSON-shaped output would suppress
+ * everything. So we incrementally extract the value of the `text` field as it
+ * streams and emit *that* via [onChunk], decoding JSON escape sequences as we
+ * go. Tool calls are detected up front and suppressed entirely (they're parsed
+ * once complete and routed to a tool, not shown to the user).
+ *
+ * If the model unexpectedly emits raw markdown (no `{` wrapper), we forward
+ * chunks directly.
+ *
+ * Returns the full raw text so the caller can run [ParsedReply.parse] to
+ * detect tool calls vs cleaned answers and run final cleanup.
+ */
+private suspend fun streamAndCollect(
+    context: android.content.Context,
+    prompt: String,
+    temperature: Double,
+    onChunk: (String) -> Unit
+): String {
+    val raw = StringBuilder()
+
+    // Decision state. Settled on the first non-whitespace char.
+    var mode: StreamMode = StreamMode.UNDECIDED
+    // For JSON_WRAPPED mode: where the text field's value begins (just after `"text":"`).
+    var textValueStart = -1
+    var lastEmittedLen = 0
+    var textFieldClosed = false
+
+    GemmaRunner.completeStreaming(
+        context, prompt, AssistantPrompts.SYSTEM, temperature
+    ).collect { chunk ->
+        raw.append(chunk)
+
+        if (mode == StreamMode.UNDECIDED) {
+            val trimmed = raw.toString().trimStart()
+            if (trimmed.isEmpty()) return@collect
+            val first = trimmed[0]
+            mode = if (first == '{' || (first == '`' && trimmed.startsWith("```"))) {
+                StreamMode.JSON_WRAPPED
+            } else {
+                StreamMode.RAW
+            }
+        }
+
+        when (mode) {
+            StreamMode.RAW -> {
+                onChunk(raw.toString())
+            }
+            StreamMode.JSON_WRAPPED -> {
+                // Tool calls have no "text" field, so the marker below never
+                // matches and nothing gets emitted — natural suppression.
+                if (textValueStart < 0) {
+                    // Tolerate `"text" : "` with arbitrary whitespace (the model
+                    // sometimes emits pretty-printed JSON wrapped in ```json).
+                    val match = TextFieldMarker.find(raw)
+                    if (match == null) return@collect
+                    textValueStart = match.range.last + 1
+                }
+
+                if (textFieldClosed) return@collect
+
+                val sub = raw.substring(textValueStart)
+                val (decoded, closed) = extractJsonStringPartial(sub)
+                if (decoded.length > lastEmittedLen) {
+                    onChunk(decoded)
+                    lastEmittedLen = decoded.length
+                }
+                if (closed) textFieldClosed = true
+            }
+            else -> {}
+        }
+    }
+
+    return raw.toString()
+}
+
+private enum class StreamMode { UNDECIDED, RAW, JSON_WRAPPED }
+
+/** Matches the start of a JSON `"text": "..."` field with arbitrary whitespace. */
+private val TextFieldMarker = Regex("\"text\"\\s*:\\s*\"")
+
+/**
+ * Decode a JSON string-literal value progressively. [input] is the substring
+ * starting *after* the opening quote. Returns (decoded text so far, whether
+ * the closing quote has been reached). Stops cleanly at an incomplete escape
+ * sequence so we don't emit half-decoded characters.
+ */
+private fun extractJsonStringPartial(input: String): Pair<String, Boolean> {
+    val sb = StringBuilder()
+    var i = 0
+    val n = input.length
+    while (i < n) {
+        val c = input[i]
+        when {
+            c == '\\' -> {
+                if (i + 1 >= n) return sb.toString() to false  // wait for next chunk
+                val esc = input[i + 1]
+                when (esc) {
+                    'n' -> { sb.append('\n'); i += 2 }
+                    't' -> { sb.append('\t'); i += 2 }
+                    'r' -> { sb.append('\r'); i += 2 }
+                    '"' -> { sb.append('"'); i += 2 }
+                    '\\' -> { sb.append('\\'); i += 2 }
+                    '/' -> { sb.append('/'); i += 2 }
+                    'b' -> { sb.append('\b'); i += 2 }
+                    'f' -> { sb.append(''); i += 2 }
+                    'u' -> {
+                        if (i + 5 >= n) return sb.toString() to false
+                        val hex = input.substring(i + 2, i + 6)
+                        try {
+                            sb.append(hex.toInt(16).toChar())
+                        } catch (_: Exception) {
+                            sb.append('?')
+                        }
+                        i += 6
+                    }
+                    else -> { sb.append(esc); i += 2 }
+                }
+            }
+            c == '"' -> return sb.toString() to true  // closing quote
+            else -> { sb.append(c); i++ }
+        }
+    }
+    return sb.toString() to false
 }
 
 /** Classify user intent → temperature. Creative tasks need warmer, data queries need colder. */
