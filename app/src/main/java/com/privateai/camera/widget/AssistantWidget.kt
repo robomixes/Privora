@@ -8,6 +8,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.widget.RemoteViews
 import com.privateai.camera.MainActivity
 import com.privateai.camera.R
@@ -22,8 +23,8 @@ class AssistantWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         for (id in ids) {
             val views = RemoteViews(context.packageName, R.layout.widget_action).apply {
-                setInt(R.id.widget_root, "setBackgroundResource", R.drawable.widget_bg_assistant)
                 setImageViewResource(R.id.widget_icon, R.drawable.ic_widget_assistant)
+                setInt(R.id.widget_icon, "setColorFilter", Color.parseColor("#AB47BC"))
                 setTextViewText(R.id.widget_label, context.getString(R.string.widget_assistant_label))
             }
             val intent = Intent(context, MainActivity::class.java).apply {
