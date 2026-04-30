@@ -22,6 +22,7 @@ class RemindersWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         for (id in ids) {
             val views = RemoteViews(context.packageName, R.layout.widget_action).apply {
+                setInt(R.id.widget_root, "setBackgroundResource", R.drawable.widget_bg_reminder)
                 setImageViewResource(R.id.widget_icon, R.drawable.ic_widget_reminder)
                 setTextViewText(R.id.widget_label, context.getString(R.string.widget_reminders_label))
             }

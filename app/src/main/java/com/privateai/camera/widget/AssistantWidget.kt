@@ -22,6 +22,7 @@ class AssistantWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         for (id in ids) {
             val views = RemoteViews(context.packageName, R.layout.widget_action).apply {
+                setInt(R.id.widget_root, "setBackgroundResource", R.drawable.widget_bg_assistant)
                 setImageViewResource(R.id.widget_icon, R.drawable.ic_widget_assistant)
                 setTextViewText(R.id.widget_label, context.getString(R.string.widget_assistant_label))
             }
