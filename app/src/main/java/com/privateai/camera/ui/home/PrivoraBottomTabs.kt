@@ -109,10 +109,10 @@ fun PrivoraBottomTabs(
                 icon = { Icon(feature.icon, contentDescription = label, Modifier.size(22.dp)) },
                 label = { Text(label, maxLines = 1, style = MaterialTheme.typography.labelSmall) },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = feature.iconColor,
-                    unselectedIconColor = feature.iconColor.copy(alpha = 0.6f),
+                    selectedIconColor = feature.accent,
+                    unselectedIconColor = feature.accent.copy(alpha = 0.6f),
                     selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                    indicatorColor = feature.bgColor.copy(alpha = 0.5f)
+                    indicatorColor = feature.accent.copy(alpha = 0.20f)
                 )
             )
         }
@@ -135,7 +135,7 @@ private fun MoreSheetItem(feature: FeatureItem, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = feature.bgColor)
+        colors = CardDefaults.cardColors(containerColor = feature.accent.copy(alpha = 0.15f))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
@@ -146,10 +146,10 @@ private fun MoreSheetItem(feature: FeatureItem, onClick: () -> Unit) {
                 feature.icon,
                 contentDescription = null,
                 modifier = Modifier.size(32.dp),
-                tint = feature.iconColor
+                tint = feature.accent
             )
             Column(Modifier.weight(1f)) {
-                Text(label, style = MaterialTheme.typography.titleSmall)
+                Text(label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                 Text(
                     description,
                     style = MaterialTheme.typography.bodySmall,

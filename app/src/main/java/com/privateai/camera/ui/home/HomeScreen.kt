@@ -69,28 +69,34 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.privateai.camera.R
 
+/**
+ * One row in the home grid. [accent] is the strong per-feature hue used as
+ * both the icon tint and (with alpha) the card's container tint. Computing
+ * the container color at render time means the card adapts cleanly to the
+ * active theme — the same accent reads as a pale tint on a light scaffold
+ * and as a dark tint on a dark scaffold without separate light/dark presets.
+ */
 data class FeatureItem(
     val route: String,
     @StringRes val labelRes: Int,
     @StringRes val descriptionRes: Int,
     val icon: ImageVector,
-    val iconColor: Color = Color(0xFF6750A4),
-    val bgColor: Color = Color(0xFFE8DEF8)
+    val accent: Color = Color(0xFF6750A4)
 )
 
 val features = listOf(
-    FeatureItem("camera", R.string.feature_camera, R.string.feature_camera_desc, Icons.Default.CameraAlt, Color(0xFF1565C0), Color(0xFFBBDEFB)),
-    FeatureItem("detect", R.string.feature_detect, R.string.feature_detect_desc, Icons.Default.Search, Color(0xFF2E7D32), Color(0xFFC8E6C9)),
-    FeatureItem("scan", R.string.feature_scan, R.string.feature_scan_desc, Icons.Default.DocumentScanner, Color(0xFFE65100), Color(0xFFFFE0B2)),
-    FeatureItem("qrscanner", R.string.feature_qr_scan, R.string.feature_qr_scan_desc, Icons.Default.QrCodeScanner, Color(0xFF6A1B9A), Color(0xFFE1BEE7)),
-    FeatureItem("translate", R.string.feature_translate, R.string.feature_translate_desc, Icons.Default.Translate, Color(0xFF00838F), Color(0xFFB2EBF2)),
-    FeatureItem("vault", R.string.feature_vault, R.string.feature_vault_desc, Icons.Default.Lock, Color(0xFFC62828), Color(0xFFFFCDD2)),
-    FeatureItem("notes", R.string.feature_notes, R.string.feature_notes_desc, Icons.Default.NoteAlt, Color(0xFF4E342E), Color(0xFFD7CCC8)),
-    FeatureItem("insights", R.string.feature_insights, R.string.feature_insights_desc, Icons.Default.BarChart, Color(0xFF00695C), Color(0xFFB2DFDB)),
-    FeatureItem("reminders", R.string.feature_reminders, R.string.feature_reminders_desc, Icons.Default.Notifications, Color(0xFFD32F2F), Color(0xFFFFCDD2)),
-    FeatureItem("passwords", R.string.feature_passwords, R.string.feature_passwords_desc, Icons.Default.Key, Color(0xFF7B1FA2), Color(0xFFE1BEE7)),
-    FeatureItem("tools", R.string.feature_tools, R.string.feature_tools_desc, Icons.Default.Build, Color(0xFF37474F), Color(0xFFCFD8DC)),
-    FeatureItem("contacts", R.string.feature_contacts, R.string.feature_contacts_desc, Icons.Default.Person, Color(0xFFEF6C00), Color(0xFFFFF3E0)),
+    FeatureItem("camera", R.string.feature_camera, R.string.feature_camera_desc, Icons.Default.CameraAlt, Color(0xFF1565C0)),
+    FeatureItem("detect", R.string.feature_detect, R.string.feature_detect_desc, Icons.Default.Search, Color(0xFF2E7D32)),
+    FeatureItem("scan", R.string.feature_scan, R.string.feature_scan_desc, Icons.Default.DocumentScanner, Color(0xFFE65100)),
+    FeatureItem("qrscanner", R.string.feature_qr_scan, R.string.feature_qr_scan_desc, Icons.Default.QrCodeScanner, Color(0xFF6A1B9A)),
+    FeatureItem("translate", R.string.feature_translate, R.string.feature_translate_desc, Icons.Default.Translate, Color(0xFF00838F)),
+    FeatureItem("vault", R.string.feature_vault, R.string.feature_vault_desc, Icons.Default.Lock, Color(0xFFC62828)),
+    FeatureItem("notes", R.string.feature_notes, R.string.feature_notes_desc, Icons.Default.NoteAlt, Color(0xFF4E342E)),
+    FeatureItem("insights", R.string.feature_insights, R.string.feature_insights_desc, Icons.Default.BarChart, Color(0xFF00695C)),
+    FeatureItem("reminders", R.string.feature_reminders, R.string.feature_reminders_desc, Icons.Default.Notifications, Color(0xFFD32F2F)),
+    FeatureItem("passwords", R.string.feature_passwords, R.string.feature_passwords_desc, Icons.Default.Key, Color(0xFF7B1FA2)),
+    FeatureItem("tools", R.string.feature_tools, R.string.feature_tools_desc, Icons.Default.Build, Color(0xFF37474F)),
+    FeatureItem("contacts", R.string.feature_contacts, R.string.feature_contacts_desc, Icons.Default.Person, Color(0xFFEF6C00)),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -314,7 +320,9 @@ fun FeatureCard(
             .semantics { contentDescription = "$label: $description" }
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = feature.bgColor
+            // Tinted overlay of the accent on the active theme's surface — reads
+            // as pale-tint on light, dark-tint on dark, no separate presets.
+            containerColor = feature.accent.copy(alpha = 0.15f)
         )
     ) {
         Box(Modifier.fillMaxSize()) {
@@ -329,12 +337,13 @@ fun FeatureCard(
                     feature.icon,
                     contentDescription = null,
                     modifier = Modifier.size(36.dp),
-                    tint = feature.iconColor
+                    tint = feature.accent
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
                     label,
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center
                 )
                 Text(
