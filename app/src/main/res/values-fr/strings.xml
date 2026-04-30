@@ -492,6 +492,10 @@
     <string name="widget_assistant_label">Assistant</string>
     <string name="widget_quick_access_xl_name">Privora · Accès rapide XL</string>
     <string name="widget_quick_access_xl_description">Caméra, Coffre, Notes et Rappels en une ligne</string>
+    <string name="settings_theme">Thème</string>
+    <string name="settings_theme_system">Suivre le système</string>
+    <string name="settings_theme_light">Clair</string>
+    <string name="settings_theme_dark">Sombre</string>
     <string name="action_dismiss">Ignorer</string>
     <string name="action_added">Ajouté</string>
     <string name="action_dismissed_label">Ignoré</string>

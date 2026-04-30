@@ -55,6 +55,9 @@ class MainActivity : AppCompatActivity() {
             AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(savedLang))
         }
 
+        // Restore saved theme preference (SYSTEM / LIGHT / DARK)
+        com.privateai.camera.ui.theme.ThemePreference.load(this)
+
         // Block screenshots and screen recording (respects user setting)
         val blockScreenshots = getSharedPreferences("privacy_settings", MODE_PRIVATE).getBoolean("block_screenshots", true)
         if (blockScreenshots) {

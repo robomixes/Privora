@@ -38,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -350,6 +351,57 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     Toast.makeText(context, context.getString(R.string.settings_benchmark_complete), Toast.LENGTH_SHORT).show()
                 }
             )
+
+            // Theme setting (SYSTEM / LIGHT / DARK)
+            var showThemeDialog by remember { mutableStateOf(false) }
+            var currentThemeMode by remember { mutableStateOf(com.privateai.camera.ui.theme.ThemePreference.mode) }
+            val themeNames = mapOf(
+                com.privateai.camera.ui.theme.ThemeMode.SYSTEM to stringResource(R.string.settings_theme_system),
+                com.privateai.camera.ui.theme.ThemeMode.LIGHT to stringResource(R.string.settings_theme_light),
+                com.privateai.camera.ui.theme.ThemeMode.DARK to stringResource(R.string.settings_theme_dark)
+            )
+
+            SettingsItem(
+                icon = Icons.Default.DarkMode,
+                title = stringResource(R.string.settings_theme),
+                subtitle = themeNames[currentThemeMode] ?: stringResource(R.string.settings_theme_system),
+                onClick = { showThemeDialog = true }
+            )
+
+            if (showThemeDialog) {
+                AlertDialog(
+                    onDismissRequest = { showThemeDialog = false },
+                    title = { Text(stringResource(R.string.settings_theme)) },
+                    text = {
+                        Column {
+                            themeNames.forEach { (mode, name) ->
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            currentThemeMode = mode
+                                            com.privateai.camera.ui.theme.ThemePreference.set(context, mode)
+                                            showThemeDialog = false
+                                        }
+                                        .padding(vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    androidx.compose.material3.RadioButton(
+                                        selected = currentThemeMode == mode,
+                                        onClick = {
+                                            currentThemeMode = mode
+                                            com.privateai.camera.ui.theme.ThemePreference.set(context, mode)
+                                            showThemeDialog = false
+                                        }
+                                    )
+                                    Text(name, modifier = Modifier.padding(start = 8.dp))
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {}
+                )
+            }
 
             // Language setting
             var showLanguageDialog by remember { mutableStateOf(false) }

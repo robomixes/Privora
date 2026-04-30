@@ -490,6 +490,10 @@
     <string name="widget_assistant_label">المساعد</string>
     <string name="widget_quick_access_xl_name">Privora · الوصول السريع XL</string>
     <string name="widget_quick_access_xl_description">الكاميرا والخزنة والملاحظات والتذكيرات في صف واحد</string>
+    <string name="settings_theme">المظهر</string>
+    <string name="settings_theme_system">اتباع النظام</string>
+    <string name="settings_theme_light">فاتح</string>
+    <string name="settings_theme_dark">داكن</string>
     <string name="action_dismiss">تجاهل</string>
     <string name="action_added">تمت الإضافة</string>
     <string name="action_dismissed_label">تم التجاهل</string>

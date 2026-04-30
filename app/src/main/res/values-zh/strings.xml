@@ -492,6 +492,10 @@
     <string name="widget_assistant_label">助手</string>
     <string name="widget_quick_access_xl_name">Privora · 快速访问 XL</string>
     <string name="widget_quick_access_xl_description">相机、保险库、笔记和提醒一行显示</string>
+    <string name="settings_theme">主题</string>
+    <string name="settings_theme_system">跟随系统</string>
+    <string name="settings_theme_light">浅色</string>
+    <string name="settings_theme_dark">深色</string>
     <string name="action_dismiss">忽略</string>
     <string name="action_added">已添加</string>
     <string name="action_dismissed_label">已忽略</string>

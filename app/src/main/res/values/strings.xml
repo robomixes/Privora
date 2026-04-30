@@ -504,6 +504,10 @@
     <string name="widget_assistant_label">Assistant</string>
     <string name="widget_quick_access_xl_name">Privora · Quick Access XL</string>
     <string name="widget_quick_access_xl_description">Camera, Vault, Notes, and Reminders in one row</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">Follow system</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
     <string name="action_dismiss">Dismiss</string>
     <string name="action_added">Added</string>
     <string name="action_dismissed_label">Dismissed</string>
