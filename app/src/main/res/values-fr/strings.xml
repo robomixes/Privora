@@ -490,6 +490,8 @@
     <string name="widget_assistant_name">Privora · Assistant IA</string>
     <string name="widget_assistant_description">Ouvrir l\'assistant IA local</string>
     <string name="widget_assistant_label">Assistant</string>
+    <string name="widget_quick_access_xl_name">Privora · Accès rapide XL</string>
+    <string name="widget_quick_access_xl_description">Caméra, Coffre, Notes et Rappels en une ligne</string>
     <string name="action_dismiss">Ignorer</string>
     <string name="action_added">Ajouté</string>
     <string name="action_dismissed_label">Ignoré</string>

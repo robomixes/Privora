@@ -488,6 +488,8 @@
     <string name="widget_assistant_name">Privora · Asistente IA</string>
     <string name="widget_assistant_description">Abre el asistente IA en el dispositivo</string>
     <string name="widget_assistant_label">Asistente</string>
+    <string name="widget_quick_access_xl_name">Privora · Acceso rápido XL</string>
+    <string name="widget_quick_access_xl_description">Cámara, Caja fuerte, Notas y Recordatorios en una fila</string>
     <string name="action_dismiss">Descartar</string>
     <string name="action_added">Añadido</string>
     <string name="action_dismissed_label">Descartado</string>

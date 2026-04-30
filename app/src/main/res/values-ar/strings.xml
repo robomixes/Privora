@@ -488,6 +488,8 @@
     <string name="widget_assistant_name">Privora · مساعد الذكاء الاصطناعي</string>
     <string name="widget_assistant_description">افتح المساعد على الجهاز</string>
     <string name="widget_assistant_label">المساعد</string>
+    <string name="widget_quick_access_xl_name">Privora · الوصول السريع XL</string>
+    <string name="widget_quick_access_xl_description">الكاميرا والخزنة والملاحظات والتذكيرات في صف واحد</string>
     <string name="action_dismiss">تجاهل</string>
     <string name="action_added">تمت الإضافة</string>
     <string name="action_dismissed_label">تم التجاهل</string>
