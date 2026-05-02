@@ -6,7 +6,7 @@ lifecycleRuntimeKtx = "2.9.0"
 activityCompose = "1.10.1"
 composeBom = "2025.03.01"
 camerax = "1.4.2"
-onnxruntime = "1.21.0"
+onnxruntime = "1.22.0"
 navigation = "2.9.0"
 
 [libraries]
