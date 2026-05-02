@@ -57,7 +57,10 @@ object QrHistoryRepository {
         val items = load(context).toMutableList()
         items.add(0, item)
         if (items.size > MAX_ITEMS) {
-            while (items.size > MAX_ITEMS) items.removeLast()
+            // removeAt(lastIndex) instead of removeLast(): on Android 15+ the
+            // Java SDK adds List.removeLast() with different semantics than
+            // Kotlin's extension, causing crashes on Android 14 or earlier.
+            while (items.size > MAX_ITEMS) items.removeAt(items.lastIndex)
         }
         save(context, items)
     }

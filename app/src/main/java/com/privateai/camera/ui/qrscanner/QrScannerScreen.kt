@@ -157,7 +157,7 @@ fun QrScannerScreen(onBack: (() -> Unit)? = null) {
                     onCodeScanned = { item ->
                         QrHistoryRepository.addItem(context, item)
                         history.add(0, item)
-                        if (history.size > 200) history.removeLast()
+                        if (history.size > 200) history.removeAt(history.lastIndex)
                     },
                     onShowDetail = { detailItem = it }
                 )
@@ -166,7 +166,7 @@ fun QrScannerScreen(onBack: (() -> Unit)? = null) {
                     onCodeGenerated = { item ->
                         QrHistoryRepository.addItem(context, item)
                         history.add(0, item)
-                        if (history.size > 200) history.removeLast()
+                        if (history.size > 200) history.removeAt(history.lastIndex)
                     }
                 )
                 2 -> QrHistoryTab(
