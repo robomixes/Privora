@@ -1,14 +1,14 @@
 # Privora — Project Status
 
-Last updated: 2026-04-28
+Last updated: 2026-05-02
 
 ---
 
 ## Current Version
 
 **Branch**: `v5-dev-gemma4`
-**Latest commit**: `e18b559` — Sprint 2: AI streaming, action proposals, and home-screen widgets
-**Uncommitted**: none
+**Release**: v2.0.2 (versionCode 4) — preparing for Google Play upload
+**Uncommitted**: DownloadManager migration, manifest cleanup, version bump (this turn)
 
 ---
 
@@ -176,6 +176,23 @@ Last updated: 2026-04-28
 | Wi-Fi IP detection (wlan0 + fallback) | DONE | `getLocalIpAddress()` |
 | 📶 icon in vault top bar | DONE | Hidden during duress |
 | Fallback: multipart + PIN when encryption fails | DONE | Dual-mode upload handler |
+
+### Play Store Release Polish (v2.0.x — DONE)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| versionCode 1 → 4, versionName 1.0.0 → 2.0.2 | DONE | v2 in production track |
+| 16 KB page-size compliance (arm64-v8a + x86_64) | DONE | Bumped ONNX Runtime 1.21.0 → 1.22.0 to fix `libonnxruntime4j_jni.so` alignment |
+| Removed `USE_EXACT_ALARM` (Play policy: alarm/calendar apps only) | DONE | Reminders fall back to `SCHEDULE_EXACT_ALARM` (user-grantable) |
+| Removed `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC` + `WAKE_LOCK` | DONE | Switched AI model download from custom foreground service to system `DownloadManager` |
+| Custom `GemmaDownloadService` deleted | DONE | Replaced with `DownloadManager`-backed `GemmaModelManager` |
+| Model file migrated to `getExternalFilesDir("models")` | DONE | One-shot migration on app start moves any existing internal copy |
+| Per-feature crash-recovery flag for vision (`vision_crashed`) | DONE | Vision SDK is unstable upstream; flag prevents crash loops if user retries |
+| `gemma-4-E2B-it.litertlm` model URL still HuggingFace `litert-community` | DONE | Public URL, no auth required |
+| Theme picker (System / Light / Dark) | DONE | Settings → Theme |
+| Dark mode adaptation: home grid + bottom tabs | DONE | Per-feature accent overlay computed at render time |
+| Home-screen widgets (4 new): Quick Note, Reminders, AI Assistant, Quick Access XL | DONE | Dark rounded shell + accent-colored icons |
+| AI download dialog skip when model already on disk | DONE | One-tap re-enable |
 
 ### Sprint 2: Assistant Upgrades + Widgets (v1.9 — DONE)
 
@@ -346,6 +363,22 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 
 | Commit | Date | Description |
 |--------|------|-------------|
+| _(this turn)_ | 2026-05-02 | v2.0.2: replace foreground-service download with system DownloadManager — drops 3 permissions, no Play video required |
+| `ce349f3` | 2026-05-02 | v2.0.1: drop USE_EXACT_ALARM (Play policy: alarm/calendar apps only) |
+| `e1e5224` | 2026-05-02 | v2: bump versionCode + ONNX Runtime 1.22.0 for 16 KB page-size compliance |
+| `1a02bce` | 2026-05-02 | Vision still crashes on 0.11.0-rc1 — keep disabled |
+| `f0d2df9` | 2026-05-02 | Skip download prompt when AI model is already on disk |
+| `3d07f59` | 2026-05-02 | Bump LiteRT-LM to 0.11.0-rc1 — 0.10.2 vision still crashes |
+| `ac032dd` | 2026-05-02 | Re-enable Gemma vision with crash-flag safety net |
+| `9078180` | 2026-04-29 | Apply XL widget logic to all 1×1 widgets |
+| `237c16c` | 2026-04-29 | Make widgets fresh + colorful (initial pass) |
+| `936a4a0` | 2026-04-29 | Theme picker (System / Light / Dark) in Settings |
+| `83e10a4` | 2026-04-29 | 4×1 Quick Access XL widget |
+| `17bff83` | 2026-04-29 | Dark mode adaptation for home grid + bottom tabs |
+| `1f5b6f2` | 2026-04-28 | Add SECURITY.md + THREAT_MODEL.md |
+| `f0a931f` | 2026-04-28 | Add CLA + CONTRIBUTING + PR template (CLA Assistant workflow) |
+| `b5cb356` | 2026-04-28 | License the code under AGPL-3.0 |
+| `d04297a` | 2026-04-28 | Add fdroid / playstore product flavors |
 | `e18b559` | 2026-04-28 | Sprint 2: AI streaming, action proposals (7 kinds), home-screen widgets |
 | `1e6cc25` | 2026-04-27 | Fix PDF viewer back button hidden behind status bar |
 | `0ba1630` | 2026-04-27 | Built-in PDF viewer (no external app handoff) |

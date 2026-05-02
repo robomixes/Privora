@@ -496,6 +496,8 @@
     <string name="settings_theme_system">跟随系统</string>
     <string name="settings_theme_light">浅色</string>
     <string name="settings_theme_dark">深色</string>
+    <string name="gemma_download_title">Privora — AI 模型</string>
+    <string name="gemma_download_desc">正在下载 Gemma 4 模型，以便离线使用 AI 功能。</string>
     <string name="action_dismiss">忽略</string>
     <string name="action_added">已添加</string>
     <string name="action_dismissed_label">已忽略</string>

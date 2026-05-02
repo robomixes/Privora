@@ -9,9 +9,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- AI model download is delegated to the system DownloadManager (no
+         foreground service of our own) so we don't need
+         FOREGROUND_SERVICE / FOREGROUND_SERVICE_DATA_SYNC / WAKE_LOCK. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Reminders use exact alarms for one-shot due times. We declare only
          SCHEDULE_EXACT_ALARM (user-grantable in Settings → Special app access);
@@ -175,11 +175,6 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_quick_access_xl_info" />
         </receiver>
-
-        <service
-            android:name=".service.GemmaDownloadService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
 
         <receiver
             android:name=".service.ReminderReceiver"

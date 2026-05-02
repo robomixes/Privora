@@ -494,6 +494,8 @@
     <string name="settings_theme_system">Seguir el sistema</string>
     <string name="settings_theme_light">Claro</string>
     <string name="settings_theme_dark">Oscuro</string>
+    <string name="gemma_download_title">Privora — modelo de IA</string>
+    <string name="gemma_download_desc">Descargando el modelo Gemma 4 para usar las funciones de IA sin conexión.</string>
     <string name="action_dismiss">Descartar</string>
     <string name="action_added">Añadido</string>
     <string name="action_dismissed_label">Descartado</string>

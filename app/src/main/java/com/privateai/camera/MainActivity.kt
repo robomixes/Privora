@@ -71,8 +71,11 @@ class MainActivity : AppCompatActivity() {
         // Install crash handler (logs locally, never sends anywhere)
         CrashHandler.install(this)
 
-        // Create notification channel for AI model download
-        com.privateai.camera.service.GemmaDownloadService.createNotificationChannel(this)
+        // One-time migration: move pre-2.0.2 model file from internal to
+        // external app-private storage (DownloadManager can't write to internal).
+        com.privateai.camera.bridge.GemmaRunner.migrateModelLocation(this)
+        // If a download was in flight when the app was last killed, resume polling.
+        com.privateai.camera.bridge.GemmaModelManager.reconnect(this)
 
         // Create reminders notification channel + enqueue daily missed-sweep worker
         com.privateai.camera.service.ReminderReceiver.createNotificationChannel(this)

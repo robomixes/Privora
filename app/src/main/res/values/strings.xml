@@ -508,6 +508,8 @@
     <string name="settings_theme_system">Follow system</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+    <string name="gemma_download_title">Privora — AI model</string>
+    <string name="gemma_download_desc">Downloading the on-device Gemma 4 model so AI features work offline.</string>
     <string name="action_dismiss">Dismiss</string>
     <string name="action_added">Added</string>
     <string name="action_dismissed_label">Dismissed</string>

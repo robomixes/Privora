@@ -66,9 +66,45 @@ object GemmaRunner {
         return isEnabled(context) && isModelDownloaded(context) && !loadFailed
     }
 
-    /** Get the model file path. */
+    /**
+     * Get the model file path.
+     *
+     * Lives in external app-private storage (`getExternalFilesDir`) — the only
+     * location DownloadManager can write to without app-side foreground service
+     * code. Same privacy properties as `filesDir`: app-sandbox-private (other
+     * apps can't read it), wiped on uninstall. The model is a public 2.5 GB
+     * HuggingFace blob, not user data — internal vs external storage doesn't
+     * affect Privora's encryption guarantees.
+     */
     fun getModelFile(context: Context): File {
-        return File(File(context.filesDir, MODEL_DIR), MODEL_FILE)
+        val dir = context.getExternalFilesDir(MODEL_DIR)
+            ?: File(context.filesDir, MODEL_DIR)  // fallback if external is unavailable
+        return File(dir, MODEL_FILE)
+    }
+
+    /**
+     * One-time migration: move a model file from the old internal location
+     * (`filesDir/models/`) to the new external app-private location used by
+     * DownloadManager. Called once on app start. Idempotent; no-op if the file
+     * is already in the new location or if there's nothing to move.
+     */
+    fun migrateModelLocation(context: Context) {
+        val oldFile = File(File(context.filesDir, MODEL_DIR), MODEL_FILE)
+        val newFile = getModelFile(context)
+        if (oldFile.exists() && oldFile.absolutePath != newFile.absolutePath && !newFile.exists()) {
+            newFile.parentFile?.mkdirs()
+            val moved = oldFile.renameTo(newFile)
+            if (moved) {
+                Log.i(TAG, "Migrated AI model to external app-private storage")
+                // Also move sibling caches so engine doesn't waste a cold load
+                File(context.filesDir, MODEL_DIR).listFiles()?.forEach { f ->
+                    val dst = File(newFile.parentFile, f.name)
+                    if (!dst.exists()) f.renameTo(dst)
+                }
+            } else {
+                Log.w(TAG, "Failed to migrate model — falling back to redownload on next enable")
+            }
+        }
     }
 
     /** Get model size in bytes (0 if not downloaded). */

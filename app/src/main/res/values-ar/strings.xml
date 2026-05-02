@@ -494,6 +494,8 @@
     <string name="settings_theme_system">اتباع النظام</string>
     <string name="settings_theme_light">فاتح</string>
     <string name="settings_theme_dark">داكن</string>
+    <string name="gemma_download_title">Privora — نموذج الذكاء الاصطناعي</string>
+    <string name="gemma_download_desc">يتم تنزيل نموذج Gemma 4 لاستخدام ميزات الذكاء الاصطناعي دون اتصال.</string>
     <string name="action_dismiss">تجاهل</string>
     <string name="action_added">تمت الإضافة</string>
     <string name="action_dismissed_label">تم التجاهل</string>
