@@ -100,7 +100,12 @@ object GemmaModelManager {
             setDescription(app.getString(com.privateai.camera.R.string.gemma_download_desc))
             setDestinationUri(Uri.fromFile(targetFile))
             setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            setAllowedOverMetered(false)   // Wi-Fi only by default — 2.5 GB on cellular is rough
+            // Allow cellular fallback. On flaky Wi-Fi, DownloadManager would
+            // otherwise pause indefinitely waiting for "good" Wi-Fi to return,
+            // which users perceive as a stalled download. The user explicitly
+            // opted into this 2.5 GB transfer; let the system pick whichever
+            // network is actually working.
+            setAllowedOverMetered(true)
             setAllowedOverRoaming(false)
             // Keep it out of the public Downloads UI scan; this isn't a user file.
             @Suppress("DEPRECATION")
@@ -152,6 +157,14 @@ object GemmaModelManager {
         pollJob?.cancel()
         pollJob = scope.launch {
             val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            // Stall detection: if no bytes arrived for STALL_TIMEOUT_MS, surface
+            // an error with a Retry hint instead of letting DownloadManager sit
+            // forever waiting for the network to "recover" (Android prefers
+            // useless Wi-Fi over cellular even when Wi-Fi can't actually serve
+            // bytes). The user can then tap Retry, or toggle Wi-Fi off to force
+            // cellular.
+            var lastBytes = -1L
+            var lastProgressAt = System.currentTimeMillis()
             while (true) {
                 val info = queryDownload(dm, id)
                 if (info == null) {
@@ -163,6 +176,19 @@ object GemmaModelManager {
                     DownloadManager.STATUS_PAUSED,
                     DownloadManager.STATUS_RUNNING -> {
                         _downloadState.value = DownloadState.Downloading(info.downloaded, info.total)
+                        if (info.downloaded != lastBytes) {
+                            lastBytes = info.downloaded
+                            lastProgressAt = System.currentTimeMillis()
+                        } else if (System.currentTimeMillis() - lastProgressAt > STALL_TIMEOUT_MS) {
+                            Log.w(TAG, "Download stalled at ${info.downloaded}/${info.total} bytes — surfacing error")
+                            _downloadState.value = DownloadState.Error(
+                                "Download stalled. Tap Retry, or turn off Wi-Fi to use mobile data."
+                            )
+                            try { dm.remove(id) } catch (_: Exception) {}
+                            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                                .edit().remove(KEY_DOWNLOAD_ID).apply()
+                            break
+                        }
                     }
                     DownloadManager.STATUS_SUCCESSFUL -> {
                         _downloadState.value = DownloadState.Complete
@@ -179,10 +205,13 @@ object GemmaModelManager {
                         break
                     }
                 }
-                delay(1_000)
+                delay(POLL_INTERVAL_MS)
             }
         }
     }
+
+    private const val POLL_INTERVAL_MS = 1_000L
+    private const val STALL_TIMEOUT_MS = 60_000L  // 60 s without progress = stalled
 
     private data class DownloadInfo(val status: Int, val downloaded: Long, val total: Long, val reason: Int)
 

@@ -1193,10 +1193,19 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                     val err = downloadState as com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        "Download failed: ${err.message}",
+                                        err.message,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.error
                                     )
+                                    Spacer(Modifier.height(6.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        TextButton(onClick = {
+                                            // Re-enable AI (cleared by error handler) + restart fresh.
+                                            com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
+                                            aiEnabled = true
+                                            com.privateai.camera.bridge.GemmaModelManager.startDownload(context)
+                                        }) { Text(stringResource(R.string.action_retry)) }
+                                    }
                                 }
                             }
                             Switch(checked = aiEnabled, onCheckedChange = null)
