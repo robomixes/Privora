@@ -164,6 +164,17 @@ object GemmaRunner {
         loadFailed = false
     }
 
+    /** True if a previous vision call crashed the process; describeImage() will refuse until reset. */
+    fun isVisionCrashed(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean("vision_crashed", false)
+
+    /** Clear the vision-crash flag so the user can retry vision inference. */
+    fun resetVisionCrashFlag(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean("vision_crashed", false).apply()
+    }
+
     /** Close any active conversation (LiteRT-LM only allows one at a time). */
     private fun closeActiveConversation() {
         try { activeConversation?.close() } catch (_: Exception) {}
@@ -319,12 +330,26 @@ object GemmaRunner {
     ): String? {
         Log.d(TAG, "describeImage() called — loadFailed=$loadFailed, engine=${engine != null}, path=$imagePath")
         if (loadFailed) { Log.w(TAG, "describeImage() skipped — loadFailed"); return null }
+
+        // Per-feature crash recovery: if a previous vision call hard-crashed the
+        // process, the flag committed before that call is still set. Skip until
+        // the user explicitly resets via Settings → AI → "Retry vision".
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (prefs.getBoolean("vision_crashed", false)) {
+            Log.w(TAG, "describeImage() skipped — previous call crashed; user must reset flag")
+            return null
+        }
+
         if (engine == null) load(context)
         val eng = engine
         if (eng == null) { Log.w(TAG, "describeImage() skipped — engine null"); return null }
 
         return mutex.withLock {
             withContext(Dispatchers.IO) {
+                // Arm the crash flag with a synchronous commit so it persists if
+                // the JVM dies during sendMessage. Cleared on success or caught
+                // exception below.
+                prefs.edit().putBoolean("vision_crashed", true).commit()
                 try {
                     closeActiveConversation()
                     Log.d(TAG, "Creating conversation for vision...")
@@ -340,10 +365,14 @@ object GemmaRunner {
                     )
                     Log.d(TAG, "Vision response: ${response.toString().take(100)}")
                     closeActiveConversation()
+                    // Survived — disarm.
+                    prefs.edit().putBoolean("vision_crashed", false).apply()
                     extractText(response)
                 } catch (e: Exception) {
                     closeActiveConversation()
                     Log.e(TAG, "Vision inference failed: ${e.message}", e)
+                    // Caught exception is recoverable — don't keep the user locked out.
+                    prefs.edit().putBoolean("vision_crashed", false).apply()
                     null
                 }
             }

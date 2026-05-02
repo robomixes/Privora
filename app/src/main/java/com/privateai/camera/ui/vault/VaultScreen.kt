@@ -2817,10 +2817,14 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
 
                 // AI labels (above action bar, pass-through touches)
                 viewerPhoto?.let { vp ->
-                    // AI vision disabled — model file has "VisionExecutorSettings: Not set"
-                    // Need updated model from HuggingFace with fixed vision metadata
-                    // Text AI (notes) works fine on GPU
-                    val aiAvailable = false
+                    // Vision is now wired against LiteRT-LM 0.10.2 + the April-2026
+                    // HuggingFace model that ships VisionExecutorSettings. Behind a
+                    // crash-flag guard in GemmaRunner.describeImage so a hard fault
+                    // doesn't put the app in a relaunch loop. Only show the controls
+                    // when the engine is actually loadable AND the previous attempt
+                    // didn't crash.
+                    val aiAvailable = com.privateai.camera.bridge.GemmaRunner.isAvailable(context) &&
+                        !com.privateai.camera.bridge.GemmaRunner.isVisionCrashed(context)
                     var aiDescription by remember(vp.id) { mutableStateOf(photoIndex?.getDescription(vp.id) ?: "") }
                     var aiDescLoading by remember(vp.id) { mutableStateOf(false) }
                     var showAskDialog by remember { mutableStateOf(false) }
