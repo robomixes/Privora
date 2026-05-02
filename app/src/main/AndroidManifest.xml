@@ -13,8 +13,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Reminders use exact alarms for one-shot due times. We declare only
+         SCHEDULE_EXACT_ALARM (user-grantable in Settings → Special app access);
+         we do NOT declare USE_EXACT_ALARM because that's restricted by Play
+         policy to apps whose core functionality is alarm clock or calendar,
+         which Privora is not. ReminderScheduler.canScheduleExactAlarms() and
+         ACTION_REQUEST_SCHEDULE_EXACT_ALARM handle the runtime grant flow. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
