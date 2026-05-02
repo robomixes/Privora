@@ -2817,14 +2817,15 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
 
                 // AI labels (above action bar, pass-through touches)
                 viewerPhoto?.let { vp ->
-                    // Vision is now wired against LiteRT-LM 0.10.2 + the April-2026
-                    // HuggingFace model that ships VisionExecutorSettings. Behind a
-                    // crash-flag guard in GemmaRunner.describeImage so a hard fault
-                    // doesn't put the app in a relaunch loop. Only show the controls
-                    // when the engine is actually loadable AND the previous attempt
-                    // didn't crash.
-                    val aiAvailable = com.privateai.camera.bridge.GemmaRunner.isAvailable(context) &&
-                        !com.privateai.camera.bridge.GemmaRunner.isVisionCrashed(context)
+                    // Vision disabled. Tested on Pixel 9a / Android 16 against both
+                    // LiteRT-LM 0.10.2 and 0.11.0-rc1 with the April-2026 HuggingFace
+                    // gemma-4-E2B-it model that ships VisionExecutorSettings — both
+                    // hard-fault with a native SIGSEGV (null-ptr deref) inside
+                    // liblitertlm_jni.so on the engine thread mid-inference. Filed
+                    // upstream; until a fix ships we keep the controls hidden.
+                    // GemmaRunner.describeImage() retains its vision_crashed flag
+                    // safety net so manual testing won't put the app in a crash loop.
+                    val aiAvailable = false
                     var aiDescription by remember(vp.id) { mutableStateOf(photoIndex?.getDescription(vp.id) ?: "") }
                     var aiDescLoading by remember(vp.id) { mutableStateOf(false) }
                     var showAskDialog by remember { mutableStateOf(false) }

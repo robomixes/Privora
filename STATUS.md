@@ -242,7 +242,7 @@ Last updated: 2026-04-28
 
 | Issue | Impact | Status |
 |-------|--------|--------|
-| Gemma 4 vision crashes (LiteRT-LM 0.10.0) | Photo Q&A disabled | Waiting for 0.10.1 |
+| Gemma 4 vision still crashes (tested 0.10.2 + 0.11.0-rc1) | Photo Q&A disabled | Native SIGSEGV in liblitertlm_jni.so on Pixel 9a / e2b model. Crash-flag guard in place. |
 | Intruder capture device-dependent | Camera2 headless may fail on some devices | Plain JPEG fallback |
 | Wi-Fi transfer key derivation is custom mixing | Not PBKDF2, uses 10K-round iterative mix | Acceptable for ephemeral transfers |
 
@@ -258,7 +258,7 @@ Last updated: 2026-04-28
 | AGPL-3.0 license + public README + threat model | High | 1-2 days |
 | F-Droid submission (reproducible build manifest) | High | 1 day |
 | Audio transcription in notes (Vosk or Android on-device) | Medium | Deferred — privacy approach pending |
-| Gemma vision (photo Q&A) | Blocked | Waiting for LiteRT-LM 0.10.1 |
+| Gemma vision (photo Q&A) | Blocked | Tested 0.10.2 + 0.11.0-rc1 — both hard-fault. Issue filed upstream; revisit on next release. |
 | Cross-device sync (E2E encrypted, AGPL server) | High | 2-3 weeks (Phase 3 of monetization plan) |
 | Iterate AI action prompts based on real usage | Medium | Ongoing |
 
