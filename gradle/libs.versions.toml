@@ -62,7 +62,7 @@ zxing-core = { group = "com.google.zxing", name = "core", version = "3.5.3" }
 # Pinned to a specific version (was "+") for reproducible builds — required for
 # F-Droid and stops upstream regressions from silently breaking the next clean
 # build. Bumping this is a deliberate decision; test vision after every bump.
-litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version = "0.10.2" }
+litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version = "0.11.0-rc1" }
 
 # SQLCipher (encrypted SQLite)
 sqlcipher = { group = "net.zetetic", name = "sqlcipher-android", version = "4.6.1" }
