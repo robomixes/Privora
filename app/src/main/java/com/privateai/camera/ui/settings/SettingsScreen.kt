@@ -1134,7 +1134,15 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                             Modifier.fillMaxWidth()
                                 .clickable {
                                     if (!aiEnabled) {
-                                        showAiDownloadDialog = true
+                                        if (aiModelDownloaded) {
+                                            // Model already on disk — just flip the switch.
+                                            // The download dialog is for storage/RAM warnings before
+                                            // a fresh download; not relevant if we already have the file.
+                                            com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
+                                            aiEnabled = true
+                                        } else {
+                                            showAiDownloadDialog = true
+                                        }
                                     } else {
                                         com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
                                         com.privateai.camera.bridge.GemmaRunner.unload()
