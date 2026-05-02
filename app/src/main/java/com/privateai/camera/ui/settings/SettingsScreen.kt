@@ -1146,6 +1146,9 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                     } else {
                                         com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
                                         com.privateai.camera.bridge.GemmaRunner.unload()
+                                        // Cancel any in-flight model download so it doesn't keep
+                                        // running silently after the user disabled AI.
+                                        com.privateai.camera.bridge.GemmaModelManager.cancelDownload(context)
                                         aiEnabled = false
                                     }
                                 }

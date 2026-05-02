@@ -115,6 +115,9 @@ object GemmaRunner {
 
     /** Delete the downloaded model and cache to free storage. */
     fun deleteModel(context: Context) {
+        // Cancel any in-flight download so its partial file isn't orphaned and
+        // the next "Enable AI" tap starts cleanly.
+        try { GemmaModelManager.cancelDownload(context) } catch (_: Exception) {}
         getModelFile(context).delete()
         // Also delete xnnpack cache
         File(getModelFile(context).absolutePath + ".xnnpack_cache").delete()

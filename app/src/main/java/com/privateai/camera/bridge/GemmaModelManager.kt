@@ -64,22 +64,30 @@ object GemmaModelManager {
     private var receiverRegistered = false
 
     /**
-     * Kick off the download. Idempotent — if a download is already in flight
-     * (id stored in prefs), we resume polling it instead of enqueuing a second.
+     * Kick off the download. Always starts fresh — any existing in-flight
+     * download (recorded in prefs) is cancelled first. This gives users a way
+     * to recover from a stuck download by toggling AI off + on, or by tapping
+     * Delete model + re-enabling.
+     *
+     * For passively reconnecting to an in-flight download after process death,
+     * use [reconnect] instead — that path only polls, never re-enqueues.
      */
     fun startDownload(context: Context) {
         val app = context.applicationContext
         ensureReceiver(app)
 
         val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val existingId = prefs.getLong(KEY_DOWNLOAD_ID, -1L)
         val dm = app.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
 
-        if (existingId != -1L && isDownloadActive(dm, existingId)) {
-            Log.i(TAG, "Resuming progress polling for existing download id=$existingId")
-            startPolling(app, existingId)
-            return
+        // Cancel any prior download to guarantee a clean restart.
+        val staleId = prefs.getLong(KEY_DOWNLOAD_ID, -1L)
+        if (staleId != -1L) {
+            try { dm.remove(staleId) } catch (_: Exception) {}
+            prefs.edit().remove(KEY_DOWNLOAD_ID).apply()
+            Log.i(TAG, "Cleared stale download id=$staleId before restarting")
         }
+        pollJob?.cancel()
+        pollJob = null
 
         // Make sure the destination dir exists.
         val targetFile = GemmaRunner.getModelFile(app)
