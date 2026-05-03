@@ -1,0 +1,55 @@
+Privora is a private, on-device toolkit for everything that matters: your photos, notes, contacts, password hints, expenses, health, reminders, and an AI assistant — all running entirely on your phone. No cloud, no analytics, no telemetry, no ads.
+
+Most apps in this space ask you to trust their servers. Privora is built on a different bet: your data shouldn't have to leave your device for any of it to work.
+
+
+WHAT YOU GET
+
+• Encrypted vault for photos, videos, PDFs, and arbitrary files. Hidden folders, multi-select, pinch-to-zoom, built-in PDF viewer.
+
+• Secure notes with rich text, color tags, voice attachments, and instant search.
+
+• Encrypted contacts with face linking, custom groups, and a self profile.
+
+• Reminders with one-shot or recurring schedules, alarm-precision, and lock-screen privacy (notifications redacted).
+
+• Personal insights: expenses, health metrics (weight, sleep, mood, blood pressure), medications, and habits — all per-profile, no third-party SDK touching the data.
+
+• Password hint manager: stores clues to remember your passwords, never the passwords themselves. Built-in generator, 30-second auto-clear clipboard.
+
+• On-device AI assistant powered by Gemma 4, running locally. Summarize notes, fix grammar, draft emails, answer questions about your own data — without any of it ever being uploaded.
+
+• Document scanner with OCR. QR scanner + generator. Offline translation in 15 languages with AI-assisted alternatives.
+
+• Camera with intruder capture: silently photographs anyone who enters a wrong PIN three times.
+
+• Wi-Fi file transfer to your computer with end-to-end encryption performed inside the browser, before bytes ever leave your phone.
+
+• Calculator disguise: app appears as a working calculator on the launcher; type your PIN + "=" to silently open Privora.
+
+• Duress PIN: a separate PIN that unlocks an empty-looking version of the app — for situations where you're forced to unlock.
+
+
+PRIVACY, IN PLAIN ENGLISH
+
+Everything is encrypted with AES-256-GCM and a key wrapped by your phone's hardware-backed Android Keystore. Your unlock PIN is stored as a PBKDF2 hash, never plaintext. Contacts and the photo index live in a SQLCipher database. Backups can be exported under a passphrase you control.
+
+Network usage is one-shot and visible: a one-time download of the on-device AI model, optional Wi-Fi transfer between your own devices, and that's it. There is no Privora server.
+
+There are no third-party analytics SDKs, no crash reporters that phone home, no ad networks. The full source code is published under the GNU Affero General Public License (AGPL-3.0) on GitHub at github.com/robomixes/Privora — anyone can audit, build, or fork it.
+
+
+ROADMAP
+
+Privora ships on Android today. iOS, Windows, and Linux are on the roadmap. Cross-device end-to-end encrypted sync is being designed for a future release — when it lands, the sync server will be open source and self-hostable, so no one (including us) can read your data.
+
+
+WHO IT'S FOR
+
+Anyone who wants their personal data to actually stay personal: privacy-conscious users, journalists, activists, people in sensitive professions, or anyone simply tired of cloud-first apps that mine their content. Adult use only (18+); not designed for children.
+
+
+SUPPORT
+
+Issues and suggestions: github.com/robomixes/Privora/issues
+Security disclosures: see the SECURITY.md in the repository.
