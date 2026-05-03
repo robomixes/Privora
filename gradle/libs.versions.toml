@@ -1,12 +1,12 @@
 [versions]
 agp = "8.9.3"
-kotlin = "2.1.20"
+kotlin = "2.3.20"
 coreKtx = "1.16.0"
 lifecycleRuntimeKtx = "2.9.0"
 activityCompose = "1.10.1"
 composeBom = "2025.03.01"
 camerax = "1.4.2"
-onnxruntime = "1.21.0"
+onnxruntime = "1.22.0"
 navigation = "2.9.0"
 
 [libraries]
@@ -42,6 +42,9 @@ androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version
 # Biometric
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version = "1.1.0" }
 
+# WorkManager (periodic missed-sweep for reminders)
+androidx-work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version = "2.9.1" }
+
 # Coroutines Play Services (for .await() on ML Kit Tasks)
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version = "1.9.0" }
 
@@ -55,9 +58,18 @@ mlkit-face-detection = { group = "com.google.mlkit", name = "face-detection", ve
 # ZXing (QR code generation)
 zxing-core = { group = "com.google.zxing", name = "core", version = "3.5.3" }
 
+# LiteRT-LM (Gemma 4 on-device LLM inference)
+# Pinned to a specific version (was "+") for reproducible builds — required for
+# F-Droid and stops upstream regressions from silently breaking the next clean
+# build. Bumping this is a deliberate decision; test vision after every bump.
+litertlm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version = "0.11.0-rc1" }
+
 # SQLCipher (encrypted SQLite)
 sqlcipher = { group = "net.zetetic", name = "sqlcipher-android", version = "4.6.1" }
 sqlite-ktx = { group = "androidx.sqlite", name = "sqlite-ktx", version = "2.4.0" }
+
+# Wi-Fi Transfer
+nanohttpd = { group = "org.nanohttpd", name = "nanohttpd", version = "2.3.1" }
 
 # Testing
 junit = { group = "junit", name = "junit", version = "4.13.2" }

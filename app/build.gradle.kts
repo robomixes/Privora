@@ -22,8 +22,8 @@ android {
         applicationId = "com.privateai.camera"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 7
+        versionName = "2.0.5"
     }
 
     signingConfigs {
@@ -49,19 +49,42 @@ android {
         }
     }
 
+    // Distribution flavors. Both produce a working APK today; the split exists
+    // so future Pro / Sync code (Play Store only) can be cleanly excluded from
+    // the F-Droid build, and so each flavor can show a different "Support
+    // development" link in Settings without runtime branching elsewhere.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("fdroid") {
+            dimension = "distribution"
+            buildConfigField("boolean", "IS_FDROID", "true")
+            buildConfigField("String", "DISTRIBUTION", "\"fdroid\"")
+        }
+        create("playstore") {
+            dimension = "distribution"
+            // Default flavor — `./gradlew installDebug` resolves to installPlaystoreDebug.
+            isDefault = true
+            buildConfigField("boolean", "IS_FDROID", "false")
+            buildConfigField("String", "DISTRIBUTION", "\"playstore\"")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
 }
 
 dependencies {
@@ -100,6 +123,9 @@ dependencies {
     // Biometric
     implementation(libs.androidx.biometric)
 
+    // WorkManager (reminder missed-sweep)
+    implementation(libs.androidx.work.runtime)
+
     // Testing
     testImplementation(libs.junit)
 
@@ -107,8 +133,14 @@ dependencies {
     implementation(libs.sqlcipher)
     implementation(libs.sqlite.ktx)
 
+    // Wi-Fi Transfer (embedded HTTP server)
+    implementation(libs.nanohttpd)
+
     // ZXing (QR code generation)
     implementation(libs.zxing.core)
+
+    // LiteRT-LM (Gemma 4 on-device LLM)
+    implementation(libs.litertlm.android)
 
     // ML Kit
     implementation(libs.mlkit.document.scanner)

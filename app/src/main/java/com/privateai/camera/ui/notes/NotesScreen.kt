@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Anas
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package com.privateai.camera.ui.notes
 
 import android.content.Intent
@@ -115,7 +118,7 @@ private enum class NotesPage { LOCKED, LIST, EDITOR }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null) {
+fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null, openNoteId: String? = null) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -133,6 +136,43 @@ fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null) {
     var selectedTag by remember { mutableStateOf<String?>(null) }
     var allTags by remember { mutableStateOf<List<String>>(emptyList()) }
     var editingNote by remember { mutableStateOf<SecureNote?>(null) }
+
+    // Deep-link: if openNoteId is provided, jump straight into the editor.
+    //   "__new__"  → blank editor (Quick Note widget)
+    //   <id>       → open that specific note (AI Assistant ref tap)
+    var deepLinkHandled by remember { mutableStateOf(false) }
+    if (openNoteId != null && !deepLinkHandled && startUnlocked) {
+        if (openNoteId == "__new__") {
+            editingNote = null
+            page = NotesPage.EDITOR
+        } else {
+            val target = noteRepo.listNotes().find { it.id == openNoteId }
+            if (target != null) {
+                editingNote = target
+                page = NotesPage.EDITOR
+            }
+        }
+        deepLinkHandled = true
+    }
+
+    // Share-to-Privora: if text was shared from another app, create a new note with that content
+    var shareHandled by remember { mutableStateOf(false) }
+    if (!shareHandled && startUnlocked) {
+        val (_, shareText) = com.privateai.camera.MainActivity.consumePendingShare()
+        if (!shareText.isNullOrBlank()) {
+            // Pre-fill a new note — user lands in the editor to review before saving
+            editingNote = SecureNote(
+                id = java.util.UUID.randomUUID().toString(),
+                title = "",
+                content = shareText,
+                tags = emptyList(),
+                createdAt = System.currentTimeMillis(),
+                modifiedAt = System.currentTimeMillis()
+            )
+            page = NotesPage.EDITOR
+        }
+        shareHandled = true
+    }
 
     // Multi-select
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -318,8 +358,7 @@ fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null) {
             return
         }
 
-        val appPin = com.privateai.camera.ui.onboarding.getAppPin(context)
-        if (appPin != null && enteredPin == appPin) {
+        if (com.privateai.camera.security.AppPinManager.verify(context, enteredPin)) {
             PinRateLimiter.recordSuccess(context)
             if (crypto.initialize()) {
                 isDuressActive = false

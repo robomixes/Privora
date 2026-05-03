@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Anas
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package com.privateai.camera.security
 
 import android.content.Context
@@ -53,6 +56,9 @@ object PinRateLimiter {
             .putInt(KEY_FAILED_ATTEMPTS, attempts)
             .putLong(KEY_LOCKOUT_UNTIL, lockoutUntil)
             .apply()
+
+        // Intruder capture: silently snap a front-camera photo on each failed attempt
+        IntruderCapture.snapIfEnabled(context)
     }
 
     fun recordSuccess(context: Context) {

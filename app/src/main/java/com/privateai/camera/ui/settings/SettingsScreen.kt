@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Anas
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 package com.privateai.camera.ui.settings
 
 import android.content.Context
@@ -5,6 +8,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.NoteAlt
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Translate
@@ -33,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -41,6 +47,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Refresh
@@ -64,6 +71,7 @@ import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -83,18 +91,18 @@ import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.PinRateLimiter
 import com.privateai.camera.security.VaultCategory
 import com.privateai.camera.security.VaultLockManager
+import com.privateai.camera.security.AppPinManager
 import com.privateai.camera.security.VaultRepository
 import com.privateai.camera.security.NoteRepository
 import com.privateai.camera.service.DeviceProfiler
 import com.privateai.camera.service.StorageManager
 import com.privateai.camera.ui.onboarding.AuthMode
-import com.privateai.camera.ui.onboarding.getAppPin
 import com.privateai.camera.ui.onboarding.getAuthMode
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = null, onDuressClick: (() -> Unit)? = null) {
+fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = null, onDuressClick: (() -> Unit)? = null, onChangePinClick: (() -> Unit)? = null) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
@@ -154,6 +162,43 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             if (showFeatures) {
             SectionHeader(stringResource(R.string.settings_section_home_features))
 
+            // Layout selector: Grid vs Tabs
+            var currentLayout by remember { mutableStateOf(FeatureToggleManager.getHomeLayout(context)) }
+            Text(
+                stringResource(R.string.settings_layout_title),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                LayoutOption(
+                    selected = currentLayout == HomeLayout.GRID,
+                    title = stringResource(R.string.settings_layout_grid),
+                    description = stringResource(R.string.settings_layout_grid_desc),
+                    preview = "\u229E",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        FeatureToggleManager.setHomeLayout(context, HomeLayout.GRID)
+                        currentLayout = HomeLayout.GRID
+                    }
+                )
+                LayoutOption(
+                    selected = currentLayout == HomeLayout.TABS,
+                    title = stringResource(R.string.settings_layout_tabs),
+                    description = stringResource(R.string.settings_layout_tabs_desc),
+                    preview = "\u2261",
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        FeatureToggleManager.setHomeLayout(context, HomeLayout.TABS)
+                        currentLayout = HomeLayout.TABS
+                    }
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+
             val featureInfo = mapOf(
                 "camera" to Triple(stringResource(R.string.feature_camera), stringResource(R.string.feature_camera_desc), Icons.Default.CameraAlt),
                 "detect" to Triple(stringResource(R.string.feature_detect), stringResource(R.string.feature_detect_desc), Icons.Default.Search),
@@ -163,6 +208,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 "vault" to Triple(stringResource(R.string.feature_vault), stringResource(R.string.feature_vault_desc), Icons.Default.Lock),
                 "notes" to Triple(stringResource(R.string.feature_notes), stringResource(R.string.feature_notes_desc), Icons.Default.NoteAlt),
                 "insights" to Triple(stringResource(R.string.feature_insights), stringResource(R.string.feature_insights_desc), Icons.Default.Info),
+                "reminders" to Triple(stringResource(R.string.feature_reminders), stringResource(R.string.feature_reminders_desc), Icons.Default.Notifications),
+                "passwords" to Triple(stringResource(R.string.feature_passwords), stringResource(R.string.feature_passwords_desc), Icons.Default.Lock),
                 "tools" to Triple(stringResource(R.string.feature_tools), stringResource(R.string.feature_tools_desc), Icons.Default.Info),
                 "contacts" to Triple(stringResource(R.string.feature_contacts), stringResource(R.string.feature_contacts_desc), Icons.Default.Person)
             )
@@ -304,6 +351,57 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     Toast.makeText(context, context.getString(R.string.settings_benchmark_complete), Toast.LENGTH_SHORT).show()
                 }
             )
+
+            // Theme setting (SYSTEM / LIGHT / DARK)
+            var showThemeDialog by remember { mutableStateOf(false) }
+            var currentThemeMode by remember { mutableStateOf(com.privateai.camera.ui.theme.ThemePreference.mode) }
+            val themeNames = mapOf(
+                com.privateai.camera.ui.theme.ThemeMode.SYSTEM to stringResource(R.string.settings_theme_system),
+                com.privateai.camera.ui.theme.ThemeMode.LIGHT to stringResource(R.string.settings_theme_light),
+                com.privateai.camera.ui.theme.ThemeMode.DARK to stringResource(R.string.settings_theme_dark)
+            )
+
+            SettingsItem(
+                icon = Icons.Default.DarkMode,
+                title = stringResource(R.string.settings_theme),
+                subtitle = themeNames[currentThemeMode] ?: stringResource(R.string.settings_theme_system),
+                onClick = { showThemeDialog = true }
+            )
+
+            if (showThemeDialog) {
+                AlertDialog(
+                    onDismissRequest = { showThemeDialog = false },
+                    title = { Text(stringResource(R.string.settings_theme)) },
+                    text = {
+                        Column {
+                            themeNames.forEach { (mode, name) ->
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            currentThemeMode = mode
+                                            com.privateai.camera.ui.theme.ThemePreference.set(context, mode)
+                                            showThemeDialog = false
+                                        }
+                                        .padding(vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    androidx.compose.material3.RadioButton(
+                                        selected = currentThemeMode == mode,
+                                        onClick = {
+                                            currentThemeMode = mode
+                                            com.privateai.camera.ui.theme.ThemePreference.set(context, mode)
+                                            showThemeDialog = false
+                                        }
+                                    )
+                                    Text(name, modifier = Modifier.padding(start = 8.dp))
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {}
+                )
+            }
 
             // Language setting
             var showLanguageDialog by remember { mutableStateOf(false) }
@@ -855,8 +953,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                             advPinError = context.getString(R.string.pin_locked_out, "%d:%02d".format(seconds / 60, seconds % 60))
                                             return@TextButton
                                         }
-                                        val storedPin = getAppPin(context)
-                                        if (storedPin != null && advPin == storedPin) {
+                                        if (AppPinManager.verify(context, advPin)) {
                                             PinRateLimiter.recordSuccess(context)
                                             advancedUnlocked = true
                                             showAdvancedPinDialog = false
@@ -876,6 +973,342 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         }
                     } else {
                         // ─── Unlocked: show all critical settings ───
+
+                        // Wi-Fi Transfer size limit
+                        val sizeOptions = listOf(50, 100, 250, 500, 1024)
+                        val sizeLabels = listOf("50 MB", "100 MB", "250 MB", "500 MB", "1 GB")
+                        var transferMaxMB by remember {
+                            mutableStateOf(
+                                context.getSharedPreferences("wifi_transfer", android.content.Context.MODE_PRIVATE)
+                                    .getInt("max_file_mb", 100)
+                            )
+                        }
+                        val currentSizeIdx = sizeOptions.indexOf(transferMaxMB).coerceAtLeast(0)
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(Icons.Default.Info, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.wifi_transfer_size_title), style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    stringResource(R.string.wifi_transfer_size_desc, sizeLabels[currentSizeIdx]),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(onClick = {
+                                    val idx = (currentSizeIdx - 1).coerceAtLeast(0)
+                                    transferMaxMB = sizeOptions[idx]
+                                    context.getSharedPreferences("wifi_transfer", android.content.Context.MODE_PRIVATE)
+                                        .edit().putInt("max_file_mb", transferMaxMB).apply()
+                                }, modifier = Modifier.size(32.dp)) { Text("−", style = MaterialTheme.typography.titleMedium) }
+                                Text(sizeLabels[currentSizeIdx], style = MaterialTheme.typography.bodyMedium)
+                                IconButton(onClick = {
+                                    val idx = (currentSizeIdx + 1).coerceAtMost(sizeOptions.size - 1)
+                                    transferMaxMB = sizeOptions[idx]
+                                    context.getSharedPreferences("wifi_transfer", android.content.Context.MODE_PRIVATE)
+                                        .edit().putInt("max_file_mb", transferMaxMB).apply()
+                                }, modifier = Modifier.size(32.dp)) { Text("+", style = MaterialTheme.typography.titleMedium) }
+                            }
+                        }
+
+                        // Hidden folder tap count
+                        var hiddenTapCount by remember {
+                            mutableStateOf(
+                                context.getSharedPreferences("vault_hidden", android.content.Context.MODE_PRIVATE)
+                                    .getInt("tap_count", 7)
+                            )
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(Icons.Default.Lock, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.hidden_folder_title), style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    stringResource(R.string.hidden_folder_desc, hiddenTapCount),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(onClick = {
+                                    if (hiddenTapCount > 3) {
+                                        hiddenTapCount--
+                                        context.getSharedPreferences("vault_hidden", android.content.Context.MODE_PRIVATE)
+                                            .edit().putInt("tap_count", hiddenTapCount).apply()
+                                    }
+                                }, modifier = Modifier.size(32.dp)) {
+                                    Text("−", style = MaterialTheme.typography.titleMedium)
+                                }
+                                Text("$hiddenTapCount", style = MaterialTheme.typography.titleMedium)
+                                IconButton(onClick = {
+                                    if (hiddenTapCount < 15) {
+                                        hiddenTapCount++
+                                        context.getSharedPreferences("vault_hidden", android.content.Context.MODE_PRIVATE)
+                                            .edit().putInt("tap_count", hiddenTapCount).apply()
+                                    }
+                                }, modifier = Modifier.size(32.dp)) {
+                                    Text("+", style = MaterialTheme.typography.titleMedium)
+                                }
+                            }
+                        }
+
+                        // Calculator disguise — swap launcher icon
+                        var disguiseEnabled by remember {
+                            mutableStateOf(com.privateai.camera.ui.disguise.DisguiseManager.isDisguiseEnabled(context))
+                        }
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.PhoneAndroid, null, Modifier.size(24.dp),
+                                tint = if (disguiseEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.disguise_title), style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    if (disguiseEnabled) stringResource(R.string.disguise_enabled_desc)
+                                    else stringResource(R.string.disguise_disabled_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(checked = disguiseEnabled, onCheckedChange = {
+                                disguiseEnabled = it
+                                com.privateai.camera.ui.disguise.DisguiseManager.setDisguiseEnabled(context, it)
+                            })
+                        }
+
+                        // Change PIN — full-screen flow (current → new → confirm)
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable { onChangePinClick?.invoke() }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(Icons.Default.Lock, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.change_pin_title), style = MaterialTheme.typography.bodyLarge)
+                                Text(stringResource(R.string.change_pin_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        // Intruder alerts — front camera on wrong PIN
+                        IntruderAlertsSetting(context)
+                        Spacer(Modifier.height(8.dp))
+
+                        // AI Assistant (Gemma 4)
+                        var aiEnabled by remember { mutableStateOf(com.privateai.camera.bridge.GemmaRunner.isEnabled(context)) }
+                        var aiModelDownloaded by remember { mutableStateOf(com.privateai.camera.bridge.GemmaRunner.isModelDownloaded(context)) }
+                        var showAiDownloadDialog by remember { mutableStateOf(false) }
+                        val aiModelSize = remember { com.privateai.camera.bridge.GemmaRunner.getModelSizeBytes(context) }
+                        val downloadState by com.privateai.camera.bridge.GemmaModelManager.downloadState.collectAsState()
+
+                        // React to download completion or failure
+                        androidx.compose.runtime.LaunchedEffect(downloadState) {
+                            when (downloadState) {
+                                is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Complete -> {
+                                    aiModelDownloaded = true
+                                }
+                                is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error -> {
+                                    com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
+                                    aiEnabled = false
+                                    aiModelDownloaded = false
+                                }
+                                else -> {}
+                            }
+                        }
+
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable {
+                                    if (!aiEnabled) {
+                                        if (aiModelDownloaded) {
+                                            // Model already on disk — just flip the switch.
+                                            // The download dialog is for storage/RAM warnings before
+                                            // a fresh download; not relevant if we already have the file.
+                                            com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
+                                            aiEnabled = true
+                                        } else {
+                                            showAiDownloadDialog = true
+                                        }
+                                    } else {
+                                        com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
+                                        com.privateai.camera.bridge.GemmaRunner.unload()
+                                        // Cancel any in-flight model download so it doesn't keep
+                                        // running silently after the user disabled AI.
+                                        com.privateai.camera.bridge.GemmaModelManager.cancelDownload(context)
+                                        aiEnabled = false
+                                    }
+                                }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Info, null, Modifier.size(24.dp),
+                                tint = if (aiEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text("AI Assistant (Gemma 4)", style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    when {
+                                        aiEnabled && aiModelDownloaded -> "Enabled — ${StorageManager.formatSize(aiModelSize)}"
+                                        aiEnabled -> "Enabled — downloading model…"
+                                        else -> "Off — tap to enable on-device AI"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                // Show download progress
+                                if (downloadState is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Downloading) {
+                                    val dl = downloadState as com.privateai.camera.bridge.GemmaModelManager.DownloadState.Downloading
+                                    val pct = if (dl.totalBytes > 0) (dl.progressBytes.toFloat() / dl.totalBytes) else 0f
+                                    val pctInt = (pct * 100).toInt()
+                                    Spacer(Modifier.height(6.dp))
+                                    androidx.compose.material3.LinearProgressIndicator(
+                                        progress = { pct },
+                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        "$pctInt%  —  ${StorageManager.formatSize(dl.progressBytes)} / ${StorageManager.formatSize(dl.totalBytes)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (downloadState is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error) {
+                                    val err = downloadState as com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        err.message,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    Spacer(Modifier.height(6.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        TextButton(onClick = {
+                                            // Re-enable AI (cleared by error handler) + restart fresh.
+                                            com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
+                                            aiEnabled = true
+                                            com.privateai.camera.bridge.GemmaModelManager.startDownload(context)
+                                        }) { Text(stringResource(R.string.action_retry)) }
+                                    }
+                                }
+                            }
+                            Switch(checked = aiEnabled, onCheckedChange = null)
+                        }
+
+                        // Enable AI confirmation dialog
+                        if (showAiDownloadDialog) {
+                            val profiler = remember { com.privateai.camera.service.DeviceProfiler.getProfile(context) }
+                            val freeStorage = remember { storageInfo.deviceFreeBytes }
+                            val totalRamMb = profiler.ramMb
+                            val requiredStorageBytes = 3_000_000_000L // ~2.8 GB with buffer
+                            val requiredRamMb = 4000
+                            val hasEnoughStorage = freeStorage >= requiredStorageBytes
+                            val hasEnoughRam = totalRamMb >= requiredRamMb
+                            val canProceed = hasEnoughStorage // RAM is a warning, storage is a blocker
+
+                            AlertDialog(
+                                onDismissRequest = { showAiDownloadDialog = false },
+                                title = { Text("Enable AI Assistant") },
+                                text = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text("Download Gemma 4 E2B for on-device AI features:")
+                                        Text("• Summarize, rewrite, and extract tasks from notes", style = MaterialTheme.typography.bodySmall)
+                                        Text("• Better grammar and spelling check", style = MaterialTheme.typography.bodySmall)
+                                        Text("• Photo descriptions and semantic search", style = MaterialTheme.typography.bodySmall)
+                                        Spacer(Modifier.height(4.dp))
+
+                                        // Storage check
+                                        Text("Storage:", fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "• Required: ~2.6 GB   •   Free: ${StorageManager.formatSize(freeStorage)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (hasEnoughStorage) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+                                        )
+                                        if (!hasEnoughStorage) {
+                                            Text(
+                                                "Not enough storage. Free up at least ${StorageManager.formatSize(requiredStorageBytes - freeStorage)} to continue.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+
+                                        // RAM check
+                                        Spacer(Modifier.height(4.dp))
+                                        Text("Memory:", fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "• Required: 4 GB+   •   Device: ${totalRamMb} MB",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (hasEnoughRam) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+                                        )
+                                        if (!hasEnoughRam) {
+                                            Text(
+                                                "Low RAM — AI features will be slow and may cause instability.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+
+                                        if (totalRamMb in requiredRamMb..5999) {
+                                            Text(
+                                                "Recommended: 6 GB+ RAM for best experience.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = {
+                                            showAiDownloadDialog = false
+                                            com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
+                                            aiEnabled = true
+                                            if (!aiModelDownloaded) {
+                                                com.privateai.camera.bridge.GemmaModelManager.startDownload(context)
+                                            }
+                                        },
+                                        enabled = canProceed
+                                    ) { Text(if (canProceed) "Download & Enable" else "Not enough storage") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showAiDownloadDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+                                }
+                            )
+                        }
+
+                        // Delete model option
+                        if (aiModelDownloaded) {
+                            SettingsItem(
+                                icon = Icons.Default.Delete,
+                                title = "Delete AI Model",
+                                subtitle = "Free ${StorageManager.formatSize(aiModelSize)} of storage",
+                                onClick = {
+                                    com.privateai.camera.bridge.GemmaRunner.deleteModel(context)
+                                    com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
+                                    aiEnabled = false
+                                    aiModelDownloaded = false
+                                }
+                            )
+                        }
+
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
                         // Emergency PIN
                         if (getAuthMode(context) == AuthMode.APP_PIN) {
@@ -1066,6 +1499,53 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
+private fun LayoutOption(
+    selected: Boolean,
+    title: String,
+    description: String,
+    preview: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val borderColor = if (selected) MaterialTheme.colorScheme.primary
+                      else MaterialTheme.colorScheme.outlineVariant
+    val bgColor = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                  else MaterialTheme.colorScheme.surface
+    Column(
+        modifier = modifier
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .background(bgColor)
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = borderColor,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            preview,
+            style = MaterialTheme.typography.headlineMedium,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            description,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
+}
+
+@Composable
 private fun SettingsItem(
     icon: ImageVector,
     title: String,
@@ -1236,3 +1716,124 @@ private fun formatSize(bytes: Long): String {
         else -> "${"%.1f".format(bytes / (1024.0 * 1024 * 1024))} GB"
     }
 }
+
+/**
+ * Intruder Alerts setting: toggle + list of captured photos from wrong PIN attempts.
+ * Matches the Advanced section's Row layout pattern (icon + column + switch).
+ */
+@Composable
+private fun IntruderAlertsSetting(context: android.content.Context) {
+    var enabled by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(com.privateai.camera.security.IntruderCapture.isEnabled(context))
+    }
+    var showViewer by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    // Main toggle row — same padding/spacing as AI Assistant and other Advanced items
+    Row(
+        Modifier.fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(
+            Icons.Default.Security, null, Modifier.size(24.dp),
+            tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.intruder_alerts_title), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                if (enabled) {
+                    val count = com.privateai.camera.security.IntruderCapture.listCaptures(context).size
+                    if (count > 0) stringResource(R.string.intruder_view_captures, count)
+                    else stringResource(R.string.intruder_alerts_desc)
+                } else {
+                    stringResource(R.string.intruder_alerts_desc)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = enabled, onCheckedChange = {
+            enabled = it
+            com.privateai.camera.security.IntruderCapture.setEnabled(context, it)
+        })
+    }
+
+    // Tap the row to view captures when enabled
+    if (enabled) {
+        val count = com.privateai.camera.security.IntruderCapture.listCaptures(context).size
+        if (count > 0) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .clickable { showViewer = true }
+                    .padding(horizontal = 56.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    stringResource(R.string.intruder_view_captures, count),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+
+    // Viewer dialog
+    if (showViewer) {
+        val captures = androidx.compose.runtime.remember { com.privateai.camera.security.IntruderCapture.listCaptures(context) }
+        if (captures.isEmpty()) {
+            showViewer = false
+            return
+        }
+        val dateFmt = java.text.SimpleDateFormat("MMM dd, yyyy HH:mm:ss", java.util.Locale.getDefault())
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showViewer = false },
+            title = { Text(stringResource(R.string.intruder_alerts_title)) },
+            text = {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(captures.size) { i ->
+                        val entry = captures[i]
+                        val bitmap = androidx.compose.runtime.remember(entry.timestamp) {
+                            com.privateai.camera.security.IntruderCapture.decryptCapture(context, entry)
+                        }
+                        androidx.compose.material3.Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(Modifier.padding(8.dp)) {
+                                Text(
+                                    dateFmt.format(java.util.Date(entry.timestamp)),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (bitmap != null) {
+                                    androidx.compose.foundation.Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxWidth().height(180.dp)
+                                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                    )
+                                } else {
+                                    Text("Could not load photo", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    com.privateai.camera.security.IntruderCapture.clearAll(context)
+                    showViewer = false
+                }) { Text(stringResource(R.string.intruder_clear_all)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showViewer = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+}
+
