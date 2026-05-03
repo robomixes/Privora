@@ -1,0 +1,79 @@
+# F-Droid build metadata for Privora.
+#
+# This file is the source of truth for F-Droid's reproducible build. To submit:
+#   1. Fork https://gitlab.com/fdroid/fdroiddata
+#   2. Copy this file to metadata/com.privateai.camera.yml in that fork
+#   3. Open a merge request against fdroiddata/main
+#   4. F-Droid maintainers review, build, and publish
+#
+# Keep this file in lockstep with the actual repo state — every released
+# versionCode needs a matching `Builds:` entry below.
+
+Categories:
+  - Security
+  - Multimedia
+  - Writing
+
+License: AGPL-3.0-or-later
+SourceCode: https://github.com/robomixes/Privora
+IssueTracker: https://github.com/robomixes/Privora/issues
+Changelog: https://github.com/robomixes/Privora/blob/main/CHANGELOG.md
+
+AutoName: Privora
+Description: |-
+  Privora is a private, on-device toolkit for everything that matters:
+  your photos, notes, contacts, password hints, expenses, health,
+  reminders, and an AI assistant — all running entirely on your phone.
+  No cloud, no analytics, no telemetry, no ads.
+
+  See the README and THREAT_MODEL in the source repository for the full
+  feature list and a plain-language description of what Privora protects
+  against and what it does not.
+
+  This is the F-Droid build flavor: pure open source, no in-app purchase
+  code, no closed Pro module. The Play Store flavor (built from the same
+  source under a separate Gradle product flavor) may include closed-source
+  Pro features in the future under a separate commercial license.
+
+RepoType: git
+Repo: https://github.com/robomixes/Privora.git
+
+Builds:
+  - versionName: 2.0.5
+    versionCode: 7
+    commit: v2.0.5
+    subdir: app
+    gradle:
+      - fdroid
+    rm:
+      # Remove any pre-built keystore.properties so F-Droid signs the build
+      # with its own key (we ship none in the public repo, but be explicit).
+      - keystore.properties
+    scanignore:
+      # On-device AI model (~2.5 GB) is downloaded at runtime via DownloadManager
+      # — it's not bundled in the APK. The HuggingFace URL is configured in
+      # GemmaModelManager.kt and is the only network endpoint the app uses
+      # apart from the user's local Wi-Fi transfer feature.
+      - app/src/main/java/com/privateai/camera/bridge/GemmaModelManager.kt
+    ndk: r27c
+
+# Anti-features F-Droid users should know about. The on-device AI model is
+# downloaded at runtime from HuggingFace, which is what NonFreeNet flags —
+# Privora's *behaviour* is fully local but the initial model fetch hits a
+# third-party URL.
+AntiFeatures:
+  - NonFreeNet:
+      en-US: >-
+        On first enable of the AI Assistant feature, the app downloads a
+        ~2.5 GB Gemma 4 model file from Hugging Face. This is a one-shot,
+        user-initiated network operation; all subsequent AI inference
+        runs entirely on-device with no further network access. The model
+        weights themselves are released under the Apache-2.0-compatible
+        Gemma Terms of Use; not all of Hugging Face's serving infrastructure
+        is free software, hence the flag.
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+UpdateCheckName: privora
+CurrentVersion: 2.0.5
+CurrentVersionCode: 7

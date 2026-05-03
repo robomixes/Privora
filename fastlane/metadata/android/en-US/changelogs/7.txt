@@ -1,0 +1,8 @@
+v2.0.5
+
+• Android 15 compatibility fix — replaced Kotlin removeLast() to prevent crashes on Android 14 and earlier
+• Stalled-download recovery — the AI model download now detects 60 seconds of no progress and offers a Retry button
+• Better network handling — DownloadManager now allows cellular fallback if Wi-Fi flakes out
+• Disable + re-enable AI properly restarts a stuck download
+• "Delete model" now also cancels any in-flight download
+• Source code now public under AGPL-3.0 with a Contributor License Agreement
