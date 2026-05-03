@@ -1,14 +1,17 @@
 # Privora — Project Status
 
-Last updated: 2026-05-02
+Last updated: 2026-05-03
 
 ---
 
 ## Current Version
 
-**Branch**: `v5-dev-gemma4`
-**Release**: v2.0.2 (versionCode 4) — preparing for Google Play upload
-**Uncommitted**: DownloadManager migration, manifest cleanup, version bump (this turn)
+**Branch**: `main` (default; `v5-dev-gemma4` retired and merged in via PR #7)
+**Release**: **v2.0.5** (versionCode 7) — public on GitHub, tagged, GitHub release published, AAB ready for Google Play
+**Repo visibility**: **public** at https://github.com/robomixes/Privora
+**License**: AGPL-3.0-or-later (commercial license retained via CLA)
+**CLA enforcement**: live via [CLA Assistant](https://cla-assistant.io/)
+**Uncommitted**: this STATUS update
 
 ---
 
@@ -177,21 +180,38 @@ Last updated: 2026-05-02
 | 📶 icon in vault top bar | DONE | Hidden during duress |
 | Fallback: multipart + PIN when encryption fails | DONE | Dual-mode upload handler |
 
-### Play Store Release Polish (v2.0.x — DONE)
+### Public-Source Launch (v2.0.0 → 2.0.5 — DONE)
 
 | Item | Status | Notes |
 |------|--------|-------|
-| versionCode 1 → 4, versionName 1.0.0 → 2.0.2 | DONE | v2 in production track |
+| **Repository public on GitHub** | DONE | https://github.com/robomixes/Privora |
+| **AGPL-3.0-or-later license** | DONE | LICENSE + 107 SPDX headers |
+| **CLA infrastructure** | DONE | `CLA.md` (Harmony HA-CLA-I-Lite), CLA Assistant linked + Gist hosted, all PRs auto-gated |
+| **Public docs** | DONE | README rewrite, `CONTRIBUTING.md`, `SECURITY.md`, `THREAT_MODEL.md`, `CHANGELOG.md`, `MARKETING.md` |
+| **Build flavors** (`fdroid` / `playstore`) | DONE | Closed Pro module can later ship via Play flavor without contaminating F-Droid build |
+| **Fastlane / F-Droid metadata** | DONE | `fastlane/metadata/android/en-US/` (title, descriptions, changelogs/7.txt) + `fdroid/com.privateai.camera.yml` ready for fdroiddata MR |
+| **`v2.0.5` git tag pushed** | DONE | F-Droid `UpdateCheckMode: Tags` will auto-pick up subsequent releases |
+| **GitHub release published** | DONE | Changelog body attached |
+| **Default branch normalised** | DONE | `main` fast-forwarded to v5 work via PR #7; `v5-dev-gemma4` retired |
+
+### Play Store Release Polish (v2.0.0 → 2.0.5 — DONE)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| versionCode 1 → 7, versionName 1.0.0 → 2.0.5 | DONE | Several Play-rejection cycles resolved; AAB at `app/build/outputs/bundle/playstoreRelease/` |
 | 16 KB page-size compliance (arm64-v8a + x86_64) | DONE | Bumped ONNX Runtime 1.21.0 → 1.22.0 to fix `libonnxruntime4j_jni.so` alignment |
 | Removed `USE_EXACT_ALARM` (Play policy: alarm/calendar apps only) | DONE | Reminders fall back to `SCHEDULE_EXACT_ALARM` (user-grantable) |
-| Removed `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC` + `WAKE_LOCK` | DONE | Switched AI model download from custom foreground service to system `DownloadManager` |
+| Removed `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC` + `WAKE_LOCK` | DONE | Switched AI model download from custom foreground service to system `DownloadManager` — also removes the Play Console foreground-service-justification video requirement |
 | Custom `GemmaDownloadService` deleted | DONE | Replaced with `DownloadManager`-backed `GemmaModelManager` |
 | Model file migrated to `getExternalFilesDir("models")` | DONE | One-shot migration on app start moves any existing internal copy |
+| AI download lifecycle fixes (stuck → recoverable) | DONE | Disable / re-enable / Delete model now properly cancels in-flight; stall detector after 60 s of no progress with Retry button |
+| Cellular fallback for AI download | DONE | `setAllowedOverMetered(true)` |
+| Kotlin `removeFirst()` / `removeLast()` Android 15 fix | DONE | All call sites switched to `removeAt(...)` |
 | Per-feature crash-recovery flag for vision (`vision_crashed`) | DONE | Vision SDK is unstable upstream; flag prevents crash loops if user retries |
 | `gemma-4-E2B-it.litertlm` model URL still HuggingFace `litert-community` | DONE | Public URL, no auth required |
 | Theme picker (System / Light / Dark) | DONE | Settings → Theme |
 | Dark mode adaptation: home grid + bottom tabs | DONE | Per-feature accent overlay computed at render time |
-| Home-screen widgets (4 new): Quick Note, Reminders, AI Assistant, Quick Access XL | DONE | Dark rounded shell + accent-colored icons |
+| Home-screen widgets (4 new + 1 XL): Quick Note, Reminders, AI Assistant, Quick Access XL | DONE | Dark rounded shell + accent-colored icons |
 | AI download dialog skip when model already on disk | DONE | One-tap re-enable |
 
 ### Sprint 2: Assistant Upgrades + Widgets (v1.9 — DONE)
@@ -271,27 +291,35 @@ Last updated: 2026-05-02
 
 | Feature | Priority | Effort |
 |---------|----------|--------|
-| Build flavors (`fdroid` / `playstore`) | High | 1 day |
-| AGPL-3.0 license + public README + threat model | High | 1-2 days |
-| F-Droid submission (reproducible build manifest) | High | 1 day |
+| F-Droid submission MR against `fdroiddata` (GitLab) | High | 5 min user-side step (manifest already prepared in `fdroid/`) |
+| Multi-locale Fastlane metadata (fr / es / zh / ar) | Medium | 1-2 hours; en-US already done |
+| Lawyer review of `CLA.md` | Recommended | Before accepting first non-trivial external PR |
+| `.github/FUNDING.yml` | Low | Pending sponsor / OpenCollective accounts |
 | Audio transcription in notes (Vosk or Android on-device) | Medium | Deferred — privacy approach pending |
-| Gemma vision (photo Q&A) | Blocked | Tested 0.10.2 + 0.11.0-rc1 — both hard-fault. Issue filed upstream; revisit on next release. |
+| Gemma vision (photo Q&A) | Blocked | Tested 0.10.2 + 0.11.0-rc1 — both hard-fault. Filed upstream; revisit on next release. |
 | Cross-device sync (E2E encrypted, AGPL server) | High | 2-3 weeks (Phase 3 of monetization plan) |
 | Iterate AI action prompts based on real usage | Medium | Ongoing |
+| Replace "Anas" → full legal name in LICENSE / CLA / SPDX | Low | One find/replace when entity / name decision settles |
+| Publish Play signing-key SHA-256 fingerprint in README | Low | Helps reproducible-build verifiers |
 
 ### Play Store Readiness
 
 | Item | Status |
 |------|--------|
 | App name: Privora | DONE |
-| Version management | DONE |
+| Version management | DONE (versionCode 7) |
 | Privacy policy (PRIVACY.md) | DONE |
 | Adaptive icon | DONE |
 | ProGuard/R8 | DONE |
 | Signing config | DONE |
+| 16 KB page-size compliance | DONE |
+| FOREGROUND_SERVICE_DATA_SYNC justification (no longer needed) | DONE — removed permission |
+| USE_EXACT_ALARM removed (policy compliance) | DONE |
+| Kotlin Android 15 collision fix (`removeFirst/Last`) | DONE |
+| AAB ready to upload | DONE — `app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab` |
 | Data Safety declaration | TODO (manual in Play Console) |
 | Screenshots + feature graphic | TODO (manual) |
-| Store listing description | TODO (manual) |
+| Store listing description | DONE (text in `fastlane/metadata/android/en-US/`) — paste into Play Console |
 
 ---
 
@@ -363,7 +391,13 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 
 | Commit | Date | Description |
 |--------|------|-------------|
-| _(this turn)_ | 2026-05-02 | v2.0.2: replace foreground-service download with system DownloadManager — drops 3 permissions, no Play video required |
+| `8740684` | 2026-05-03 | Merge PR #7: v5 work merged into `main`; default branch fully current |
+| `b19f5b8` | 2026-05-02 | Add F-Droid + Fastlane metadata + CHANGELOG.md |
+| `11ad369` | 2026-05-02 | v2.0.5: replace Kotlin removeLast() with removeAt() (Android 15 fix) |
+| `4052fe2` | 2026-05-02 | v2.0.4: AI download — allow metered, detect stalls, expose Retry |
+| `6aab38a` | 2026-05-02 | v2.0.3: rebuild for Play with stuck-download fix |
+| `471ee1d` | 2026-05-02 | Fix stuck AI model download not recovering on retry |
+| `b063faa` | 2026-05-02 | v2.0.2: replace foreground-service download with system DownloadManager — drops 3 permissions, no Play video required |
 | `ce349f3` | 2026-05-02 | v2.0.1: drop USE_EXACT_ALARM (Play policy: alarm/calendar apps only) |
 | `e1e5224` | 2026-05-02 | v2: bump versionCode + ONNX Runtime 1.22.0 for 16 KB page-size compliance |
 | `1a02bce` | 2026-05-02 | Vision still crashes on 0.11.0-rc1 — keep disabled |
