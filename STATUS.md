@@ -7,12 +7,23 @@ Last updated: 2026-05-04
 ## Current Version
 
 **Branch**: `main` (default; `v5-dev-gemma4` retired and merged in via PR #7)
-**Release**: **v2.0.7** (versionCode 9) — bug-fix batch on top of unreleased 2.0.6, AAB built and signed, ready to upload to Google Play
-**Last published**: v2.0.5 (versionCode 7) — 2.0.6 was bumped but never sent to Play Console
+**Release**: **v2.0.7** (versionCode 9) — committed `a92acdc`, tagged, GitHub release published with `app-fdroid-release.apk` attached
+**Last published to Play**: v2.0.5 (versionCode 7) — v2.0.7 AAB is ready at `app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab` but not yet uploaded to Play Console
 **Repo visibility**: **public** at https://github.com/robomixes/Privora
 **License**: AGPL-3.0-or-later (commercial license retained via CLA)
 **CLA enforcement**: live via [CLA Assistant](https://cla-assistant.io/)
-**Uncommitted**: version bump, changelog 9.txt, batch of bug fixes (voice notes, audio cleaning, locale, settings translations, password generator move, draft persistence)
+**Working tree clean**: all v2.0.7 changes pushed to `origin/main`
+
+---
+
+## Distribution Status
+
+| Channel | Status | Notes |
+|---|---|---|
+| **GitHub Releases** | ✅ Live | https://github.com/robomixes/Privora/releases/tag/v2.0.7 — APK attached (178 MB) |
+| **Google Play Store** | ⏳ AAB ready, awaiting upload | Trimmed changelog at `fastlane/metadata/android/en-US/changelogs/9.txt` (≤500 chars for "What's new") |
+| **F-Droid main repo** | ❌ Rejected | MR `f-droid/fdroiddata!37677` — maintainer linsui closed: "MLKit is not allowed". Policy line, not antifeature-fixable. |
+| **IzzyOnDroid (apt.izzysoft.de)** | ⏳ Recommended next | More permissive third-party F-Droid-compatible repo; standard home for ML Kit apps. |
 
 ---
 
@@ -292,7 +303,9 @@ Last updated: 2026-05-04
 
 | Feature | Priority | Effort |
 |---------|----------|--------|
-| F-Droid submission MR against `fdroiddata` (GitLab) | High | 5 min user-side step (manifest already prepared in `fdroid/`) |
+| Upload v2.0.7 AAB to Play Console | High | 5 min — paste trimmed changelog, attach AAB, roll out |
+| IzzyOnDroid submission (replaces F-Droid main) | High | ~30 min — same yaml format, submit at `gitlab.com/IzzyOnDroid/repo` |
+| Close F-Droid main MR with polite reply to linsui | Low | 1 min — pivoting to IzzyOnDroid given ML Kit rejection |
 | Multi-locale Fastlane metadata (fr / es / zh / ar) | Medium | 1-2 hours; en-US already done |
 | Lawyer review of `CLA.md` | Recommended | Before accepting first non-trivial external PR |
 | `.github/FUNDING.yml` | Low | Pending sponsor / OpenCollective accounts |
@@ -308,7 +321,7 @@ Last updated: 2026-05-04
 | Item | Status |
 |------|--------|
 | App name: Privora | DONE |
-| Version management | DONE (versionCode 7) |
+| Version management | DONE (versionCode 9 / 2.0.7) |
 | Privacy policy (PRIVACY.md) | DONE |
 | Adaptive icon | DONE |
 | ProGuard/R8 | DONE |
@@ -317,7 +330,9 @@ Last updated: 2026-05-04
 | FOREGROUND_SERVICE_DATA_SYNC justification (no longer needed) | DONE — removed permission |
 | USE_EXACT_ALARM removed (policy compliance) | DONE |
 | Kotlin Android 15 collision fix (`removeFirst/Last`) | DONE |
-| AAB ready to upload | DONE — `app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab` |
+| v2.0.7 AAB built + signed | DONE — `app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab` (~221 MB) |
+| v2.0.7 changelog (≤500 chars for "What's new") | DONE — `fastlane/metadata/android/en-US/changelogs/9.txt` |
+| v2.0.7 upload to Play Console | TODO (manual) |
 | Data Safety declaration | TODO (manual in Play Console) |
 | Screenshots + feature graphic | TODO (manual) |
 | Store listing description | DONE (text in `fastlane/metadata/android/en-US/`) — paste into Play Console |
@@ -392,6 +407,8 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 
 | Commit | Date | Description |
 |--------|------|-------------|
+| `a92acdc` | 2026-05-04 | v2.0.7: voice-note quality batch (VOICE_RECOGNITION audio source + toggle, mic permission gate, "Play all" auto-advance, draft persistence on auto-lock, defensive save, locale-safe Wi-Fi PIN/IP, Settings → Advanced translations, password generator extracted) |
+| `791ac02` | 2026-05-03 | v2.0.6: fix crash on PHONE_LOCK onboarding (empty-PIN PBKDF2) + libbarhopper packaging fix for 32-bit ARM |
 | `8740684` | 2026-05-03 | Merge PR #7: v5 work merged into `main`; default branch fully current |
 | `b19f5b8` | 2026-05-02 | Add F-Droid + Fastlane metadata + CHANGELOG.md |
 | `11ad369` | 2026-05-02 | v2.0.5: replace Kotlin removeLast() with removeAt() (Android 15 fix) |
