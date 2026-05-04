@@ -92,7 +92,13 @@ fun isBiometricEnabled(context: Context): Boolean {
 }
 
 private fun completeOnboarding(context: Context, pin: String, biometric: Boolean) {
-    com.privateai.camera.security.AppPinManager.setPin(context, pin)
+    // PHONE_LOCK mode passes pin="" because there's no app PIN to set —
+    // the device's own lock screen is the auth gate. PBKDF2's PBEKeySpec
+    // throws InvalidKeySpecException on an empty password, so skip the
+    // hash entirely when the user didn't choose APP_PIN.
+    if (pin.isNotEmpty()) {
+        com.privateai.camera.security.AppPinManager.setPin(context, pin)
+    }
     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
         .putBoolean(KEY_ONBOARDING_DONE, true)
         .putBoolean(KEY_BIOMETRIC_ENABLED, biometric)

@@ -41,9 +41,12 @@ object AppPinManager {
 
     /**
      * Set (or replace) the app PIN. Always writes the hashed format and removes
-     * any leftover plaintext entry.
+     * any leftover plaintext entry. Empty PIN is rejected — PBKDF2's PBEKeySpec
+     * throws InvalidKeySpecException on a zero-length password, and an empty
+     * PIN would be a meaningless auth value anyway.
      */
     fun setPin(context: Context, pin: String) {
+        require(pin.isNotEmpty()) { "App PIN cannot be empty" }
         val salt = ByteArray(SALT_SIZE).also { SecureRandom().nextBytes(it) }
         val hash = hashPin(pin, salt)
 
