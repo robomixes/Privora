@@ -22,8 +22,8 @@ android {
         applicationId = "com.privateai.camera"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "2.0.6"
+        versionCode = 9
+        versionName = "2.0.7"
     }
 
     signingConfigs {
@@ -72,6 +72,19 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    // Extract native libraries to /data/app-lib at install time instead of
+    // loading them in-place from inside the APK. Required to avoid an
+    // UnsatisfiedLinkError on 32-bit ARM devices (Samsung Galaxy A13 reported)
+    // where ML Kit's libbarhopper_v3.so failed to dlopen via the apk!path
+    // syntax in armeabi-v7a split APKs. Adds ~10-15 MB on-disk after install
+    // because libs are now stored compressed in the APK; acceptable trade-off
+    // for stability on low-end devices.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
     buildFeatures {

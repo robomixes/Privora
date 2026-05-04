@@ -7,9 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -46,7 +44,6 @@ fun PasswordHintDialog(
     var url by remember { mutableStateOf(initial?.url ?: "") }
     var notes by remember { mutableStateOf(initial?.notes ?: "") }
     var isFavorite by remember { mutableStateOf(initial?.isFavorite ?: false) }
-    var showGenerator by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -132,19 +129,6 @@ fun PasswordHintDialog(
                 ) {
                     Text("⭐ ${stringResource(R.string.password_field_favorite)}", style = MaterialTheme.typography.labelLarge)
                     Switch(checked = isFavorite, onCheckedChange = { isFavorite = it })
-                }
-
-                // Password generator
-                Spacer(Modifier.height(4.dp))
-                TextButton(onClick = { showGenerator = !showGenerator }) {
-                    Text(
-                        if (showGenerator) stringResource(R.string.password_generator_hide)
-                        else "\uD83D\uDD10 ${stringResource(R.string.password_generator_title)}",
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                if (showGenerator) {
-                    PasswordGeneratorCard()
                 }
             }
         },

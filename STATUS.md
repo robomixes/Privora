@@ -1,17 +1,18 @@
 # Privora — Project Status
 
-Last updated: 2026-05-03
+Last updated: 2026-05-04
 
 ---
 
 ## Current Version
 
 **Branch**: `main` (default; `v5-dev-gemma4` retired and merged in via PR #7)
-**Release**: **v2.0.5** (versionCode 7) — public on GitHub, tagged, GitHub release published, AAB ready for Google Play
+**Release**: **v2.0.7** (versionCode 9) — bug-fix batch on top of unreleased 2.0.6, AAB built and signed, ready to upload to Google Play
+**Last published**: v2.0.5 (versionCode 7) — 2.0.6 was bumped but never sent to Play Console
 **Repo visibility**: **public** at https://github.com/robomixes/Privora
 **License**: AGPL-3.0-or-later (commercial license retained via CLA)
 **CLA enforcement**: live via [CLA Assistant](https://cla-assistant.io/)
-**Uncommitted**: this STATUS update
+**Uncommitted**: version bump, changelog 9.txt, batch of bug fixes (voice notes, audio cleaning, locale, settings translations, password generator move, draft persistence)
 
 ---
 

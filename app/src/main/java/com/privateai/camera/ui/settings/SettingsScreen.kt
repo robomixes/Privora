@@ -692,7 +692,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             } // end showStorage
 
             // Privacy section
-            val showPrivacy = matchesSearch("Privacy", "EXIF", "Face Blur", "Network Policy", "Backup Exclusion")
+            val showPrivacy = matchesSearch("Privacy", "EXIF", "Face Blur", "Network Policy", "Backup Exclusion", "Voice", "Noise")
             if (showPrivacy) {
             SectionHeader(stringResource(R.string.settings_section_privacy))
 
@@ -707,6 +707,14 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 key = "face_blur_on_share",
                 title = stringResource(R.string.settings_face_blur),
                 subtitle = stringResource(R.string.settings_face_blur_desc)
+            )
+
+            PrivacyToggle(
+                context = context,
+                key = "clean_voice_notes",
+                title = stringResource(R.string.settings_clean_voice_notes),
+                subtitle = stringResource(R.string.settings_clean_voice_notes_desc),
+                defaultValue = true
             )
 
             SettingsItem(
@@ -873,8 +881,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         })
                         prompt.authenticate(
                             androidx.biometric.BiometricPrompt.PromptInfo.Builder()
-                                .setTitle("Unlock Advanced Settings")
-                                .setSubtitle("Authenticate to access critical settings")
+                                .setTitle(context.getString(R.string.settings_advanced_unlock_title))
+                                .setSubtitle(context.getString(R.string.settings_advanced_unlock_subtitle))
                                 .setAllowedAuthenticators(
                                     androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or
                                     androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -883,7 +891,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     }
 
                     HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                    SectionHeader("Advanced")
+                    SectionHeader(stringResource(R.string.settings_advanced))
 
                     if (!advancedUnlocked) {
                         // Locked state — tap to authenticate
@@ -903,8 +911,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         ) {
                             Icon(Icons.Default.Lock, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                             Column(Modifier.weight(1f)) {
-                                Text("Tap to unlock", style = MaterialTheme.typography.bodyLarge)
-                                Text("Backup, Emergency PIN, Device Transfer, Re-index", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.settings_advanced_tap_to_unlock), style = MaterialTheme.typography.bodyLarge)
+                                Text(stringResource(R.string.settings_advanced_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -913,10 +921,10 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         if (showAdvancedPinDialog) {
                             AlertDialog(
                                 onDismissRequest = { showAdvancedPinDialog = false; advPin = ""; advPinError = null },
-                                title = { Text("Unlock Advanced Settings") },
+                                title = { Text(stringResource(R.string.settings_advanced_unlock_title)) },
                                 text = {
                                     Column {
-                                        Text("Enter your PIN to access critical settings.", style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.settings_advanced_pin_prompt), style = MaterialTheme.typography.bodySmall)
                                         Spacer(Modifier.height(12.dp))
                                         OutlinedTextField(
                                             value = advPin,
@@ -1161,12 +1169,12 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                 tint = if (aiEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Column(Modifier.weight(1f)) {
-                                Text("AI Assistant (Gemma 4)", style = MaterialTheme.typography.bodyLarge)
+                                Text(stringResource(R.string.settings_ai_assistant_title), style = MaterialTheme.typography.bodyLarge)
                                 Text(
                                     when {
-                                        aiEnabled && aiModelDownloaded -> "Enabled — ${StorageManager.formatSize(aiModelSize)}"
-                                        aiEnabled -> "Enabled — downloading model…"
-                                        else -> "Off — tap to enable on-device AI"
+                                        aiEnabled && aiModelDownloaded -> stringResource(R.string.settings_ai_assistant_enabled, StorageManager.formatSize(aiModelSize))
+                                        aiEnabled -> stringResource(R.string.settings_ai_assistant_downloading)
+                                        else -> stringResource(R.string.settings_ai_assistant_off)
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1224,25 +1232,25 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
                             AlertDialog(
                                 onDismissRequest = { showAiDownloadDialog = false },
-                                title = { Text("Enable AI Assistant") },
+                                title = { Text(stringResource(R.string.settings_ai_dialog_title)) },
                                 text = {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text("Download Gemma 4 E2B for on-device AI features:")
-                                        Text("• Summarize, rewrite, and extract tasks from notes", style = MaterialTheme.typography.bodySmall)
-                                        Text("• Better grammar and spelling check", style = MaterialTheme.typography.bodySmall)
-                                        Text("• Photo descriptions and semantic search", style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.settings_ai_dialog_intro))
+                                        Text(stringResource(R.string.settings_ai_dialog_feature_summarize), style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.settings_ai_dialog_feature_grammar), style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.settings_ai_dialog_feature_photos), style = MaterialTheme.typography.bodySmall)
                                         Spacer(Modifier.height(4.dp))
 
                                         // Storage check
-                                        Text("Storage:", fontWeight = FontWeight.Medium)
+                                        Text(stringResource(R.string.settings_ai_dialog_storage_label), fontWeight = FontWeight.Medium)
                                         Text(
-                                            "• Required: ~2.6 GB   •   Free: ${StorageManager.formatSize(freeStorage)}",
+                                            stringResource(R.string.settings_ai_dialog_storage_line, StorageManager.formatSize(freeStorage)),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = if (hasEnoughStorage) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
                                         )
                                         if (!hasEnoughStorage) {
                                             Text(
-                                                "Not enough storage. Free up at least ${StorageManager.formatSize(requiredStorageBytes - freeStorage)} to continue.",
+                                                stringResource(R.string.settings_ai_dialog_storage_low, StorageManager.formatSize(requiredStorageBytes - freeStorage)),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.error,
                                                 fontWeight = FontWeight.Medium
@@ -1251,15 +1259,15 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
                                         // RAM check
                                         Spacer(Modifier.height(4.dp))
-                                        Text("Memory:", fontWeight = FontWeight.Medium)
+                                        Text(stringResource(R.string.settings_ai_dialog_memory_label), fontWeight = FontWeight.Medium)
                                         Text(
-                                            "• Required: 4 GB+   •   Device: ${totalRamMb} MB",
+                                            stringResource(R.string.settings_ai_dialog_memory_line, totalRamMb),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = if (hasEnoughRam) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
                                         )
                                         if (!hasEnoughRam) {
                                             Text(
-                                                "Low RAM — AI features will be slow and may cause instability.",
+                                                stringResource(R.string.settings_ai_dialog_memory_low),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.error
                                             )
@@ -1267,7 +1275,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
                                         if (totalRamMb in requiredRamMb..5999) {
                                             Text(
-                                                "Recommended: 6 GB+ RAM for best experience.",
+                                                stringResource(R.string.settings_ai_dialog_memory_recommended),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -1285,7 +1293,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                             }
                                         },
                                         enabled = canProceed
-                                    ) { Text(if (canProceed) "Download & Enable" else "Not enough storage") }
+                                    ) { Text(stringResource(if (canProceed) R.string.settings_ai_dialog_confirm else R.string.settings_ai_dialog_confirm_blocked)) }
                                 },
                                 dismissButton = {
                                     TextButton(onClick = { showAiDownloadDialog = false }) { Text(stringResource(R.string.action_cancel)) }
@@ -1297,8 +1305,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         if (aiModelDownloaded) {
                             SettingsItem(
                                 icon = Icons.Default.Delete,
-                                title = "Delete AI Model",
-                                subtitle = "Free ${StorageManager.formatSize(aiModelSize)} of storage",
+                                title = stringResource(R.string.settings_ai_delete_title),
+                                subtitle = stringResource(R.string.settings_ai_delete_subtitle, StorageManager.formatSize(aiModelSize)),
                                 onClick = {
                                     com.privateai.camera.bridge.GemmaRunner.deleteModel(context)
                                     com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
@@ -1354,11 +1362,11 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         ) {
                             Icon(Icons.Default.PhoneAndroid, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
                             Column(Modifier.weight(1f)) {
-                                Text("Transfer to New Device", fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
+                                Text(stringResource(R.string.settings_transfer_title), fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyLarge)
                                 Spacer(Modifier.height(4.dp))
-                                Text("1. Create an encrypted backup above", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("2. Transfer the .paicbackup file to your new device", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("3. Install Privora on new device → Import backup", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.settings_transfer_step1), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.settings_transfer_step2), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.settings_transfer_step3), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
 
@@ -1373,27 +1381,27 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         ) {
                             Icon(Icons.Default.DeleteForever, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.error)
                             Column(Modifier.weight(1f)) {
-                                Text("Wipe Everything", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
-                                Text("Permanently delete ALL data including encryption keys", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
+                                Text(stringResource(R.string.settings_wipe_title), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+                                Text(stringResource(R.string.settings_wipe_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
                             }
                         }
 
                         if (showWipeDialog) {
                             AlertDialog(
                                 onDismissRequest = { showWipeDialog = false },
-                                title = { Text("Wipe All Data?") },
+                                title = { Text(stringResource(R.string.settings_wipe_dialog_title)) },
                                 text = {
                                     Column {
-                                        Text("This will permanently delete:")
+                                        Text(stringResource(R.string.settings_wipe_dialog_intro))
                                         Spacer(Modifier.height(8.dp))
-                                        Text("• All encrypted photos & videos", style = MaterialTheme.typography.bodySmall)
-                                        Text("• All notes & voice recordings", style = MaterialTheme.typography.bodySmall)
-                                        Text("• All contacts & profile photos", style = MaterialTheme.typography.bodySmall)
-                                        Text("• Face recognition data", style = MaterialTheme.typography.bodySmall)
-                                        Text("• Encryption keys (unrecoverable)", style = MaterialTheme.typography.bodySmall)
-                                        Text("• All app settings", style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.settings_wipe_dialog_item_photos), style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.settings_wipe_dialog_item_notes), style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.settings_wipe_dialog_item_contacts), style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.settings_wipe_dialog_item_faces), style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.settings_wipe_dialog_item_keys), style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.settings_wipe_dialog_item_settings), style = MaterialTheme.typography.bodySmall)
                                         Spacer(Modifier.height(8.dp))
-                                        Text("Have you created a backup?", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                        Text(stringResource(R.string.settings_wipe_dialog_question), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
                                     }
                                 },
                                 confirmButton = {
@@ -1413,12 +1421,12 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                                     crypto.initialize()
                                                 } catch (_: Exception) {}
                                             }
-                                            Toast.makeText(context, "All data wiped. App reset to fresh state.", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, context.getString(R.string.settings_wipe_done_toast), Toast.LENGTH_LONG).show()
                                             val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
                                             intent?.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                                             context.startActivity(intent)
                                         }
-                                    }) { Text("WIPE ALL DATA", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+                                    }) { Text(stringResource(R.string.settings_wipe_dialog_confirm), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
                                 },
                                 dismissButton = {
                                     TextButton(onClick = { showWipeDialog = false }) { Text(stringResource(R.string.action_cancel)) }
@@ -1615,10 +1623,11 @@ private fun PrivacyToggle(
     context: android.content.Context,
     key: String,
     title: String,
-    subtitle: String
+    subtitle: String,
+    defaultValue: Boolean = false
 ) {
     val prefs = remember { context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE) }
-    var enabled by remember { mutableStateOf(prefs.getBoolean(key, false)) }
+    var enabled by remember { mutableStateOf(prefs.getBoolean(key, defaultValue)) }
 
     Row(
         modifier = Modifier

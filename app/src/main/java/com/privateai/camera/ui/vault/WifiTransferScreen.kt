@@ -86,8 +86,13 @@ fun WifiTransferScreen(onBack: () -> Unit) {
     }
     val maxFileBytes = maxFileMB.toLong() * 1024 * 1024
 
-    // Generate PIN + port
-    val pin = remember { "%04d".format((1000..9999).random()) }
+    // Generate PIN + port. Force Locale.ROOT (Western digits 0-9) instead of
+    // %04d's default-locale formatting — otherwise on phones whose locale uses
+    // Arabic-Indic digits (Arabic/Persian/Bengali/etc.) the displayed PIN
+    // becomes "٠٤٢١" which the receiving phone (likely on a different locale)
+    // can't enter into the upload form. Same applies to the IP-address render
+    // below.
+    val pin = remember { String.format(java.util.Locale.ROOT, "%04d", (1000..9999).random()) }
     val port = remember { (8000..9999).random() }
     val localIp = remember { getLocalIpAddress(context) }
     val url = "http://$localIp:$port"
@@ -355,7 +360,10 @@ private fun getLocalIpAddress(context: android.content.Context): String {
         val wifiManager = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as? WifiManager
         val ip = wifiManager?.connectionInfo?.ipAddress ?: 0
         if (ip != 0) {
-            val ipStr = "%d.%d.%d.%d".format(ip and 0xff, (ip shr 8) and 0xff, (ip shr 16) and 0xff, (ip shr 24) and 0xff)
+            // Force Locale.ROOT so the IP shows Western digits regardless of
+            // the device locale (Arabic-Indic digits would break the URL).
+            val ipStr = String.format(java.util.Locale.ROOT, "%d.%d.%d.%d",
+                ip and 0xff, (ip shr 8) and 0xff, (ip shr 16) and 0xff, (ip shr 24) and 0xff)
             Log.i(TAG, "IP from WifiManager: $ipStr")
             return ipStr
         }

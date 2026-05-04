@@ -559,14 +559,30 @@ fun NotesScreen(onBack: (() -> Unit)? = null, filterPersonId: String? = null, op
             NoteEditorScreen(
                 note = editingNote,
                 allTags = allTags,
+                noteRepo = noteRepo,
                 onSave = { title, content, tags, attachments, audioAttachments, personId ->
-                    if (editingNote != null) {
-                        noteRepo.saveNote(editingNote!!.copy(title = title, content = content, tags = tags, attachments = attachments, audioAttachments = audioAttachments, personId = personId))
-                    } else {
-                        noteRepo.createNote(title, content, tags, attachments, audioAttachments, personId)
+                    val ok = try {
+                        if (editingNote != null) {
+                            noteRepo.saveNote(editingNote!!.copy(title = title, content = content, tags = tags, attachments = attachments, audioAttachments = audioAttachments, personId = personId))
+                            noteRepo.clearDraft(editingNote!!.id)
+                        } else {
+                            noteRepo.createNote(title, content, tags, attachments, audioAttachments, personId)
+                            noteRepo.clearDraft("__new__")
+                        }
+                        true
+                    } catch (e: Exception) {
+                        android.widget.Toast.makeText(
+                            context,
+                            context.getString(R.string.note_save_failed),
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                        false
                     }
-                    refreshNotes()
-                    page = NotesPage.LIST
+                    if (ok) {
+                        refreshNotes()
+                        page = NotesPage.LIST
+                    }
+                    ok
                 },
                 onDelete = {
                     editingNote?.let { noteRepo.deleteNote(it.id) }

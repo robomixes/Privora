@@ -653,4 +653,65 @@
     <!-- Health profile dialog -->
     <string name="health_add_profile_title">添加家庭成员</string>
     <string name="health_profile_name">姓名</string>
+
+    <!-- Note editor: voice notes -->
+    <string name="note_audio_play_all">全部播放</string>
+    <string name="note_audio_stop_all">停止</string>
+    <string name="note_save_failed">保存失败 — 保险库已锁定。请重试。</string>
+    <string name="note_draft_restored">已恢复未保存的更改</string>
+    <string name="note_audio_permission_denied">麦克风访问被拒绝。请在系统设置中启用以录制语音备注。</string>
+    <string name="note_audio_record_failed">无法开始录制。麦克风可能被其他应用占用。</string>
+    <string name="settings_clean_voice_notes">语音备注降噪</string>
+    <string name="settings_clean_voice_notes_desc">在新录音上启用硬件降噪和自动增益</string>
+
+    <!-- Settings: Advanced section -->
+    <string name="settings_advanced">高级</string>
+    <string name="settings_advanced_unlock_title">解锁高级设置</string>
+    <string name="settings_advanced_unlock_subtitle">验证身份以访问关键设置</string>
+    <string name="settings_advanced_tap_to_unlock">点击以解锁</string>
+    <string name="settings_advanced_summary">备份、紧急 PIN、设备转移、重新索引</string>
+    <string name="settings_advanced_pin_prompt">输入 PIN 以访问关键设置。</string>
+
+    <!-- Settings: AI Assistant -->
+    <string name="settings_ai_assistant_title">AI 助手 (Gemma 4)</string>
+    <string name="settings_ai_assistant_enabled">已启用 — %1$s</string>
+    <string name="settings_ai_assistant_downloading">已启用 — 正在下载模型…</string>
+    <string name="settings_ai_assistant_off">关闭 — 点击启用本地 AI</string>
+    <string name="settings_ai_dialog_title">启用 AI 助手</string>
+    <string name="settings_ai_dialog_intro">下载 Gemma 4 E2B 以使用本地 AI 功能：</string>
+    <string name="settings_ai_dialog_feature_summarize">• 总结、改写笔记并提取任务</string>
+    <string name="settings_ai_dialog_feature_grammar">• 更好的语法与拼写检查</string>
+    <string name="settings_ai_dialog_feature_photos">• 照片描述与语义搜索</string>
+    <string name="settings_ai_dialog_storage_label">存储：</string>
+    <string name="settings_ai_dialog_storage_line">• 需要：约 2.6 GB   •   可用：%1$s</string>
+    <string name="settings_ai_dialog_storage_low">存储空间不足。请至少释放 %1$s 以继续。</string>
+    <string name="settings_ai_dialog_memory_label">内存：</string>
+    <string name="settings_ai_dialog_memory_line">• 需要：4 GB 以上   •   设备：%1$d MB</string>
+    <string name="settings_ai_dialog_memory_low">内存较低 — AI 功能会变慢且可能不稳定。</string>
+    <string name="settings_ai_dialog_memory_recommended">建议：6 GB 以上 RAM 以获得最佳体验。</string>
+    <string name="settings_ai_dialog_confirm">下载并启用</string>
+    <string name="settings_ai_dialog_confirm_blocked">存储空间不足</string>
+    <string name="settings_ai_delete_title">删除 AI 模型</string>
+    <string name="settings_ai_delete_subtitle">释放 %1$s 存储空间</string>
+
+    <!-- Settings: Transfer to New Device -->
+    <string name="settings_transfer_title">转移到新设备</string>
+    <string name="settings_transfer_step1">1. 在上方创建加密备份</string>
+    <string name="settings_transfer_step2">2. 将 .paicbackup 文件传输到新设备</string>
+    <string name="settings_transfer_step3">3. 在新设备上安装 Privora → 导入备份</string>
+
+    <!-- Settings: Wipe everything -->
+    <string name="settings_wipe_title">清除所有数据</string>
+    <string name="settings_wipe_subtitle">永久删除所有数据，包括加密密钥</string>
+    <string name="settings_wipe_dialog_title">清除所有数据？</string>
+    <string name="settings_wipe_dialog_intro">这将永久删除：</string>
+    <string name="settings_wipe_dialog_item_photos">• 所有加密的照片和视频</string>
+    <string name="settings_wipe_dialog_item_notes">• 所有笔记和语音录音</string>
+    <string name="settings_wipe_dialog_item_contacts">• 所有联系人和资料照片</string>
+    <string name="settings_wipe_dialog_item_faces">• 人脸识别数据</string>
+    <string name="settings_wipe_dialog_item_keys">• 加密密钥（不可恢复）</string>
+    <string name="settings_wipe_dialog_item_settings">• 所有应用设置</string>
+    <string name="settings_wipe_dialog_question">您是否已创建备份？</string>
+    <string name="settings_wipe_dialog_confirm">清除所有数据</string>
+    <string name="settings_wipe_done_toast">所有数据已清除，应用已重置。</string>
 </resources>

@@ -119,7 +119,17 @@ import com.privateai.camera.grammar.GrammarError
 import com.privateai.camera.grammar.LocalGrammarChecker
 import com.privateai.camera.grammar.MarkdownTransformation
 import com.privateai.camera.grammar.SystemSpellChecker
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.DisposableEffect
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.privateai.camera.security.CryptoManager
+import com.privateai.camera.security.NoteRepository
 import com.privateai.camera.security.SecureNote
 import com.privateai.camera.security.VaultMediaType
 import com.privateai.camera.security.VaultPhoto
@@ -137,26 +147,39 @@ import kotlinx.coroutines.withContext
 fun NoteEditorScreen(
     note: SecureNote?,
     allTags: List<String>,
-    onSave: (title: String, content: String, tags: List<String>, attachments: List<String>, audioAttachments: List<String>, personId: String?) -> Unit,
+    noteRepo: NoteRepository,
+    onSave: (title: String, content: String, tags: List<String>, attachments: List<String>, audioAttachments: List<String>, personId: String?) -> Boolean,
     onDelete: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val isNew = note == null
-    var title by remember { mutableStateOf(note?.title ?: "") }
-    var contentValue by remember { mutableStateOf(TextFieldValue(note?.content ?: "")) }
-    var tags by remember { mutableStateOf(note?.tags ?: emptyList()) }
+    val draftKey = remember(note?.id) { note?.id ?: "__new__" }
+
+    // Try to restore an unsaved draft. Drafts are only honored if newer than
+    // the saved note's modifiedAt — otherwise a stale draft from a previous
+    // session would shadow legitimate edits made elsewhere.
+    val draft = remember(draftKey) {
+        val d = noteRepo.loadDraft(draftKey) ?: return@remember null
+        if (note != null && d.savedAt <= note.modifiedAt) {
+            noteRepo.clearDraft(draftKey); null
+        } else d
+    }
+
+    var title by remember { mutableStateOf(draft?.title ?: note?.title ?: "") }
+    var contentValue by remember { mutableStateOf(TextFieldValue(draft?.content ?: note?.content ?: "")) }
+    var tags by remember { mutableStateOf(draft?.tags ?: note?.tags ?: emptyList()) }
     var newTag by remember { mutableStateOf("") }
     var showTagInput by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var attachmentIds by remember { mutableStateOf(note?.attachments ?: emptyList()) }
+    var attachmentIds by remember { mutableStateOf(draft?.attachments ?: note?.attachments ?: emptyList()) }
     var attachmentThumbnails by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
     var showVaultPicker by remember { mutableStateOf(false) }
-    var linkedPersonId by remember { mutableStateOf(note?.personId) }
+    var linkedPersonId by remember { mutableStateOf(draft?.personId ?: note?.personId) }
 
     // Audio attachments
-    var audioIds by remember { mutableStateOf(note?.audioAttachments ?: emptyList()) }
+    var audioIds by remember { mutableStateOf(draft?.audioAttachments ?: note?.audioAttachments ?: emptyList()) }
     var isRecording by remember { mutableStateOf(false) }
     var recordingDuration by remember { mutableIntStateOf(0) }
     var playingAudioId by remember { mutableStateOf<String?>(null) }
@@ -164,6 +187,46 @@ fun NoteEditorScreen(
     var mediaRecorder by remember { mutableStateOf<android.media.MediaRecorder?>(null) }
     var currentRecordingFile by remember { mutableStateOf<java.io.File?>(null) }
     var mediaPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    // Play-all mode: when true, OnCompletionListener advances to the next clip
+    // in audioIds order until the list is exhausted.
+    var playAllMode by remember { mutableStateOf(false) }
+
+    fun startPlayingAudio(audioId: String) {
+        mediaPlayer?.release()
+        mediaPlayer = null
+        try {
+            val encFile = java.io.File(audioDir, "$audioId.enc")
+            if (!encFile.exists()) { playingAudioId = null; playAllMode = false; return }
+            val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
+            val decrypted = crypto.decryptFile(encFile)
+            val tempFile = java.io.File(context.cacheDir, "play_${audioId}.m4a")
+            tempFile.writeBytes(decrypted)
+            val mp = android.media.MediaPlayer()
+            mp.setDataSource(tempFile.absolutePath)
+            mp.prepare()
+            mp.start()
+            mp.setOnCompletionListener {
+                tempFile.delete()
+                if (playAllMode) {
+                    val idx = audioIds.indexOf(audioId)
+                    val next = audioIds.getOrNull(idx + 1)
+                    if (next != null) {
+                        startPlayingAudio(next)
+                    } else {
+                        playingAudioId = null
+                        playAllMode = false
+                    }
+                } else {
+                    playingAudioId = null
+                }
+            }
+            mediaPlayer = mp
+            playingAudioId = audioId
+        } catch (_: Exception) {
+            playingAudioId = null
+            playAllMode = false
+        }
+    }
 
     // Checklist mode
     var isChecklistMode by remember {
@@ -188,6 +251,107 @@ fun NoteEditorScreen(
 
     val brandColor = MaterialTheme.colorScheme.primary
     val surfaceTone = MaterialTheme.colorScheme.surfaceContainerLow
+
+    // RECORD_AUDIO permission gate. Older devices and fresh installs land here
+    // without the runtime permission yet — prior code silently swallowed the
+    // SecurityException from MediaRecorder.start(), so the user saw nothing.
+    var hasAudioPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var pendingRecordAfterPermission by remember { mutableStateOf(false) }
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasAudioPermission = granted
+        if (!granted) {
+            pendingRecordAfterPermission = false
+            android.widget.Toast.makeText(
+                context,
+                context.getString(R.string.note_audio_permission_denied),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+        // If granted, the mic button click handler below picks it up via
+        // pendingRecordAfterPermission on next click; we don't auto-start
+        // because rememberLauncher's callback is async after the user grants.
+    }
+
+    fun startVoiceRecording() {
+        val tempFile = java.io.File(context.cacheDir, "voice_${System.currentTimeMillis()}.m4a")
+        // VOICE_RECOGNITION asks the device's audio HAL to apply hardware
+        // noise suppression + AGC tuned for speech. Falls back to identical
+        // behavior on devices that don't process it. The toggle lets users
+        // who want raw audio (musicians, ambient capture) opt out.
+        val cleanEnabled = context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE)
+            .getBoolean("clean_voice_notes", true)
+        val source = if (cleanEnabled)
+            android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION
+        else
+            android.media.MediaRecorder.AudioSource.MIC
+        try {
+            val rec = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+                android.media.MediaRecorder(context)
+            else @Suppress("DEPRECATION") android.media.MediaRecorder()
+            rec.setAudioSource(source)
+            rec.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+            rec.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+            rec.setAudioSamplingRate(44100); rec.setAudioEncodingBitRate(128000)
+            rec.setOutputFile(tempFile.absolutePath); rec.prepare(); rec.start()
+            mediaRecorder = rec; currentRecordingFile = tempFile
+            isRecording = true; recordingDuration = 0
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(
+                context,
+                context.getString(R.string.note_audio_record_failed),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    // Auto-start recording once permission has just been granted (the user
+    // tapped Mic, was prompted, accepted — this picks the recording back up
+    // without making them tap Mic a second time).
+    LaunchedEffect(hasAudioPermission) {
+        if (hasAudioPermission && pendingRecordAfterPermission) {
+            pendingRecordAfterPermission = false
+            startVoiceRecording()
+        }
+    }
+
+    // Persist a draft on backgrounding so auto-lock doesn't silently drop the
+    // user's unsaved edits. Skip when the editor is empty (nothing to save).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, draftKey) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                val hasContent = title.isNotBlank() || contentValue.text.isNotBlank() ||
+                    tags.isNotEmpty() || attachmentIds.isNotEmpty() || audioIds.isNotEmpty()
+                val sameAsSaved = note != null &&
+                    title == note.title && contentValue.text == note.content &&
+                    tags == note.tags && attachmentIds == note.attachments &&
+                    audioIds == note.audioAttachments && linkedPersonId == note.personId
+                if (hasContent && !sameAsSaved) {
+                    noteRepo.saveDraft(draftKey, title, contentValue.text, tags, attachmentIds, audioIds, linkedPersonId)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // If we restored from a draft, let the user know once.
+    LaunchedEffect(Unit) {
+        if (draft != null) {
+            android.widget.Toast.makeText(
+                context,
+                context.getString(R.string.note_draft_restored),
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 
     // Load linked person name
     LaunchedEffect(linkedPersonId) {
@@ -506,17 +670,11 @@ fun NoteEditorScreen(
                             crypto.encryptFile(file, encFile); file.delete()
                             audioIds = audioIds + audioId
                         }; currentRecordingFile = null
+                    } else if (!hasAudioPermission) {
+                        pendingRecordAfterPermission = true
+                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     } else {
-                        val tempFile = java.io.File(context.cacheDir, "voice_${System.currentTimeMillis()}.m4a")
-                        try {
-                            val rec = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) android.media.MediaRecorder(context) else @Suppress("DEPRECATION") android.media.MediaRecorder()
-                            rec.setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
-                            rec.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
-                            rec.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
-                            rec.setAudioSamplingRate(44100); rec.setAudioEncodingBitRate(128000)
-                            rec.setOutputFile(tempFile.absolutePath); rec.prepare(); rec.start()
-                            mediaRecorder = rec; currentRecordingFile = tempFile; isRecording = true; recordingDuration = 0
-                        } catch (_: Exception) {}
+                        startVoiceRecording()
                     }
                 }
                 if (isRecording) {
@@ -758,6 +916,44 @@ fun NoteEditorScreen(
             // ── Audio attachments — waveform bubbles ──
             if (audioIds.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
+
+                // Play-all toggle — only useful when 2+ clips. Tap once to play
+                // all clips in sequence; OnCompletionListener advances to the
+                // next clip in audioIds order until the list is exhausted.
+                if (audioIds.size >= 2) {
+                    val anyPlaying = playingAudioId != null
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                if (playAllMode || anyPlaying) {
+                                    mediaPlayer?.release()
+                                    mediaPlayer = null
+                                    playingAudioId = null
+                                    playAllMode = false
+                                } else {
+                                    playAllMode = true
+                                    audioIds.firstOrNull()?.let { startPlayingAudio(it) }
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            if (playAllMode) Icons.Default.Stop else Icons.Default.PlayArrow,
+                            null, Modifier.size(18.dp), tint = brandColor
+                        )
+                        Text(
+                            if (playAllMode) stringResource(R.string.note_audio_stop_all)
+                            else stringResource(R.string.note_audio_play_all),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = brandColor
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+
                 audioIds.forEach { audioId ->
                     val isPlaying = playingAudioId == audioId
                     var audioDuration by remember { mutableIntStateOf(0) }
@@ -790,25 +986,11 @@ fun NoteEditorScreen(
                                     if (isPlaying) {
                                         mediaPlayer?.pause()
                                         playingAudioId = null
+                                        playAllMode = false
                                     } else {
-                                        mediaPlayer?.release()
-                                        try {
-                                            val encFile = java.io.File(audioDir, "$audioId.enc")
-                                            if (encFile.exists()) {
-                                                val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
-                                                val decrypted = crypto.decryptFile(encFile)
-                                                val tempFile = java.io.File(context.cacheDir, "play_${audioId}.m4a")
-                                                tempFile.writeBytes(decrypted)
-                                                val mp = android.media.MediaPlayer()
-                                                mp.setDataSource(tempFile.absolutePath)
-                                                mp.prepare()
-                                                audioDuration = mp.duration
-                                                mp.start()
-                                                mp.setOnCompletionListener { playingAudioId = null; audioPosition = 0; tempFile.delete() }
-                                                mediaPlayer = mp
-                                                playingAudioId = audioId
-                                            }
-                                        } catch (_: Exception) { playingAudioId = null }
+                                        // Single-clip tap: turn off play-all so we don't auto-advance.
+                                        playAllMode = false
+                                        startPlayingAudio(audioId)
                                     }
                                 },
                             contentAlignment = Alignment.Center

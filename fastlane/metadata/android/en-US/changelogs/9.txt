@@ -1,0 +1,19 @@
+v2.0.7
+
+Crashes
+• Phone-lock setup crash fixed
+• Barcode scanner now works on 32-bit ARM phones (Galaxy A13)
+
+Voice notes
+• Noise suppression + auto-gain (Settings → Privacy)
+• Mic permission prompt fixed
+• "Play all" clips in sequence
+• Voice clips on new notes now save
+
+Notes
+• Unsaved edits restored after auto-lock
+• Save errors keep you in the editor
+
+Wi-Fi: PIN/IP always Western digits (cross-locale)
+Settings → Advanced translated (FR/ES/ZH/AR)
+Password generator: own toolbar button

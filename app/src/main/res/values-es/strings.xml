@@ -655,4 +655,65 @@
     <!-- Settings: Language -->
     <string name="settings_language">Idioma</string>
     <string name="settings_language_system">Predeterminado del sistema</string>
+
+    <!-- Note editor: voice notes -->
+    <string name="note_audio_play_all">Reproducir todo</string>
+    <string name="note_audio_stop_all">Detener</string>
+    <string name="note_save_failed">No se pudo guardar — la bóveda estaba bloqueada. Inténtalo de nuevo.</string>
+    <string name="note_draft_restored">Cambios no guardados restaurados</string>
+    <string name="note_audio_permission_denied">Acceso al micrófono denegado. Actívelo en los ajustes del sistema para grabar.</string>
+    <string name="note_audio_record_failed">No se pudo iniciar la grabación. Otra app podría estar usando el micrófono.</string>
+    <string name="settings_clean_voice_notes">Limpiar notas de voz</string>
+    <string name="settings_clean_voice_notes_desc">Activa la supresión de ruido por hardware y el auto-volumen en las nuevas grabaciones</string>
+
+    <!-- Settings: Advanced section -->
+    <string name="settings_advanced">Avanzado</string>
+    <string name="settings_advanced_unlock_title">Desbloquear ajustes avanzados</string>
+    <string name="settings_advanced_unlock_subtitle">Autentíquese para acceder a los ajustes críticos</string>
+    <string name="settings_advanced_tap_to_unlock">Toque para desbloquear</string>
+    <string name="settings_advanced_summary">Copia de seguridad, PIN de emergencia, transferencia, reindexar</string>
+    <string name="settings_advanced_pin_prompt">Introduzca su PIN para acceder a los ajustes críticos.</string>
+
+    <!-- Settings: AI Assistant -->
+    <string name="settings_ai_assistant_title">Asistente IA (Gemma 4)</string>
+    <string name="settings_ai_assistant_enabled">Activado — %1$s</string>
+    <string name="settings_ai_assistant_downloading">Activado — descargando modelo…</string>
+    <string name="settings_ai_assistant_off">Desactivado — toque para activar IA en el dispositivo</string>
+    <string name="settings_ai_dialog_title">Activar asistente IA</string>
+    <string name="settings_ai_dialog_intro">Descargue Gemma 4 E2B para funciones de IA en el dispositivo:</string>
+    <string name="settings_ai_dialog_feature_summarize">• Resumir, reescribir y extraer tareas de las notas</string>
+    <string name="settings_ai_dialog_feature_grammar">• Mejor revisión gramatical y ortográfica</string>
+    <string name="settings_ai_dialog_feature_photos">• Descripciones de fotos y búsqueda semántica</string>
+    <string name="settings_ai_dialog_storage_label">Almacenamiento:</string>
+    <string name="settings_ai_dialog_storage_line">• Necesario: ~2,6 GB   •   Libre: %1$s</string>
+    <string name="settings_ai_dialog_storage_low">Almacenamiento insuficiente. Libere al menos %1$s para continuar.</string>
+    <string name="settings_ai_dialog_memory_label">Memoria:</string>
+    <string name="settings_ai_dialog_memory_line">• Necesario: 4 GB+   •   Dispositivo: %1$d MB</string>
+    <string name="settings_ai_dialog_memory_low">Poca RAM — la IA será lenta y puede provocar inestabilidad.</string>
+    <string name="settings_ai_dialog_memory_recommended">Recomendado: 6 GB+ de RAM para mejor rendimiento.</string>
+    <string name="settings_ai_dialog_confirm">Descargar y activar</string>
+    <string name="settings_ai_dialog_confirm_blocked">Almacenamiento insuficiente</string>
+    <string name="settings_ai_delete_title">Eliminar modelo IA</string>
+    <string name="settings_ai_delete_subtitle">Liberar %1$s de almacenamiento</string>
+
+    <!-- Settings: Transfer to New Device -->
+    <string name="settings_transfer_title">Transferir a nuevo dispositivo</string>
+    <string name="settings_transfer_step1">1. Cree una copia de seguridad cifrada arriba</string>
+    <string name="settings_transfer_step2">2. Transfiera el archivo .paicbackup al nuevo dispositivo</string>
+    <string name="settings_transfer_step3">3. Instale Privora en el nuevo dispositivo → Importar copia</string>
+
+    <!-- Settings: Wipe everything -->
+    <string name="settings_wipe_title">Borrar todo</string>
+    <string name="settings_wipe_subtitle">Eliminar permanentemente TODOS los datos, incluidas las claves de cifrado</string>
+    <string name="settings_wipe_dialog_title">¿Borrar todos los datos?</string>
+    <string name="settings_wipe_dialog_intro">Esto eliminará permanentemente:</string>
+    <string name="settings_wipe_dialog_item_photos">• Todas las fotos y vídeos cifrados</string>
+    <string name="settings_wipe_dialog_item_notes">• Todas las notas y grabaciones de voz</string>
+    <string name="settings_wipe_dialog_item_contacts">• Todos los contactos y fotos de perfil</string>
+    <string name="settings_wipe_dialog_item_faces">• Datos de reconocimiento facial</string>
+    <string name="settings_wipe_dialog_item_keys">• Claves de cifrado (irrecuperables)</string>
+    <string name="settings_wipe_dialog_item_settings">• Todos los ajustes de la aplicación</string>
+    <string name="settings_wipe_dialog_question">¿Ha creado una copia de seguridad?</string>
+    <string name="settings_wipe_dialog_confirm">BORRAR TODOS LOS DATOS</string>
+    <string name="settings_wipe_done_toast">Todos los datos borrados. Aplicación restablecida.</string>
 </resources>

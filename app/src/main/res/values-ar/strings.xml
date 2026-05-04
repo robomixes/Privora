@@ -655,4 +655,65 @@
     <!-- Settings: Language -->
     <string name="settings_language">اللغة</string>
     <string name="settings_language_system">الإعداد الافتراضي للنظام</string>
+
+    <!-- Note editor: voice notes -->
+    <string name="note_audio_play_all">تشغيل الكل</string>
+    <string name="note_audio_stop_all">إيقاف</string>
+    <string name="note_save_failed">تعذّر الحفظ — تم قفل الخزينة. حاول مرة أخرى.</string>
+    <string name="note_draft_restored">تمت استعادة التغييرات غير المحفوظة</string>
+    <string name="note_audio_permission_denied">تم رفض الوصول إلى الميكروفون. فعّله من إعدادات النظام لتسجيل الملاحظات الصوتية.</string>
+    <string name="note_audio_record_failed">تعذّر بدء التسجيل. قد يكون الميكروفون قيد الاستخدام بواسطة تطبيق آخر.</string>
+    <string name="settings_clean_voice_notes">تنظيف الملاحظات الصوتية</string>
+    <string name="settings_clean_voice_notes_desc">تفعيل تقليل الضوضاء وضبط الكسب التلقائي على التسجيلات الجديدة</string>
+
+    <!-- Settings: Advanced section -->
+    <string name="settings_advanced">متقدم</string>
+    <string name="settings_advanced_unlock_title">فتح الإعدادات المتقدمة</string>
+    <string name="settings_advanced_unlock_subtitle">قم بالمصادقة للوصول إلى الإعدادات الحساسة</string>
+    <string name="settings_advanced_tap_to_unlock">اضغط للفتح</string>
+    <string name="settings_advanced_summary">النسخ الاحتياطي، رمز الطوارئ، نقل الجهاز، إعادة الفهرسة</string>
+    <string name="settings_advanced_pin_prompt">أدخل رمز PIN للوصول إلى الإعدادات الحساسة.</string>
+
+    <!-- Settings: AI Assistant -->
+    <string name="settings_ai_assistant_title">المساعد الذكي (Gemma 4)</string>
+    <string name="settings_ai_assistant_enabled">مفعّل — %1$s</string>
+    <string name="settings_ai_assistant_downloading">مفعّل — جارٍ تنزيل النموذج…</string>
+    <string name="settings_ai_assistant_off">معطّل — اضغط لتفعيل الذكاء الاصطناعي على الجهاز</string>
+    <string name="settings_ai_dialog_title">تفعيل المساعد الذكي</string>
+    <string name="settings_ai_dialog_intro">قم بتنزيل Gemma 4 E2B لاستخدام ميزات الذكاء الاصطناعي على الجهاز:</string>
+    <string name="settings_ai_dialog_feature_summarize">• تلخيص الملاحظات وإعادة صياغتها واستخراج المهام</string>
+    <string name="settings_ai_dialog_feature_grammar">• فحص أفضل للقواعد والإملاء</string>
+    <string name="settings_ai_dialog_feature_photos">• وصف الصور والبحث الدلالي</string>
+    <string name="settings_ai_dialog_storage_label">التخزين:</string>
+    <string name="settings_ai_dialog_storage_line">• المطلوب: نحو 2.6 جيجابايت   •   المتاح: %1$s</string>
+    <string name="settings_ai_dialog_storage_low">المساحة غير كافية. حرّر %1$s على الأقل للمتابعة.</string>
+    <string name="settings_ai_dialog_memory_label">الذاكرة:</string>
+    <string name="settings_ai_dialog_memory_line">• المطلوب: 4 جيجابايت+   •   الجهاز: %1$d ميجابايت</string>
+    <string name="settings_ai_dialog_memory_low">ذاكرة منخفضة — ستكون ميزات الذكاء الاصطناعي بطيئة وقد تسبب عدم استقرار.</string>
+    <string name="settings_ai_dialog_memory_recommended">يُنصح بـ 6 جيجابايت+ من الذاكرة لأفضل تجربة.</string>
+    <string name="settings_ai_dialog_confirm">تنزيل وتفعيل</string>
+    <string name="settings_ai_dialog_confirm_blocked">المساحة غير كافية</string>
+    <string name="settings_ai_delete_title">حذف نموذج الذكاء الاصطناعي</string>
+    <string name="settings_ai_delete_subtitle">تحرير %1$s من التخزين</string>
+
+    <!-- Settings: Transfer to New Device -->
+    <string name="settings_transfer_title">النقل إلى جهاز جديد</string>
+    <string name="settings_transfer_step1">1. أنشئ نسخة احتياطية مشفّرة من الأعلى</string>
+    <string name="settings_transfer_step2">2. انقل ملف ‎.paicbackup‎ إلى جهازك الجديد</string>
+    <string name="settings_transfer_step3">3. ثبّت Privora على الجهاز الجديد ← استورد النسخة الاحتياطية</string>
+
+    <!-- Settings: Wipe everything -->
+    <string name="settings_wipe_title">مسح كل شيء</string>
+    <string name="settings_wipe_subtitle">حذف جميع البيانات نهائيًا، بما في ذلك مفاتيح التشفير</string>
+    <string name="settings_wipe_dialog_title">مسح جميع البيانات؟</string>
+    <string name="settings_wipe_dialog_intro">سيؤدي هذا إلى الحذف النهائي لـ:</string>
+    <string name="settings_wipe_dialog_item_photos">• جميع الصور ومقاطع الفيديو المشفّرة</string>
+    <string name="settings_wipe_dialog_item_notes">• جميع الملاحظات والتسجيلات الصوتية</string>
+    <string name="settings_wipe_dialog_item_contacts">• جميع جهات الاتصال وصور الملف الشخصي</string>
+    <string name="settings_wipe_dialog_item_faces">• بيانات التعرف على الوجوه</string>
+    <string name="settings_wipe_dialog_item_keys">• مفاتيح التشفير (غير قابلة للاسترجاع)</string>
+    <string name="settings_wipe_dialog_item_settings">• جميع إعدادات التطبيق</string>
+    <string name="settings_wipe_dialog_question">هل أنشأت نسخة احتياطية؟</string>
+    <string name="settings_wipe_dialog_confirm">مسح جميع البيانات</string>
+    <string name="settings_wipe_done_toast">تم مسح جميع البيانات. أُعيد ضبط التطبيق.</string>
 </resources>

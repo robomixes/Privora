@@ -686,4 +686,65 @@
     <string name="n_groups_found">%1$d groups found</string>
     <string name="all_photos">Photos</string>
     <string name="all_videos">Videos</string>
+
+    <!-- Note editor: voice notes -->
+    <string name="note_audio_play_all">Play all</string>
+    <string name="note_audio_stop_all">Stop</string>
+    <string name="note_save_failed">Couldn\'t save — vault was locked. Try again.</string>
+    <string name="note_draft_restored">Restored unsaved changes</string>
+    <string name="note_audio_permission_denied">Microphone access denied. Enable it in system settings to record voice notes.</string>
+    <string name="note_audio_record_failed">Couldn\'t start recording. The microphone may be in use by another app.</string>
+    <string name="settings_clean_voice_notes">Clean voice notes</string>
+    <string name="settings_clean_voice_notes_desc">Enable hardware noise suppression and auto-gain on new recordings</string>
+
+    <!-- Settings: Advanced section -->
+    <string name="settings_advanced">Advanced</string>
+    <string name="settings_advanced_unlock_title">Unlock Advanced Settings</string>
+    <string name="settings_advanced_unlock_subtitle">Authenticate to access critical settings</string>
+    <string name="settings_advanced_tap_to_unlock">Tap to unlock</string>
+    <string name="settings_advanced_summary">Backup, Emergency PIN, Device Transfer, Re-index</string>
+    <string name="settings_advanced_pin_prompt">Enter your PIN to access critical settings.</string>
+
+    <!-- Settings: AI Assistant -->
+    <string name="settings_ai_assistant_title">AI Assistant (Gemma 4)</string>
+    <string name="settings_ai_assistant_enabled">Enabled — %1$s</string>
+    <string name="settings_ai_assistant_downloading">Enabled — downloading model…</string>
+    <string name="settings_ai_assistant_off">Off — tap to enable on-device AI</string>
+    <string name="settings_ai_dialog_title">Enable AI Assistant</string>
+    <string name="settings_ai_dialog_intro">Download Gemma 4 E2B for on-device AI features:</string>
+    <string name="settings_ai_dialog_feature_summarize">• Summarize, rewrite, and extract tasks from notes</string>
+    <string name="settings_ai_dialog_feature_grammar">• Better grammar and spelling check</string>
+    <string name="settings_ai_dialog_feature_photos">• Photo descriptions and semantic search</string>
+    <string name="settings_ai_dialog_storage_label">Storage:</string>
+    <string name="settings_ai_dialog_storage_line">• Required: ~2.6 GB   •   Free: %1$s</string>
+    <string name="settings_ai_dialog_storage_low">Not enough storage. Free up at least %1$s to continue.</string>
+    <string name="settings_ai_dialog_memory_label">Memory:</string>
+    <string name="settings_ai_dialog_memory_line">• Required: 4 GB+   •   Device: %1$d MB</string>
+    <string name="settings_ai_dialog_memory_low">Low RAM — AI features will be slow and may cause instability.</string>
+    <string name="settings_ai_dialog_memory_recommended">Recommended: 6 GB+ RAM for best experience.</string>
+    <string name="settings_ai_dialog_confirm">Download &amp; Enable</string>
+    <string name="settings_ai_dialog_confirm_blocked">Not enough storage</string>
+    <string name="settings_ai_delete_title">Delete AI Model</string>
+    <string name="settings_ai_delete_subtitle">Free %1$s of storage</string>
+
+    <!-- Settings: Transfer to New Device -->
+    <string name="settings_transfer_title">Transfer to New Device</string>
+    <string name="settings_transfer_step1">1. Create an encrypted backup above</string>
+    <string name="settings_transfer_step2">2. Transfer the .paicbackup file to your new device</string>
+    <string name="settings_transfer_step3">3. Install Privora on new device → Import backup</string>
+
+    <!-- Settings: Wipe everything -->
+    <string name="settings_wipe_title">Wipe Everything</string>
+    <string name="settings_wipe_subtitle">Permanently delete ALL data including encryption keys</string>
+    <string name="settings_wipe_dialog_title">Wipe All Data?</string>
+    <string name="settings_wipe_dialog_intro">This will permanently delete:</string>
+    <string name="settings_wipe_dialog_item_photos">• All encrypted photos &amp; videos</string>
+    <string name="settings_wipe_dialog_item_notes">• All notes &amp; voice recordings</string>
+    <string name="settings_wipe_dialog_item_contacts">• All contacts &amp; profile photos</string>
+    <string name="settings_wipe_dialog_item_faces">• Face recognition data</string>
+    <string name="settings_wipe_dialog_item_keys">• Encryption keys (unrecoverable)</string>
+    <string name="settings_wipe_dialog_item_settings">• All app settings</string>
+    <string name="settings_wipe_dialog_question">Have you created a backup?</string>
+    <string name="settings_wipe_dialog_confirm">WIPE ALL DATA</string>
+    <string name="settings_wipe_done_toast">All data wiped. App reset to fresh state.</string>
 </resources>

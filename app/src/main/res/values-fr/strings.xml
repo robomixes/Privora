@@ -653,4 +653,65 @@
     <!-- Health profile dialog -->
     <string name="health_add_profile_title">Ajouter un membre de la famille</string>
     <string name="health_profile_name">Nom</string>
+
+    <!-- Note editor: voice notes -->
+    <string name="note_audio_play_all">Tout lire</string>
+    <string name="note_audio_stop_all">Arrêter</string>
+    <string name="note_save_failed">Échec de l\'enregistrement — coffre verrouillé. Réessayez.</string>
+    <string name="note_draft_restored">Modifications non enregistrées restaurées</string>
+    <string name="note_audio_permission_denied">Accès au microphone refusé. Activez-le dans les paramètres système pour enregistrer.</string>
+    <string name="note_audio_record_failed">Impossible de démarrer l\'enregistrement. Le micro est peut-être utilisé par une autre app.</string>
+    <string name="settings_clean_voice_notes">Nettoyer les notes vocales</string>
+    <string name="settings_clean_voice_notes_desc">Active la réduction de bruit matérielle et le gain auto sur les nouveaux enregistrements</string>
+
+    <!-- Settings: Advanced section -->
+    <string name="settings_advanced">Avancé</string>
+    <string name="settings_advanced_unlock_title">Déverrouiller les paramètres avancés</string>
+    <string name="settings_advanced_unlock_subtitle">Authentifiez-vous pour accéder aux paramètres critiques</string>
+    <string name="settings_advanced_tap_to_unlock">Appuyez pour déverrouiller</string>
+    <string name="settings_advanced_summary">Sauvegarde, code d\'urgence, transfert d\'appareil, réindexation</string>
+    <string name="settings_advanced_pin_prompt">Saisissez votre code pour accéder aux paramètres critiques.</string>
+
+    <!-- Settings: AI Assistant -->
+    <string name="settings_ai_assistant_title">Assistant IA (Gemma 4)</string>
+    <string name="settings_ai_assistant_enabled">Activé — %1$s</string>
+    <string name="settings_ai_assistant_downloading">Activé — téléchargement du modèle…</string>
+    <string name="settings_ai_assistant_off">Désactivé — appuyez pour activer l\'IA sur l\'appareil</string>
+    <string name="settings_ai_dialog_title">Activer l\'assistant IA</string>
+    <string name="settings_ai_dialog_intro">Téléchargez Gemma 4 E2B pour les fonctions IA hors ligne :</string>
+    <string name="settings_ai_dialog_feature_summarize">• Résumer, reformuler et extraire des tâches des notes</string>
+    <string name="settings_ai_dialog_feature_grammar">• Meilleure correction orthographique et grammaticale</string>
+    <string name="settings_ai_dialog_feature_photos">• Descriptions de photos et recherche sémantique</string>
+    <string name="settings_ai_dialog_storage_label">Stockage :</string>
+    <string name="settings_ai_dialog_storage_line">• Requis : ~2,6 Go   •   Libre : %1$s</string>
+    <string name="settings_ai_dialog_storage_low">Stockage insuffisant. Libérez au moins %1$s pour continuer.</string>
+    <string name="settings_ai_dialog_memory_label">Mémoire :</string>
+    <string name="settings_ai_dialog_memory_line">• Requis : 4 Go+   •   Appareil : %1$d Mo</string>
+    <string name="settings_ai_dialog_memory_low">RAM faible — l\'IA sera lente et risque d\'être instable.</string>
+    <string name="settings_ai_dialog_memory_recommended">Recommandé : 6 Go+ de RAM pour une expérience optimale.</string>
+    <string name="settings_ai_dialog_confirm">Télécharger et activer</string>
+    <string name="settings_ai_dialog_confirm_blocked">Stockage insuffisant</string>
+    <string name="settings_ai_delete_title">Supprimer le modèle IA</string>
+    <string name="settings_ai_delete_subtitle">Libérer %1$s de stockage</string>
+
+    <!-- Settings: Transfer to New Device -->
+    <string name="settings_transfer_title">Transférer vers un nouvel appareil</string>
+    <string name="settings_transfer_step1">1. Créez une sauvegarde chiffrée ci-dessus</string>
+    <string name="settings_transfer_step2">2. Transférez le fichier .paicbackup vers le nouvel appareil</string>
+    <string name="settings_transfer_step3">3. Installez Privora sur le nouvel appareil → Importer la sauvegarde</string>
+
+    <!-- Settings: Wipe everything -->
+    <string name="settings_wipe_title">Tout effacer</string>
+    <string name="settings_wipe_subtitle">Supprimer définitivement TOUTES les données, y compris les clés de chiffrement</string>
+    <string name="settings_wipe_dialog_title">Effacer toutes les données ?</string>
+    <string name="settings_wipe_dialog_intro">Cette action supprimera définitivement :</string>
+    <string name="settings_wipe_dialog_item_photos">• Toutes les photos et vidéos chiffrées</string>
+    <string name="settings_wipe_dialog_item_notes">• Toutes les notes et enregistrements vocaux</string>
+    <string name="settings_wipe_dialog_item_contacts">• Tous les contacts et photos de profil</string>
+    <string name="settings_wipe_dialog_item_faces">• Les données de reconnaissance faciale</string>
+    <string name="settings_wipe_dialog_item_keys">• Les clés de chiffrement (irrécupérables)</string>
+    <string name="settings_wipe_dialog_item_settings">• Tous les paramètres de l\'application</string>
+    <string name="settings_wipe_dialog_question">Avez-vous créé une sauvegarde ?</string>
+    <string name="settings_wipe_dialog_confirm">TOUT EFFACER</string>
+    <string name="settings_wipe_done_toast">Toutes les données effacées. Application réinitialisée.</string>
 </resources>

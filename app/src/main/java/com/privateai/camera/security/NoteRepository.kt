@@ -55,6 +55,7 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
             content = content,
             tags = tags,
             attachments = attachments,
+            audioAttachments = audioAttachments,
             personId = personId,
             createdAt = now,
             modifiedAt = now
@@ -87,7 +88,76 @@ class NoteRepository(private val notesDir: File, private val crypto: CryptoManag
 
     fun deleteNote(id: String) {
         File(notesDir, "$id.note.enc").delete()
+        File(notesDir, "$id.draft.enc").delete()
         Log.d(TAG, "Note deleted: $id")
+    }
+
+    /**
+     * Save an in-progress editor state as an encrypted draft. Used to recover
+     * unsaved edits if the editor gets unmounted by auto-lock before the user
+     * taps Save. `id` is the note id for existing notes, or "__new__" for a
+     * not-yet-created note.
+     */
+    fun saveDraft(
+        id: String,
+        title: String,
+        content: String,
+        tags: List<String>,
+        attachments: List<String>,
+        audioAttachments: List<String>,
+        personId: String?
+    ) {
+        try {
+            val json = JSONObject().apply {
+                put("title", title)
+                put("content", content)
+                put("tags", JSONArray(tags))
+                put("attachments", JSONArray(attachments))
+                put("audioAttachments", JSONArray(audioAttachments))
+                put("personId", personId ?: "")
+                put("savedAt", System.currentTimeMillis())
+            }.toString()
+            crypto.encryptToFile(json.toByteArray(Charsets.UTF_8), File(notesDir, "$id.draft.enc"))
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to save draft for $id: ${e.message}")
+        }
+    }
+
+    data class NoteDraft(
+        val title: String,
+        val content: String,
+        val tags: List<String>,
+        val attachments: List<String>,
+        val audioAttachments: List<String>,
+        val personId: String?,
+        val savedAt: Long
+    )
+
+    fun loadDraft(id: String): NoteDraft? {
+        return try {
+            val file = File(notesDir, "$id.draft.enc")
+            if (!file.exists()) return null
+            val obj = JSONObject(String(crypto.decryptFile(file), Charsets.UTF_8))
+            fun arrToList(key: String): List<String> = if (obj.has(key)) {
+                val a = obj.getJSONArray(key); (0 until a.length()).map { a.getString(it) }
+            } else emptyList()
+            NoteDraft(
+                title = obj.optString("title", ""),
+                content = obj.optString("content", ""),
+                tags = arrToList("tags"),
+                attachments = arrToList("attachments"),
+                audioAttachments = arrToList("audioAttachments"),
+                personId = obj.optString("personId", "").ifEmpty { null },
+                savedAt = obj.optLong("savedAt", 0L)
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load draft for $id: ${e.message}")
+            null
+        }
+    }
+
+    fun clearDraft(id: String) {
+        File(notesDir, "$id.draft.enc").delete()
     }
 
     fun searchNotes(query: String): List<SecureNote> {

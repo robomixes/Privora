@@ -29,6 +29,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
@@ -216,6 +217,7 @@ fun PasswordHintsScreen(onBack: (() -> Unit)? = null) {
     var showAddDialog by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<PasswordHint?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<PasswordHint?>(null) }
+    var showGeneratorDialog by remember { mutableStateOf(false) }
 
     fun refresh() { hints = if (isDuressActive) emptyList() else repo.listAll() }
 
@@ -242,6 +244,10 @@ fun PasswordHintsScreen(onBack: (() -> Unit)? = null) {
         )
     }
 
+    if (showGeneratorDialog) {
+        PasswordGeneratorDialog(onDismiss = { showGeneratorDialog = false })
+    }
+
     showDeleteConfirm?.let { hint ->
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = null },
@@ -263,6 +269,17 @@ fun PasswordHintsScreen(onBack: (() -> Unit)? = null) {
                 },
                 navigationIcon = {
                     if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) }
+                },
+                actions = {
+                    if (!isDuressActive) {
+                        IconButton(onClick = { showGeneratorDialog = true }) {
+                            Icon(
+                                Icons.Default.AutoFixHigh,
+                                contentDescription = stringResource(R.string.password_generator_title),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 }
             )
         },
