@@ -1,15 +1,17 @@
 // SPDX-FileCopyrightText: 2026 Anas
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-package com.privateai.camera.ui.insights
+package com.privateai.camera.ui.health
 
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -18,8 +20,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,22 +40,16 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
@@ -60,18 +57,38 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.privateai.camera.R
+import com.privateai.camera.security.AppPinManager
 import com.privateai.camera.security.CryptoManager
 import com.privateai.camera.security.DuressManager
-import com.privateai.camera.security.PinRateLimiter
+import com.privateai.camera.security.HealthProfile
 import com.privateai.camera.security.InsightsRepository
+import com.privateai.camera.security.PinRateLimiter
 import com.privateai.camera.security.VaultLockManager
+import com.privateai.camera.ui.insights.ProfileFilter
+import com.privateai.camera.ui.insights.SELF_PROFILE_ID
 import com.privateai.camera.ui.onboarding.AuthMode
 import com.privateai.camera.ui.onboarding.getAuthMode
 import java.io.File
 
+/**
+ * Top-level Health feature. Three tabs share one profile filter:
+ *
+ *   Vitals       — weight / sleep / HR / BP / mood / temperature / steps
+ *   Medications  — tracked meds + linked reminders
+ *   Cycle        — period tracker + simple last-3-cycles prediction
+ *
+ * Mirrors [InsightsScreen] for auth + duress handling — those patterns are
+ * proven in production. Profile filter uses the existing [ProfileFilter]
+ * composable from `ui/insights/` package, imported across packages.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPersonId: String? = null) {
+fun HealthScreen(
+    onBack: (() -> Unit)? = null,
+    initialTab: Int = 0,
+    filterPersonId: String? = null,
+    onNavigateToPeople: (() -> Unit)? = null
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -83,7 +100,6 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
     var isDuressActive by remember { mutableStateOf(VaultLockManager.isDuressActive) }
     var selectedTab by remember { mutableIntStateOf(initialTab) }
 
-    // Auto-lock
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -100,7 +116,6 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // PIN state
     var pinInput by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
     val currentAuthMode = remember { getAuthMode(context) }
@@ -116,7 +131,9 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
                     if (crypto.initialize()) { VaultLockManager.markUnlocked(); isLocked = false }
                 }
             })
-        prompt.authenticate(BiometricPrompt.PromptInfo.Builder().setTitle(context.getString(R.string.insights_unlock_title)).setSubtitle(context.getString(R.string.insights_unlock_subtitle))
+        prompt.authenticate(BiometricPrompt.PromptInfo.Builder()
+            .setTitle(context.getString(R.string.health_unlock_title))
+            .setSubtitle(context.getString(R.string.health_unlock_subtitle))
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL).build())
     }
 
@@ -142,29 +159,21 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
             Thread { DuressManager.executeDuress(context, crypto) }.start()
             return
         }
-
         if (!PinRateLimiter.canAttempt(context)) {
             pinInput = ""
             isLockedOut = true
             lockoutRemainingMs = PinRateLimiter.remainingLockoutMs(context)
             return
         }
-
-        if (com.privateai.camera.security.AppPinManager.verify(context, pin)) {
+        if (AppPinManager.verify(context, pin)) {
             PinRateLimiter.recordSuccess(context)
             if (crypto.initialize()) { isDuressActive = false; VaultLockManager.clearDuress(); VaultLockManager.markUnlocked(); isLocked = false; pinInput = ""; pinError = null }
             return
         }
-
         PinRateLimiter.recordFailure(context)
         val remaining = PinRateLimiter.remainingLockoutMs(context)
-        if (remaining > 0) {
-            isLockedOut = true
-            lockoutRemainingMs = remaining
-            pinError = null
-        } else {
-            pinError = context.getString(R.string.insights_incorrect_pin)
-        }
+        if (remaining > 0) { isLockedOut = true; lockoutRemainingMs = remaining; pinError = null }
+        else { pinError = context.getString(R.string.insights_incorrect_pin) }
         pinInput = ""
     }
 
@@ -174,13 +183,13 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
 
     if (isLocked) {
         Scaffold(topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.insights_title)) }, navigationIcon = {
+            TopAppBar(title = { Text(stringResource(R.string.feature_health)) }, navigationIcon = {
                 if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) }
             })
         }) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Icon(Icons.Default.Lock, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
-                Text(stringResource(R.string.insights_locked), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
+                Text(stringResource(R.string.health_locked), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
                 Spacer(Modifier.height(24.dp))
                 if (currentAuthMode == AuthMode.APP_PIN) {
                     if (isLockedOut) {
@@ -193,14 +202,19 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
                         )
                     } else {
                         OutlinedTextField(
-                            value = pinInput, onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) { pinInput = it; pinError = null } },
-                            label = { Text(stringResource(R.string.insights_enter_pin)) }, modifier = Modifier.width(200.dp), singleLine = true,
+                            value = pinInput,
+                            onValueChange = { if (it.length <= 8 && it.all { c -> c.isDigit() }) { pinInput = it; pinError = null } },
+                            label = { Text(stringResource(R.string.health_enter_pin)) },
+                            modifier = Modifier.width(200.dp), singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = { if (pinInput.length >= 4) checkPin(pinInput) }),
-                            visualTransformation = PasswordVisualTransformation(), isError = pinError != null,
+                            visualTransformation = PasswordVisualTransformation(),
+                            isError = pinError != null,
                             supportingText = { pinError?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
                         )
-                        Button(onClick = { if (pinInput.length >= 4) checkPin(pinInput) }, enabled = pinInput.length >= 4, modifier = Modifier.width(200.dp)) { Text(stringResource(R.string.action_unlock)) }
+                        Button(onClick = { if (pinInput.length >= 4) checkPin(pinInput) }, enabled = pinInput.length >= 4, modifier = Modifier.width(200.dp)) {
+                            Text(stringResource(R.string.action_unlock))
+                        }
                     }
                 } else {
                     Button(onClick = { authenticate() }, modifier = Modifier.width(200.dp)) { Text(stringResource(R.string.action_unlock)) }
@@ -210,48 +224,10 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
         return
     }
 
-    // Unlocked — show tabs. Vitals + Medications moved to the top-level Health
-    // feature; Schedule is its own top-level Reminders feature. Insights now
-    // hosts only the two cross-cutting trackers that don't belong in Health.
-    val tabs = listOf(
-        stringResource(R.string.tab_expenses) to Icons.Default.AttachMoney,
-        stringResource(R.string.tab_habits) to Icons.Default.CheckCircle
-    )
-
-    // Shared profile filter — hoisted so all tabs respect the same selection.
-    // All I/O is wrapped: composition must never throw, even immediately after a
-    // duress wipe when the SQLCipher DB and vault files may be in flux.
+    // Profiles — load with the same orphan-cleanup logic InsightsScreen uses.
     var profiles by remember {
-        val initial = if (isDuressActive) {
-            // Duress mode shows nothing anyway; skip orphan cleanup entirely so we
-            // don't touch a database that may be mid-rebuild.
-            emptyList()
-        } else {
-            try {
-                val all = try { repo.loadProfiles() } catch (_: Exception) { emptyList() }
-                val validContactIds = try {
-                    val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
-                    val contactRepo = com.privateai.camera.security.ContactRepository(
-                        java.io.File(context.filesDir, "vault/contacts"), crypto, db
-                    )
-                    contactRepo.listContacts().map { it.id }.toSet()
-                } catch (_: Exception) { null }
-                if (validContactIds != null) {
-                    val orphans = all.filter { it.personId != null && it.personId !in validContactIds }
-                    if (orphans.isNotEmpty()) {
-                        try {
-                            val healthEntries = repo.listHealthEntries()
-                            orphans.forEach { orphan ->
-                                healthEntries.filter { it.profileId == orphan.id }.forEach { repo.deleteHealthEntry(it.id) }
-                            }
-                            val cleaned = all.filterNot { orphans.contains(it) }
-                            repo.saveProfiles(cleaned)
-                            cleaned
-                        } catch (_: Exception) { all }
-                    } else all
-                } else all
-            } catch (_: Exception) { emptyList() }
-        }
+        val initial = if (isDuressActive) emptyList()
+        else try { repo.loadProfiles() } catch (_: Exception) { emptyList() }
         mutableStateOf(initial)
     }
     val initialProfileId = remember(filterPersonId) {
@@ -260,69 +236,72 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
     }
     var selectedProfileId by remember { mutableStateOf(initialProfileId) }
 
-    // Contact picker dialog state for linking a new profile
-    var showLinkDialog by remember { mutableStateOf(false) }
+    val refreshProfiles: () -> Unit = {
+        profiles = try { repo.loadProfiles() } catch (_: Exception) { emptyList() }
+    }
 
+    var showLinkDialog by remember { mutableStateOf(false) }
     if (showLinkDialog) {
-        LinkProfileDialog(
+        // Inline contact picker — keeps this self-contained without exporting
+        // InsightsScreen.LinkProfileDialog (which is private). Keep behavior in
+        // sync if InsightsScreen's version evolves.
+        LinkHealthProfileDialog(
             crypto = crypto,
             existingProfilePersonIds = profiles.mapNotNull { it.personId }.toSet(),
             onPicked = { contact ->
-                val newProfile = com.privateai.camera.security.HealthProfile(
-                    name = contact.name,
-                    personId = contact.id
-                )
+                val newProfile = HealthProfile(name = contact.name, personId = contact.id)
                 repo.saveProfiles(profiles + newProfile)
                 profiles = repo.loadProfiles()
                 selectedProfileId = newProfile.id
                 showLinkDialog = false
             },
-            onDismiss = { showLinkDialog = false }
+            onDismiss = { showLinkDialog = false },
+            onOpenPeople = onNavigateToPeople?.let { nav ->
+                { showLinkDialog = false; nav() }
+            }
         )
     }
 
-    // Pull self contact name for the "Me" chip label
     val selfLabel = remember {
         try {
             val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
             val contactRepo = com.privateai.camera.security.ContactRepository(
-                java.io.File(context.filesDir, "vault/contacts"), crypto, db
+                File(context.filesDir, "vault/contacts"), crypto, db
             )
             contactRepo.ensureSelfContact(context.getString(R.string.health_myself))
             contactRepo.getSelfContact()?.name ?: context.getString(R.string.health_myself)
         } catch (_: Exception) { context.getString(R.string.health_myself) }
     }
 
+    val tabs = listOf(
+        stringResource(R.string.health_tab_vitals) to Icons.Default.FitnessCenter,
+        stringResource(R.string.health_tab_meds) to Icons.Default.LocalPharmacy,
+        stringResource(R.string.health_tab_cycle) to Icons.Default.CalendarMonth
+    )
+
     Scaffold(topBar = {
-        TopAppBar(title = { Text(stringResource(R.string.insights_title)) }, navigationIcon = {
+        TopAppBar(title = { Text(stringResource(R.string.feature_health)) }, navigationIcon = {
             if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) }
         })
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // Profile filter chips — shown only on tabs that are actually profile-scoped.
-            // Expenses (tab 0) is always for the self profile (no person linkage), so the
-            // chip row is hidden there to avoid implying a filter that does nothing.
-            // During duress, show only "Me" (no family profiles, no add button) — same as all other data hidden.
-            val showProfileFilter = selectedTab != 0
-            if (showProfileFilter) {
-                ProfileFilter(
-                    profiles = if (isDuressActive) emptyList() else profiles,
-                    selectedProfileId = if (isDuressActive) SELF_PROFILE_ID else selectedProfileId,
-                    onProfileSelected = { if (!isDuressActive) selectedProfileId = it },
-                    onAddProfile = { if (!isDuressActive) showLinkDialog = true },
-                    onRemoveProfile = { prof ->
-                        if (isDuressActive) return@ProfileFilter
-                        repo.listHealthEntries()
-                            .filter { it.profileId == prof.id }
-                            .forEach { repo.deleteHealthEntry(it.id) }
-                        val remaining = profiles.filter { it.id != prof.id }
-                        repo.saveProfiles(remaining)
-                        profiles = remaining
-                    },
-                    selfLabel = selfLabel,
-                    showAddButton = !isDuressActive
-                )
-            }
+            ProfileFilter(
+                profiles = if (isDuressActive) emptyList() else profiles,
+                selectedProfileId = if (isDuressActive) SELF_PROFILE_ID else selectedProfileId,
+                onProfileSelected = { if (!isDuressActive) selectedProfileId = it },
+                onAddProfile = { if (!isDuressActive) showLinkDialog = true },
+                onRemoveProfile = { prof ->
+                    if (isDuressActive) return@ProfileFilter
+                    repo.listHealthEntries()
+                        .filter { it.profileId == prof.id }
+                        .forEach { repo.deleteHealthEntry(it.id) }
+                    val remaining = profiles.filter { it.id != prof.id }
+                    repo.saveProfiles(remaining)
+                    profiles = remaining
+                },
+                selfLabel = selfLabel,
+                showAddButton = !isDuressActive
+            )
 
             TabRow(selectedTabIndex = selectedTab) {
                 tabs.forEachIndexed { i, (title, icon) ->
@@ -333,15 +312,14 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
 
             Box(Modifier.fillMaxSize()) {
                 if (isDuressActive) {
-                    // Duress: show empty
                     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                         Text(stringResource(R.string.insights_no_data), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     when (selectedTab) {
-                        // Expenses always uses self — pass SELF_PROFILE_ID so user-side filter is moot.
-                        0 -> ExpensesTab(repo, selectedProfileId = SELF_PROFILE_ID)
-                        1 -> HabitsTab(repo, selectedProfileId = selectedProfileId)
+                        0 -> VitalsTab(repo, selectedProfileId = selectedProfileId, onProfilesChanged = refreshProfiles)
+                        1 -> MedicationsTab(repo, selectedProfileId = selectedProfileId)
+                        2 -> CycleTab(repo, selectedProfileId = selectedProfileId)
                     }
                 }
             }
@@ -350,18 +328,19 @@ fun InsightsScreen(onBack: (() -> Unit)? = null, initialTab: Int = 0, filterPers
 }
 
 @Composable
-private fun LinkProfileDialog(
-    crypto: com.privateai.camera.security.CryptoManager,
+private fun LinkHealthProfileDialog(
+    crypto: CryptoManager,
     existingProfilePersonIds: Set<String>,
     onPicked: (com.privateai.camera.security.PrivateContact) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onOpenPeople: (() -> Unit)? = null
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val contacts = remember {
         try {
             val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
             val contactRepo = com.privateai.camera.security.ContactRepository(
-                java.io.File(context.filesDir, "vault/contacts"), crypto, db
+                File(context.filesDir, "vault/contacts"), crypto, db
             )
             contactRepo.listContacts().filter {
                 it.id != com.privateai.camera.security.ContactRepository.SELF_CONTACT_ID &&
@@ -371,23 +350,26 @@ private fun LinkProfileDialog(
     }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Link a profile") },
+        title = { Text(stringResource(R.string.health_link_profile_title)) },
         text = {
             if (contacts.isEmpty()) {
-                Text("No contacts to link. Add someone in People first, or all your contacts are already linked.")
+                Text(
+                    stringResource(R.string.health_link_profile_empty),
+                    style = MaterialTheme.typography.bodyMedium
+                )
             } else {
                 Column(
-                    Modifier.verticalScroll(rememberScrollState()),
+                    Modifier.padding(vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     contacts.forEach { contact ->
-                        Row(
+                        androidx.compose.foundation.layout.Row(
                             Modifier
                                 .fillMaxWidth()
                                 .clickable { onPicked(contact) }
                                 .padding(vertical = 12.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text("👤", style = MaterialTheme.typography.titleMedium)
                             Text(contact.name, style = MaterialTheme.typography.bodyLarge)
@@ -396,9 +378,20 @@ private fun LinkProfileDialog(
                 }
             }
         },
-        confirmButton = {},
+        // Empty contact list → primary action becomes "Open People" so the
+        // user has a one-tap path to add someone, instead of needing to back
+        // out and navigate manually.
+        confirmButton = {
+            if (contacts.isEmpty() && onOpenPeople != null) {
+                androidx.compose.material3.TextButton(onClick = onOpenPeople) {
+                    Text(stringResource(R.string.health_link_profile_open_people))
+                }
+            }
+        },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") }
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
         }
     )
 }

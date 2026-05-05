@@ -102,7 +102,7 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = null, onDuressClick: (() -> Unit)? = null, onChangePinClick: (() -> Unit)? = null) {
+fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = null, onDuressClick: (() -> Unit)? = null, onChangePinClick: (() -> Unit)? = null, onRerunWizardClick: (() -> Unit)? = null) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
@@ -124,6 +124,20 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             navigationIcon = {
                 if (onBack != null) IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
+                }
+            },
+            actions = {
+                // Re-run calibration wizard — same destination as the row inside
+                // Advanced. Surfaced here so users don't have to scroll into the
+                // auth-gated Advanced section just to recalibrate.
+                if (onRerunWizardClick != null) {
+                    IconButton(onClick = { onRerunWizardClick.invoke() }) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = stringResource(R.string.settings_rerun_wizard),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         )
@@ -744,7 +758,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             SettingsItem(
                 icon = Icons.Default.Info,
                 title = stringResource(R.string.settings_privo),
-                subtitle = stringResource(R.string.settings_privo_desc)
+                subtitle = stringResource(R.string.settings_privo_desc, com.privateai.camera.BuildConfig.VERSION_NAME)
             )
 
             var crashLogs by remember { mutableStateOf(com.privateai.camera.service.CrashHandler.listLogs(context)) }
@@ -1108,6 +1122,23 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                             Column(Modifier.weight(1f)) {
                                 Text(stringResource(R.string.change_pin_title), style = MaterialTheme.typography.bodyLarge)
                                 Text(stringResource(R.string.change_pin_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        // Re-run setup wizard — re-routes to the calibration wizard
+                        // for layout/modules/AI/duress reconfiguration.
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable { onRerunWizardClick?.invoke() }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.settings_rerun_wizard), style = MaterialTheme.typography.bodyLarge)
+                                Text(stringResource(R.string.settings_rerun_wizard_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }

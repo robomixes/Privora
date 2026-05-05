@@ -33,6 +33,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
@@ -60,6 +61,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -155,6 +157,16 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     var activeRecording by remember { mutableStateOf<Recording?>(null) }
     var isSavingVideo by remember { mutableStateOf(false) }
+
+    // Zoom (pinch-to-zoom). Captured from CameraPreview's onCameraBound; the
+    // float state mirrors the live zoomRatio so we can show "1.5x" overlay
+    // and clamp gestures to [minZoomRatio, maxZoomRatio].
+    var cameraRef by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
+    var zoomRatio by remember { mutableFloatStateOf(1f) }
+    var showZoomIndicator by remember { mutableStateOf(false) }
+    LaunchedEffect(showZoomIndicator) {
+        if (showZoomIndicator) { delay(900); showZoomIndicator = false }
+    }
 
     // Face count (lightweight ML Kit face detection)
     var faceCount by remember { mutableIntStateOf(0) }
@@ -350,11 +362,30 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Camera preview
+        // Camera preview — wrap in pinch-to-zoom gesture detector. We bind to
+        // (cameraRef, useFrontCamera) so the gesture closure picks up the new
+        // Camera instance after a flip; switching cameras re-binds CameraX
+        // and the prior cameraControl handle becomes unusable.
         CameraPreview(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(cameraRef) {
+                    detectTransformGestures { _, _, zoom, _ ->
+                        val cam = cameraRef ?: return@detectTransformGestures
+                        if (zoom == 1f) return@detectTransformGestures
+                        val state = cam.cameraInfo.zoomState.value ?: return@detectTransformGestures
+                        val target = (state.zoomRatio * zoom).coerceIn(state.minZoomRatio, state.maxZoomRatio)
+                        cam.cameraControl.setZoomRatio(target)
+                        zoomRatio = target
+                        showZoomIndicator = true
+                    }
+                },
             cameraSelector = cameraSelector,
             isVideoMode = isVideoMode,
+            onCameraBound = { cam, _ ->
+                cameraRef = cam
+                zoomRatio = cam.cameraInfo.zoomState.value?.zoomRatio ?: 1f
+            },
             onFrameAnalyzed = { bitmap ->
                 frameCount++
                 if (frameCount % 5 != 0) {
@@ -401,6 +432,28 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                     .fillMaxSize()
                     .background(Color.White.copy(alpha = 0.6f))
             )
+        }
+
+        // Pinch-to-zoom indicator — fades in on gesture, auto-clears after 900ms.
+        AnimatedVisibility(
+            visible = showZoomIndicator,
+            enter = fadeIn(tween(150)),
+            exit = fadeOut(tween(300)),
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 160.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    "%.1fx".format(zoomRatio),
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
 
         // Countdown overlay — big numbers centered on screen, tap to cancel

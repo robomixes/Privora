@@ -58,7 +58,9 @@
     <string name="feature_notes">Notas</string>
     <string name="feature_notes_desc">Notas seguras cifradas</string>
     <string name="feature_insights">Análisis</string>
-    <string name="feature_insights_desc">Gastos, salud, hábitos</string>
+    <string name="feature_insights_desc">Gastos y hábitos</string>
+    <string name="feature_health">Salud</string>
+    <string name="feature_health_desc">Constantes, medicación, ciclo</string>
     <string name="feature_reminders">Recordatorios</string>
     <string name="feature_reminders_desc">Alarmas y tareas programadas</string>
     <string name="reminders_title">Recordatorios</string>
@@ -153,6 +155,17 @@
     <string name="tip_backup_downloads">Las copias de seguridad se guardan en Descargas para transferirlas fácilmente.</string>
     <string name="tip_qr_generator">La pantalla QR tiene una pestaña Generar — crea WiFi, vCard y más.</string>
     <string name="tip_face_threshold_slider">Ajusta la sensibilidad de agrupación de rostros en Ajustes → Cámara.</string>
+    <string name="tip_ai_chat_open">Toca ✨ en la barra superior para chatear con el asistente IA — todo en el dispositivo.</string>
+    <string name="tip_ai_chat_summary">Pide al asistente IA que resuma tu semana o liste tus recordatorios pendientes.</string>
+    <string name="tip_ai_chat_actions">La IA puede crear recordatorios, notas y gastos desde una sola frase.</string>
+    <string name="tip_ai_sparkle_anywhere">Dentro de una nota, toca ✨ para resumir, reescribir, corregir o extraer tareas.</string>
+    <string name="tip_ai_translate_sentences">Usa Traducir IA para el contexto de oraciones — mejor que palabra por palabra.</string>
+    <string name="tip_ai_calibrate">Toca el icono de actualización en Ajustes para volver a ejecutar el asistente de configuración.</string>
+    <string name="tip_camera_pinch_zoom">Pellizca con dos dedos en la Cámara para hacer zoom — en foto y vídeo.</string>
+    <string name="tip_widget_quick_note">Añade el widget Nota Rápida a tu pantalla de inicio para capturar con un toque.</string>
+    <string name="tip_voice_clean">Las notas de voz usan supresión de ruido por hardware — ajustable en Privacidad.</string>
+    <string name="tip_wifi_transfer">Envía archivos desde tu ordenador con un escaneo QR — Bóveda → 📶. Sin nube.</string>
+    <string name="tip_play_all_voice">¿Una nota con varios clips de voz? Toca «Reproducir todo» para escucharlos en orden.</string>
 
     <!-- Settings: AI Detection -->
     <string name="settings_section_ai_detection">Detección con IA</string>
@@ -236,7 +249,7 @@
     <!-- Settings: About -->
     <string name="settings_section_about">Acerca de</string>
     <string name="settings_privo">Privora</string>
-    <string name="settings_privo_desc">Versión 1.0.0 \u2022 Cámara con IA que nunca envía tus datos a ningún lugar</string>
+    <string name="settings_privo_desc">Versión %1$s \u2022 Cámara con IA que nunca envía tus datos a ningún lugar</string>
     <string name="settings_crash_logs">Registros de errores (%1$d)</string>
     <string name="settings_crash_logs_desc">Ver reportes de errores locales \u2014 nunca se envían a ningún lugar</string>
     <string name="settings_crash_logs_title">Registros de errores</string>
@@ -656,6 +669,69 @@
     <string name="settings_language">Idioma</string>
     <string name="settings_language_system">Predeterminado del sistema</string>
 
+    <!-- Calibration wizard -->
+    <string name="wizard_title_progress">Configuración %1$d / %2$d</string>
+    <string name="wizard_back">Atrás</string>
+    <string name="wizard_next">Siguiente</string>
+    <string name="wizard_finish">Finalizar</string>
+    <string name="wizard_step1_title">Elija su diseño</string>
+    <string name="wizard_step1_subtitle">Podrá cambiarlo más tarde en Ajustes.</string>
+    <string name="wizard_layout_grid">Cuadrícula</string>
+    <string name="wizard_layout_grid_desc">Todas las funciones como tarjetas en 2 columnas.</string>
+    <string name="wizard_layout_tabs">Pestañas</string>
+    <string name="wizard_layout_tabs_desc">Barra inferior con sus funciones más usadas.</string>
+    <string name="wizard_step2_title">Elija sus módulos</string>
+    <string name="wizard_step2_subtitle">Desmarque lo que no necesite. Use las flechas para reordenar.</string>
+    <string name="wizard_step3_title">Prueba del dispositivo</string>
+    <string name="wizard_step3_subtitle">Medimos RAM y velocidad de inferencia para saber si las funciones de IA funcionarán bien.</string>
+    <string name="wizard_step3_running">Ejecutando prueba…</string>
+    <string name="wizard_metric_inference">Tiempo de inferencia</string>
+    <string name="wizard_metric_ram">RAM</string>
+    <string name="wizard_metric_cores">Núcleos CPU</string>
+    <string name="wizard_step3_ai_great">Genial — su dispositivo puede ejecutar el asistente de IA sin problemas.</string>
+    <string name="wizard_step3_ai_okay">Las funciones de IA funcionarán pero serán lentas.</string>
+    <string name="wizard_step3_ai_unsuitable">Este dispositivo no se recomienda para el asistente de IA local.</string>
+    <string name="wizard_step4_title">PIN de emergencia</string>
+    <string name="wizard_step4_subtitle">Un segundo PIN que abre una bóveda vacía — útil si alguien le obliga a desbloquear.</string>
+    <string name="wizard_step4_set">PIN de emergencia configurado.</string>
+    <string name="wizard_step4_not_set">Sin PIN de emergencia.</string>
+    <string name="wizard_step4_setup">Configurar PIN de emergencia</string>
+    <string name="wizard_step4_change">Cambiar PIN de emergencia</string>
+    <string name="wizard_step4_skip_hint">Puede saltar este paso y configurarlo después en Ajustes → Avanzado.</string>
+    <string name="wizard_step5_title">Modelo IA</string>
+    <string name="wizard_step5_subtitle">Gemma 4 funciona localmente para chat, resúmenes y descripciones de fotos. Opcional.</string>
+    <string name="wizard_step5_storage">Necesario: %1$s   •   Libre: %2$s</string>
+    <string name="wizard_step5_already_downloaded">Modelo IA ya descargado.</string>
+    <string name="wizard_step5_low_tier">Su dispositivo puede ser demasiado lento para el asistente IA. Salte este paso.</string>
+    <string name="wizard_step5_no_space">No hay suficiente espacio. Libere espacio y relance el asistente.</string>
+    <string name="wizard_step5_download">Descargar modelo IA (~2,7 GB)</string>
+    <string name="wizard_step5_skip_hint">Puede descargarlo después desde Ajustes → Avanzado.</string>
+    <string name="wizard_step6_title">Todo listo</string>
+    <string name="wizard_step6_subtitle">Privora está calibrado para su dispositivo y preferencias. Bienvenido.</string>
+    <string name="settings_rerun_wizard">Volver a ejecutar el asistente</string>
+    <string name="settings_rerun_wizard_desc">Reconfigurar diseño, módulos e IA</string>
+
+    <!-- Calibration wizard: informational pages -->
+    <string name="wizard_info_vault_title">Bóveda cifrada + carpeta oculta</string>
+    <string name="wizard_info_vault_body">Tus fotos, vídeos y archivos viven en una bóveda cifrada con AES-256-GCM y clave por hardware. La bóveda tiene una carpeta Oculta que se revela al tocar su título — para contenido aún más privado.</string>
+    <string name="wizard_info_health_title">Toda la salud en un solo lugar</string>
+    <string name="wizard_info_health_body">Constantes (peso, presión, ritmo cardíaco, sueño, humor), medicación con recordatorios vinculados, y seguimiento privado del ciclo conviven en Salud. El modo multi-perfil permite registrar tus datos y los de tus familiares. Todo en el dispositivo, cifrado y nunca compartido.</string>
+    <string name="wizard_info_backup_title">Copia de seguridad cifrada</string>
+    <string name="wizard_info_backup_body">Ajustes → Copia crea un archivo .paicbackup cifrado que puedes guardar donde quieras — Drive, USB, otro móvil. Importarlo en otro dispositivo restaura todo: fotos, notas, contactos, ajustes.</string>
+    <string name="wizard_info_ai_title">Asistente IA local</string>
+    <string name="wizard_info_ai_body">La IA de Privora ejecuta Gemma 4 totalmente en tu teléfono. Ningún prompt, nota o foto sale del dispositivo. Toca ✨ en la barra superior para chatear, resumir, extraer tareas y crear recordatorios desde una frase.</string>
+    <string name="wizard_info_emergency_title">PIN de emergencia</string>
+    <string name="wizard_info_emergency_body">Un segundo PIN que abre una bóveda aparentemente vacía. Si te obligan a desbloquear, escribe el PIN de emergencia — no se ve nada sensible. También puedes configurarlo para borrar ciertos datos al entrar.</string>
+    <string name="wizard_info_calculator_title">Disfraz de calculadora</string>
+    <string name="wizard_info_calculator_body">Privora puede reemplazar su icono por una calculadora real funcional. Escribe tu PIN seguido de = para entrar en la app. Cualquiera que mire solo ve una calculadora.</string>
+    <string name="wizard_info_intruder_title">Fotos de intrusos</string>
+    <string name="wizard_info_intruder_body">Cuando alguien introduce un PIN incorrecto, Privora puede capturar una foto silenciosa con la cámara frontal y guardarla en la bóveda. La verás la próxima vez que desbloquees — sin notificación ni sonido.</string>
+
+    <!-- Home grid: today's reminders popup -->
+    <string name="home_today_reminders_title">Recordatorios de hoy</string>
+    <string name="home_today_reminders_empty">No hay recordatorios para hoy.</string>
+    <string name="home_today_reminders_open">Abrir Recordatorios</string>
+
     <!-- Note editor: voice notes -->
     <string name="note_audio_play_all">Reproducir todo</string>
     <string name="note_audio_stop_all">Detener</string>
@@ -716,4 +792,44 @@
     <string name="settings_wipe_dialog_question">¿Ha creado una copia de seguridad?</string>
     <string name="settings_wipe_dialog_confirm">BORRAR TODOS LOS DATOS</string>
     <string name="settings_wipe_done_toast">Todos los datos borrados. Aplicación restablecida.</string>
+
+    <!-- Health feature + Cycle tracker -->
+    <string name="health_locked">Salud está bloqueado</string>
+    <string name="health_unlock_title">Desbloquear Salud</string>
+    <string name="health_unlock_subtitle">Autentíquese para acceder a sus datos de salud</string>
+    <string name="health_enter_pin">Introducir PIN</string>
+    <string name="health_tab_vitals">Constantes</string>
+    <string name="health_tab_meds">Medic.</string>
+    <string name="health_tab_cycle">Ciclo</string>
+    <string name="health_link_profile_title">Vincular un perfil</string>
+    <string name="health_link_profile_empty">No hay contactos para vincular. Agrega a alguien en Personas primero, y luego vuelve aquí para vincularlo como perfil de salud.</string>
+    <string name="health_link_profile_open_people">Abrir Personas</string>
+    <string name="cycle_add_title">Registrar un ciclo</string>
+    <string name="cycle_add_action">Añadir entrada de ciclo</string>
+    <string name="cycle_period_start">Inicio del periodo</string>
+    <string name="cycle_period_end">Fin del periodo (opcional)</string>
+    <string name="cycle_flow_label">Flujo: %1$d / 5</string>
+    <string name="cycle_flow_short">Flujo %1$d</string>
+    <string name="cycle_symptoms_label">Síntomas</string>
+    <string name="cycle_symptom_cramps">Calambres</string>
+    <string name="cycle_symptom_headache">Dolor de cabeza</string>
+    <string name="cycle_symptom_fatigue">Fatiga</string>
+    <string name="cycle_symptom_mood_swings">Cambios de humor</string>
+    <string name="cycle_symptom_bloating">Hinchazón</string>
+    <string name="cycle_legend_period">Periodo</string>
+    <string name="cycle_legend_predicted">Estimado</string>
+    <string name="cycle_today_button">Hoy</string>
+    <string name="cycle_history_title">Historial</string>
+    <string name="cycle_empty_title">Sin ciclos registrados</string>
+    <string name="cycle_empty_body">Toque + para registrar su primer ciclo. Las estimaciones aparecen tras un par de ciclos.</string>
+    <string name="cycle_header_day">Día %1$d del ciclo</string>
+    <string name="cycle_header_next_in">Próximo estimado %1$s • en %2$d días</string>
+    <string name="cycle_header_next_today">Próximo estimado hoy</string>
+    <string name="cycle_header_next_overdue">Estimación retrasada %1$d días</string>
+    <string name="cycle_header_avg">Promedio: ciclo de %1$d días, periodo de %2$d días</string>
+    <string name="cycle_header_low_confidence">Estimación con valores por defecto — registre más ciclos para mayor precisión.</string>
+    <string name="cycle_disclaimer_title">Antes de empezar</string>
+    <string name="cycle_disclaimer_body">Privora no es un dispositivo médico. El seguimiento del ciclo es solo para registro personal.</string>
+    <string name="cycle_disclaimer_caveat">Las estimaciones son promedios simples — no son consejo médico, anticonceptivo ni de fertilidad.</string>
+    <string name="cycle_disclaimer_ok">Entiendo</string>
 </resources>

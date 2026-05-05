@@ -250,7 +250,7 @@ fun AssistantScreen(
                                 RefKind.NOTE -> "notes?openNoteId=${ref.id}"
                                 RefKind.REMINDER -> "reminders"
                                 RefKind.HABIT -> "insights?tab=habits"
-                                RefKind.HEALTH -> "insights?tab=health"
+                                RefKind.HEALTH -> "health"
                             }
                             onNavigate?.invoke(route)
                         },

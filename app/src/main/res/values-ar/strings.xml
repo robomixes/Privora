@@ -58,7 +58,9 @@
     <string name="feature_notes">الملاحظات</string>
     <string name="feature_notes_desc">ملاحظات آمنة ومشفرة</string>
     <string name="feature_insights">التحليلات</string>
-    <string name="feature_insights_desc">المصاريف، الصحة، العادات</string>
+    <string name="feature_insights_desc">المصاريف والعادات</string>
+    <string name="feature_health">الصحة</string>
+    <string name="feature_health_desc">المؤشرات الحيوية، الأدوية، الدورة</string>
     <string name="feature_reminders">التذكيرات</string>
     <string name="feature_reminders_desc">المنبّهات والمهام المجدولة</string>
     <string name="reminders_title">التذكيرات</string>
@@ -153,6 +155,17 @@
     <string name="tip_backup_downloads">النسخ الاحتياطية تُحفظ في مجلد التنزيلات لنقلها بسهولة.</string>
     <string name="tip_qr_generator">شاشة QR بها تبويب إنشاء — اصنع رموز WiFi وبطاقات vCard والمزيد.</string>
     <string name="tip_face_threshold_slider">اضبط حساسية تجميع الوجوه في الإعدادات → الكاميرا.</string>
+    <string name="tip_ai_chat_open">انقر على ✨ في الشريط العلوي للدردشة مع المساعد الذكي — يعمل محلياً بالكامل.</string>
+    <string name="tip_ai_chat_summary">اطلب من المساعد الذكي تلخيص أسبوعك أو سرد التذكيرات المعلقة.</string>
+    <string name="tip_ai_chat_actions">يستطيع الذكاء الاصطناعي إنشاء تذكيرات وملاحظات ومصاريف من جملة واحدة.</string>
+    <string name="tip_ai_sparkle_anywhere">داخل أي ملاحظة، انقر ✨ للتلخيص أو إعادة الصياغة أو تصحيح القواعد أو استخراج المهام.</string>
+    <string name="tip_ai_translate_sentences">استخدم الترجمة الذكية للحصول على سياق الجملة الكاملة — أفضل من البحث كلمة بكلمة.</string>
+    <string name="tip_ai_calibrate">انقر على أيقونة التحديث في الإعدادات لإعادة تشغيل معالج المعايرة في أي وقت.</string>
+    <string name="tip_camera_pinch_zoom">اضغط بإصبعين في الكاميرا للتكبير — يعمل في وضعَي الصور والفيديو.</string>
+    <string name="tip_widget_quick_note">أضف ودجة الملاحظة السريعة إلى الشاشة الرئيسية للالتقاط بنقرة واحدة.</string>
+    <string name="tip_voice_clean">الملاحظات الصوتية تستخدم تقليل الضوضاء عبر العتاد — قابل للتبديل في الخصوصية.</string>
+    <string name="tip_wifi_transfer">أرسل ملفات من حاسوبك بمسح QR واحد — الخزينة ← 📶. بدون سحابة.</string>
+    <string name="tip_play_all_voice">ملاحظة بعدة مقاطع صوتية؟ انقر «تشغيل الكل» لتشغيلها بالتسلسل.</string>
 
     <!-- Settings: AI Detection -->
     <string name="settings_section_ai_detection">كشف الذكاء الاصطناعي</string>
@@ -236,7 +249,7 @@
     <!-- Settings: About -->
     <string name="settings_section_about">حول التطبيق</string>
     <string name="settings_privo">Privora</string>
-    <string name="settings_privo_desc">الإصدار 1.0.0 \u2022 كاميرا ذكاء اصطناعي لا ترسل بياناتك أبداً إلى أي مكان</string>
+    <string name="settings_privo_desc">الإصدار %1$s \u2022 كاميرا ذكاء اصطناعي لا ترسل بياناتك أبداً إلى أي مكان</string>
     <string name="settings_crash_logs">سجلات الأعطال (%1$d)</string>
     <string name="settings_crash_logs_desc">عرض تقارير الأعطال المحلية \u2014 لا تُرسل أبداً إلى أي مكان</string>
     <string name="settings_crash_logs_title">سجلات الأعطال</string>
@@ -656,6 +669,69 @@
     <string name="settings_language">اللغة</string>
     <string name="settings_language_system">الإعداد الافتراضي للنظام</string>
 
+    <!-- Calibration wizard -->
+    <string name="wizard_title_progress">الإعداد %1$d / %2$d</string>
+    <string name="wizard_back">رجوع</string>
+    <string name="wizard_next">التالي</string>
+    <string name="wizard_finish">إنهاء</string>
+    <string name="wizard_step1_title">اختر تخطيط الشاشة الرئيسية</string>
+    <string name="wizard_step1_subtitle">يمكنك تغييره لاحقاً من الإعدادات.</string>
+    <string name="wizard_layout_grid">شبكة</string>
+    <string name="wizard_layout_grid_desc">جميع الميزات كبطاقات في عمودين.</string>
+    <string name="wizard_layout_tabs">علامات التبويب</string>
+    <string name="wizard_layout_tabs_desc">شريط سفلي بالميزات الأكثر استخداماً.</string>
+    <string name="wizard_step2_title">اختر وحداتك</string>
+    <string name="wizard_step2_subtitle">ألغِ تحديد ما لا تحتاج إليه. استخدم الأسهم لإعادة الترتيب.</string>
+    <string name="wizard_step3_title">اختبار الجهاز</string>
+    <string name="wizard_step3_subtitle">نقيس الذاكرة وسرعة الاستدلال لمعرفة هل ستعمل ميزات الذكاء الاصطناعي بسلاسة.</string>
+    <string name="wizard_step3_running">جارٍ تشغيل الاختبار…</string>
+    <string name="wizard_metric_inference">زمن الاستدلال</string>
+    <string name="wizard_metric_ram">الذاكرة</string>
+    <string name="wizard_metric_cores">نوى المعالج</string>
+    <string name="wizard_step3_ai_great">رائع — جهازك قادر على تشغيل المساعد الذكي بسلاسة.</string>
+    <string name="wizard_step3_ai_okay">ميزات الذكاء الاصطناعي ستعمل لكنها ستكون بطيئة.</string>
+    <string name="wizard_step3_ai_unsuitable">هذا الجهاز غير موصى به للمساعد الذكي المحلي.</string>
+    <string name="wizard_step4_title">رمز الطوارئ</string>
+    <string name="wizard_step4_subtitle">رمز ثانٍ يفتح خزينة فارغة — مفيد إذا أُجبرت على فتح التطبيق.</string>
+    <string name="wizard_step4_set">تم تعيين رمز الطوارئ.</string>
+    <string name="wizard_step4_not_set">لا يوجد رمز طوارئ.</string>
+    <string name="wizard_step4_setup">تعيين رمز الطوارئ</string>
+    <string name="wizard_step4_change">تغيير رمز الطوارئ</string>
+    <string name="wizard_step4_skip_hint">يمكنك تخطي هذه الخطوة وتعيينه لاحقاً من الإعدادات ← متقدم.</string>
+    <string name="wizard_step5_title">نموذج الذكاء الاصطناعي</string>
+    <string name="wizard_step5_subtitle">Gemma 4 يعمل محلياً للدردشة والتلخيص ووصف الصور. اختياري.</string>
+    <string name="wizard_step5_storage">المطلوب: %1$s   •   المتاح: %2$s</string>
+    <string name="wizard_step5_already_downloaded">نموذج الذكاء الاصطناعي مُنزَّل بالفعل.</string>
+    <string name="wizard_step5_low_tier">قد يكون جهازك بطيئاً للمساعد الذكي. يُنصح بتخطي هذه الخطوة.</string>
+    <string name="wizard_step5_no_space">المساحة غير كافية. حرّر مساحة وأعد تشغيل المعالج من الإعدادات.</string>
+    <string name="wizard_step5_download">تنزيل نموذج الذكاء الاصطناعي (~2.7 جيجابايت)</string>
+    <string name="wizard_step5_skip_hint">يمكنك تنزيله لاحقاً من الإعدادات ← متقدم.</string>
+    <string name="wizard_step6_title">اكتمل كل شيء</string>
+    <string name="wizard_step6_subtitle">تمت معايرة Privora حسب جهازك وتفضيلاتك. أهلاً بك.</string>
+    <string name="settings_rerun_wizard">إعادة تشغيل معالج الإعداد</string>
+    <string name="settings_rerun_wizard_desc">إعادة تكوين التخطيط والوحدات وملاءمة الذكاء الاصطناعي</string>
+
+    <!-- Calibration wizard: informational pages -->
+    <string name="wizard_info_vault_title">الخزينة المشفّرة + المجلد المخفي</string>
+    <string name="wizard_info_vault_body">جميع صورك ومقاطع الفيديو والملفات تُخزَّن في خزينة مشفّرة بـ AES-256-GCM ومفتاح مدعوم بالعتاد. تحتوي الخزينة على مجلد «مخفي» يظهر بالنقر على العنوان — للمحتوى الأكثر خصوصية.</string>
+    <string name="wizard_info_health_title">الصحة في مكان واحد</string>
+    <string name="wizard_info_health_body">المؤشرات الحيوية (الوزن، ضغط الدم، النبض، النوم، المزاج)، الأدوية مع تذكيرات مرتبطة، وتتبّع خاص للدورة، كلها معًا في ميزة الصحة. يدعم تعدد الملفات الشخصية لمتابعة بياناتك وأفراد أسرتك. كل شيء محليًا ومشفّرًا، ولا يُشارَك أبدًا.</string>
+    <string name="wizard_info_backup_title">النسخ الاحتياطي والاستعادة المشفّرة</string>
+    <string name="wizard_info_backup_body">الإعدادات ← النسخ الاحتياطي ينشئ ملف ‎.paicbackup‎ مشفّراً يمكنك حفظه في أي مكان — درايف، USB، هاتف آخر. استيراده على جهاز جديد يستعيد كل شيء: الصور، الملاحظات، جهات الاتصال، الإعدادات.</string>
+    <string name="wizard_info_ai_title">المساعد الذكي المحلي</string>
+    <string name="wizard_info_ai_body">يعمل ذكاء Privora الاصطناعي بـ Gemma 4 على هاتفك بالكامل. لا يغادر أي طلب أو ملاحظة أو صورة الجهاز. اضغط ✨ في الشريط العلوي للدردشة والتلخيص واستخراج المهام وإنشاء التذكيرات بجملة واحدة.</string>
+    <string name="wizard_info_emergency_title">رمز الطوارئ</string>
+    <string name="wizard_info_emergency_body">رمز ثانٍ يفتح خزينة تبدو فارغة. إذا أُجبرت على فتح التطبيق، أدخل رمز الطوارئ — لا يظهر أي محتوى حساس. يمكنك أيضاً ضبطه ليمسح بيانات معينة عند الإدخال.</string>
+    <string name="wizard_info_calculator_title">تمويه الآلة الحاسبة</string>
+    <string name="wizard_info_calculator_body">يمكن لـ Privora استبدال أيقونته بآلة حاسبة فعلية تعمل. أدخل رمز PIN يليه = للدخول إلى التطبيق. أي شخص يلقي نظرة سيرى آلة حاسبة فقط.</string>
+    <string name="wizard_info_intruder_title">صور المتطفّل</string>
+    <string name="wizard_info_intruder_body">عندما يدخل أحدهم رمزاً خاطئاً، يلتقط Privora صورة صامتة بالكاميرا الأمامية ويحفظها في الخزينة. ستراها في المرة التالية التي تفتح فيها التطبيق — بدون إشعار أو صوت غالق.</string>
+
+    <!-- Home grid: today's reminders popup -->
+    <string name="home_today_reminders_title">تذكيرات اليوم</string>
+    <string name="home_today_reminders_empty">لا توجد تذكيرات لهذا اليوم.</string>
+    <string name="home_today_reminders_open">فتح التذكيرات</string>
+
     <!-- Note editor: voice notes -->
     <string name="note_audio_play_all">تشغيل الكل</string>
     <string name="note_audio_stop_all">إيقاف</string>
@@ -716,4 +792,44 @@
     <string name="settings_wipe_dialog_question">هل أنشأت نسخة احتياطية؟</string>
     <string name="settings_wipe_dialog_confirm">مسح جميع البيانات</string>
     <string name="settings_wipe_done_toast">تم مسح جميع البيانات. أُعيد ضبط التطبيق.</string>
+
+    <!-- Health feature + Cycle tracker -->
+    <string name="health_locked">الصحة مقفلة</string>
+    <string name="health_unlock_title">فتح الصحة</string>
+    <string name="health_unlock_subtitle">قم بالمصادقة للوصول إلى بياناتك الصحية</string>
+    <string name="health_enter_pin">أدخل رمز PIN</string>
+    <string name="health_tab_vitals">المؤشرات</string>
+    <string name="health_tab_meds">الأدوية</string>
+    <string name="health_tab_cycle">الدورة</string>
+    <string name="health_link_profile_title">ربط ملف شخصي</string>
+    <string name="health_link_profile_empty">لا توجد جهات اتصال للربط. أضف شخصاً أولاً في «الأشخاص»، ثم عُد هنا لربطه كملف صحي.</string>
+    <string name="health_link_profile_open_people">فتح الأشخاص</string>
+    <string name="cycle_add_title">تسجيل دورة</string>
+    <string name="cycle_add_action">إضافة سجل دورة</string>
+    <string name="cycle_period_start">بداية الدورة</string>
+    <string name="cycle_period_end">نهاية الدورة (اختياري)</string>
+    <string name="cycle_flow_label">التدفق: %1$d / 5</string>
+    <string name="cycle_flow_short">تدفق %1$d</string>
+    <string name="cycle_symptoms_label">الأعراض</string>
+    <string name="cycle_symptom_cramps">تقلصات</string>
+    <string name="cycle_symptom_headache">صداع</string>
+    <string name="cycle_symptom_fatigue">إرهاق</string>
+    <string name="cycle_symptom_mood_swings">تقلبات مزاجية</string>
+    <string name="cycle_symptom_bloating">انتفاخ</string>
+    <string name="cycle_legend_period">الدورة</string>
+    <string name="cycle_legend_predicted">متوقَّع</string>
+    <string name="cycle_today_button">اليوم</string>
+    <string name="cycle_history_title">السجل</string>
+    <string name="cycle_empty_title">لم تُسجَّل أي دورة بعد</string>
+    <string name="cycle_empty_body">انقر + لتسجيل أول دورة. تظهر التوقعات بعد عدة دورات.</string>
+    <string name="cycle_header_day">اليوم %1$d من الدورة</string>
+    <string name="cycle_header_next_in">التالية المقدّرة %1$s • خلال %2$d يوم</string>
+    <string name="cycle_header_next_today">التالية المقدّرة اليوم</string>
+    <string name="cycle_header_next_overdue">تأخّرت التقدّيرات بـ %1$d يوم</string>
+    <string name="cycle_header_avg">المتوسط: دورة %1$d يومًا، طمث %2$d أيام</string>
+    <string name="cycle_header_low_confidence">تقدير افتراضي — سجّل المزيد من الدورات لتحسين الدقة.</string>
+    <string name="cycle_disclaimer_title">قبل أن تبدأ</string>
+    <string name="cycle_disclaimer_body">Privora ليس جهازًا طبيًا. تتبّع الدورة مخصّص للسجلات الشخصية فقط.</string>
+    <string name="cycle_disclaimer_caveat">التوقعات متوسطات بسيطة — ليست استشارة طبية ولا إرشاد لمنع الحمل ولا تتبّع للخصوبة.</string>
+    <string name="cycle_disclaimer_ok">فهمت</string>
 </resources>

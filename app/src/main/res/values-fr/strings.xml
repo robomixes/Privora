@@ -58,7 +58,7 @@
     <string name="feature_notes">Notes</string>
     <string name="feature_notes_desc">Notes sécurisées et chiffrées</string>
     <string name="feature_insights">Analyses</string>
-    <string name="feature_insights_desc">Dépenses, santé, habitudes</string>
+    <string name="feature_insights_desc">Dépenses et habitudes</string>
     <string name="feature_reminders">Rappels</string>
     <string name="feature_reminders_desc">Alarmes et tâches programmées</string>
     <string name="reminders_title">Rappels</string>
@@ -153,6 +153,17 @@
     <string name="tip_backup_downloads">Les sauvegardes vont dans le dossier Téléchargements pour un transfert facile.</string>
     <string name="tip_qr_generator">L\'écran QR a un onglet Générer — créez WiFi, vCard et plus.</string>
     <string name="tip_face_threshold_slider">Ajustez la sensibilité du regroupement de visages dans Paramètres → Caméra.</string>
+    <string name="tip_ai_chat_open">Touchez ✨ dans la barre supérieure pour discuter avec l\'assistant IA — entièrement local.</string>
+    <string name="tip_ai_chat_summary">Demandez à l\'assistant IA de résumer votre semaine ou de lister vos rappels en attente.</string>
+    <string name="tip_ai_chat_actions">L\'IA peut créer rappels, notes et dépenses depuis une seule phrase.</string>
+    <string name="tip_ai_sparkle_anywhere">Dans une note, touchez ✨ pour résumer, reformuler, corriger ou extraire des tâches.</string>
+    <string name="tip_ai_translate_sentences">Utilisez Traduire IA pour le contexte d\'une phrase entière — mieux qu\'un mot à mot.</string>
+    <string name="tip_ai_calibrate">Touchez l\'icône d\'actualisation dans Paramètres pour relancer le menu de calibration.</string>
+    <string name="tip_camera_pinch_zoom">Pincez avec deux doigts dans la Caméra pour zoomer — fonctionne en photo et vidéo.</string>
+    <string name="tip_widget_quick_note">Ajoutez le widget Note rapide à l\'écran d\'accueil pour capturer en un toucher.</string>
+    <string name="tip_voice_clean">Les notes vocales utilisent la réduction de bruit matérielle — réglable dans Confidentialité.</string>
+    <string name="tip_wifi_transfer">Envoyez des fichiers depuis votre ordinateur avec un QR — Coffre → 📶. Sans cloud.</string>
+    <string name="tip_play_all_voice">Note avec plusieurs clips vocaux ? Touchez « Tout lire » pour les écouter en séquence.</string>
 
     <!-- Settings: AI Detection -->
     <string name="settings_section_ai_detection">Détection IA</string>
@@ -238,7 +249,7 @@
     <!-- Settings: About -->
     <string name="settings_section_about">\u00C0 propos</string>
     <string name="settings_privo">Privora</string>
-    <string name="settings_privo_desc">Version 1.0.0 \u2022 Appareil photo IA qui n\'envoie jamais vos données nulle part</string>
+    <string name="settings_privo_desc">Version %1$s \u2022 Appareil photo IA qui n\'envoie jamais vos données nulle part</string>
     <string name="settings_crash_logs">Journaux de plantage (%1$d)</string>
     <string name="settings_crash_logs_desc">Consulter les rapports de plantage locaux \u2014 jamais envoyés nulle part</string>
     <string name="settings_crash_logs_title">Journaux de plantage</string>
@@ -654,6 +665,69 @@
     <string name="health_add_profile_title">Ajouter un membre de la famille</string>
     <string name="health_profile_name">Nom</string>
 
+    <!-- Calibration wizard -->
+    <string name="wizard_title_progress">Configuration %1$d / %2$d</string>
+    <string name="wizard_back">Retour</string>
+    <string name="wizard_next">Suivant</string>
+    <string name="wizard_finish">Terminer</string>
+    <string name="wizard_step1_title">Choisissez votre disposition</string>
+    <string name="wizard_step1_subtitle">Vous pourrez la modifier plus tard dans les paramètres.</string>
+    <string name="wizard_layout_grid">Grille</string>
+    <string name="wizard_layout_grid_desc">Toutes les fonctions sous forme de cartes en 2 colonnes.</string>
+    <string name="wizard_layout_tabs">Onglets</string>
+    <string name="wizard_layout_tabs_desc">Barre d\'onglets en bas avec vos fonctions favorites.</string>
+    <string name="wizard_step2_title">Choisissez vos modules</string>
+    <string name="wizard_step2_subtitle">Décochez ce dont vous n\'avez pas besoin. Utilisez les flèches pour réordonner.</string>
+    <string name="wizard_step3_title">Test de l\'appareil</string>
+    <string name="wizard_step3_subtitle">Nous mesurons la RAM et la vitesse d\'inférence pour vérifier si les fonctions IA fonctionneront correctement.</string>
+    <string name="wizard_step3_running">Test en cours…</string>
+    <string name="wizard_metric_inference">Temps d\'inférence</string>
+    <string name="wizard_metric_ram">RAM</string>
+    <string name="wizard_metric_cores">Cœurs CPU</string>
+    <string name="wizard_step3_ai_great">Excellent — votre appareil peut faire tourner l\'assistant IA sans problème.</string>
+    <string name="wizard_step3_ai_okay">Les fonctions IA fonctionneront mais seront lentes.</string>
+    <string name="wizard_step3_ai_unsuitable">Cet appareil n\'est pas recommandé pour l\'assistant IA local.</string>
+    <string name="wizard_step4_title">Code d\'urgence</string>
+    <string name="wizard_step4_subtitle">Un second code qui ouvre un coffre vide — utile si quelqu\'un vous force à déverrouiller.</string>
+    <string name="wizard_step4_set">Code d\'urgence configuré.</string>
+    <string name="wizard_step4_not_set">Aucun code d\'urgence défini.</string>
+    <string name="wizard_step4_setup">Configurer le code d\'urgence</string>
+    <string name="wizard_step4_change">Modifier le code d\'urgence</string>
+    <string name="wizard_step4_skip_hint">Vous pouvez ignorer cette étape et la définir plus tard dans Paramètres → Avancé.</string>
+    <string name="wizard_step5_title">Modèle IA</string>
+    <string name="wizard_step5_subtitle">Gemma 4 fonctionne localement pour le chat, les résumés et les descriptions de photos. Optionnel.</string>
+    <string name="wizard_step5_storage">Requis : %1$s   •   Libre : %2$s</string>
+    <string name="wizard_step5_already_downloaded">Modèle IA déjà téléchargé.</string>
+    <string name="wizard_step5_low_tier">Votre appareil est peut-être trop lent pour l\'assistant IA. Ignorez cette étape.</string>
+    <string name="wizard_step5_no_space">Pas assez d\'espace. Libérez de l\'espace et relancez l\'assistant.</string>
+    <string name="wizard_step5_download">Télécharger le modèle IA (~2,7 Go)</string>
+    <string name="wizard_step5_skip_hint">Vous pouvez le télécharger plus tard depuis Paramètres → Avancé.</string>
+    <string name="wizard_step6_title">Tout est prêt</string>
+    <string name="wizard_step6_subtitle">Privora est configuré selon votre appareil et vos préférences. Bienvenue.</string>
+    <string name="settings_rerun_wizard">Relancer l\'assistant de configuration</string>
+    <string name="settings_rerun_wizard_desc">Reconfigurer la disposition, les modules et l\'IA</string>
+
+    <!-- Calibration wizard: informational pages -->
+    <string name="wizard_info_vault_title">Coffre chiffré + dossier caché</string>
+    <string name="wizard_info_vault_body">Vos photos, vidéos et fichiers vivent dans un coffre chiffré en AES-256-GCM avec une clé matérielle. Le coffre a un dossier Caché que vous révélez en touchant son titre — pour ce qui est encore plus privé que le reste.</string>
+    <string name="wizard_info_health_title">Toute la santé au même endroit</string>
+    <string name="wizard_info_health_body">Constantes (poids, tension, rythme cardiaque, sommeil, humeur), médicaments avec rappels liés, et suivi privé du cycle vivent ensemble dans Santé. Le mode multi-profils permet de suivre vous-même et les membres de votre famille. Tout est local, chiffré, jamais partagé.</string>
+    <string name="wizard_info_backup_title">Sauvegarde &amp; restauration chiffrées</string>
+    <string name="wizard_info_backup_body">Paramètres → Sauvegarde crée un fichier .paicbackup chiffré que vous pouvez stocker n\'importe où — Drive, USB, autre téléphone. L\'importer sur un nouvel appareil restaure tout : photos, notes, contacts, réglages.</string>
+    <string name="wizard_info_ai_title">Assistant IA local</string>
+    <string name="wizard_info_ai_body">L\'IA de Privora exécute Gemma 4 entièrement sur votre téléphone. Aucune invite, aucune note, aucune photo ne quitte l\'appareil. Touchez ✨ dans la barre supérieure pour discuter, résumer, extraire des tâches et créer des rappels d\'une phrase.</string>
+    <string name="wizard_info_emergency_title">Code d\'urgence</string>
+    <string name="wizard_info_emergency_body">Un second code qui ouvre un coffre vide. Si on vous force à déverrouiller, tapez le code d\'urgence — rien de sensible n\'apparaît. Vous pouvez aussi le configurer pour effacer certaines données à l\'entrée.</string>
+    <string name="wizard_info_calculator_title">Déguisement calculatrice</string>
+    <string name="wizard_info_calculator_body">Privora peut remplacer son icône par une vraie calculatrice fonctionnelle. Tapez votre code suivi de = pour entrer dans l\'application. Quiconque regarde ne voit qu\'une calculatrice.</string>
+    <string name="wizard_info_intruder_title">Photos d\'intrus</string>
+    <string name="wizard_info_intruder_body">Quand quelqu\'un saisit un mauvais code, Privora prend silencieusement une photo avec la caméra avant et l\'enregistre dans le coffre. Vous la verrez au prochain déverrouillage — sans notification ni bruit d\'obturateur.</string>
+
+    <!-- Home grid: today's reminders popup -->
+    <string name="home_today_reminders_title">Rappels du jour</string>
+    <string name="home_today_reminders_empty">Aucun rappel pour aujourd\'hui.</string>
+    <string name="home_today_reminders_open">Ouvrir Rappels</string>
+
     <!-- Note editor: voice notes -->
     <string name="note_audio_play_all">Tout lire</string>
     <string name="note_audio_stop_all">Arrêter</string>
@@ -714,4 +788,46 @@
     <string name="settings_wipe_dialog_question">Avez-vous créé une sauvegarde ?</string>
     <string name="settings_wipe_dialog_confirm">TOUT EFFACER</string>
     <string name="settings_wipe_done_toast">Toutes les données effacées. Application réinitialisée.</string>
+
+    <!-- Health feature + Cycle tracker -->
+    <string name="feature_health">Santé</string>
+    <string name="feature_health_desc">Constantes, médicaments, cycle</string>
+    <string name="health_locked">Santé est verrouillé</string>
+    <string name="health_unlock_title">Déverrouiller Santé</string>
+    <string name="health_unlock_subtitle">Authentifiez-vous pour accéder à vos données de santé</string>
+    <string name="health_enter_pin">Saisir le code</string>
+    <string name="health_tab_vitals">Constantes</string>
+    <string name="health_tab_meds">Médic.</string>
+    <string name="health_tab_cycle">Cycle</string>
+    <string name="health_link_profile_title">Lier un profil</string>
+    <string name="health_link_profile_empty">Aucun contact à lier. Ajoutez d\'abord quelqu\'un dans Personnes, puis revenez ici pour le lier comme profil santé.</string>
+    <string name="health_link_profile_open_people">Ouvrir Personnes</string>
+    <string name="cycle_add_title">Enregistrer un cycle</string>
+    <string name="cycle_add_action">Ajouter une entrée de cycle</string>
+    <string name="cycle_period_start">Début des règles</string>
+    <string name="cycle_period_end">Fin des règles (optionnel)</string>
+    <string name="cycle_flow_label">Flux : %1$d / 5</string>
+    <string name="cycle_flow_short">Flux %1$d</string>
+    <string name="cycle_symptoms_label">Symptômes</string>
+    <string name="cycle_symptom_cramps">Crampes</string>
+    <string name="cycle_symptom_headache">Mal de tête</string>
+    <string name="cycle_symptom_fatigue">Fatigue</string>
+    <string name="cycle_symptom_mood_swings">Sautes d\'humeur</string>
+    <string name="cycle_symptom_bloating">Ballonnements</string>
+    <string name="cycle_legend_period">Règles</string>
+    <string name="cycle_legend_predicted">Estimé</string>
+    <string name="cycle_today_button">Aujourd\'hui</string>
+    <string name="cycle_history_title">Historique</string>
+    <string name="cycle_empty_title">Aucun cycle enregistré</string>
+    <string name="cycle_empty_body">Touchez + pour enregistrer votre premier cycle. Les estimations apparaissent après quelques cycles.</string>
+    <string name="cycle_header_day">Jour %1$d du cycle</string>
+    <string name="cycle_header_next_in">Prochain estimé %1$s • dans %2$d jours</string>
+    <string name="cycle_header_next_today">Prochain estimé aujourd\'hui</string>
+    <string name="cycle_header_next_overdue">Estimation dépassée de %1$d jours</string>
+    <string name="cycle_header_avg">Moyenne : cycle de %1$d jours, règles de %2$d jours</string>
+    <string name="cycle_header_low_confidence">Estimation basée sur la valeur par défaut — enregistrez plus de cycles pour la précision.</string>
+    <string name="cycle_disclaimer_title">Avant de commencer</string>
+    <string name="cycle_disclaimer_body">Privora n\'est pas un dispositif médical. Le suivi du cycle sert uniquement à votre usage personnel.</string>
+    <string name="cycle_disclaimer_caveat">Les estimations sont des moyennes simples — pas un avis médical, ni un guide de contraception, ni un suivi de fertilité.</string>
+    <string name="cycle_disclaimer_ok">J\'ai compris</string>
 </resources>
