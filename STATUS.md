@@ -1,18 +1,46 @@
 # Privora — Project Status
 
-Last updated: 2026-05-04
+Last updated: 2026-05-05
 
 ---
 
 ## Current Version
 
-**Branch**: `main` (default; `v5-dev-gemma4` retired and merged in via PR #7)
-**Release**: **v2.0.7** (versionCode 9) — committed `a92acdc`, tagged, GitHub release published with `app-fdroid-release.apk` attached
-**Last published to Play**: v2.0.5 (versionCode 7) — v2.0.7 AAB is ready at `app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab` but not yet uploaded to Play Console
-**Repo visibility**: **public** at https://github.com/robomixes/Privora
-**License**: AGPL-3.0-or-later (commercial license retained via CLA)
-**CLA enforcement**: live via [CLA Assistant](https://cla-assistant.io/)
-**Working tree clean**: all v2.0.7 changes pushed to `origin/main`
+**Active branch**: `dev-v3-calibrate` — substantial WIP for the next minor release (Health feature + cycle tracker + calibration wizard expansion). Tracks `private/dev-v3-calibrate`, **not** `origin`.
+**Default branch**: `main` at `ba45758` (v2.0.7 + STATUS update).
+**Last public release**: **v2.0.7** (versionCode 9) — committed `a92acdc`, tagged, GitHub release published with `app-fdroid-release.apk` attached.
+**Last published to Play**: v2.0.5 (versionCode 7) — v2.0.7 AAB is ready at `app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab` but not yet uploaded to Play Console.
+**Repo visibility**: **public** at https://github.com/robomixes/Privora.
+**License**: AGPL-3.0-or-later (commercial license retained via CLA).
+**CLA enforcement**: live via [CLA Assistant](https://cla-assistant.io/).
+
+---
+
+## Git Remotes & Mirror Management
+
+| Remote | URL | Visibility | Purpose |
+|---|---|---|---|
+| `origin` | https://github.com/robomixes/Privora | public | Releases, F-Droid/IzzyOnDroid pickup, public marketing |
+| `private` | https://github.com/robomixes/privora-private | private | WIP backup mirror — `dev-v3-calibrate` lives here until ready to ship |
+
+**State invariants** (keep these true):
+- `main` and all release tags (`v2.0.5`, `v2.0.6`, `v2.0.7`) exist identically on both remotes.
+- WIP branches (`dev-v3-calibrate`, future `dev-*`) live **only** on `private`.
+- `dev-v3-calibrate` tracks `private/dev-v3-calibrate` — `git push` with no args goes to private.
+- Public never sees a force-push or rewritten history. Force-pushes only allowed on `private` WIP branches.
+
+**Common workflows**:
+
+| Goal | Command |
+|---|---|
+| Save WIP progress (no public exposure) | `git commit && git push` (defaults to `private/<current-branch>`) |
+| Promote a branch to public | `git checkout main && git merge dev-v3-calibrate && git push origin main && git push origin --tags` |
+| Sync a public update down to private mirror | `git fetch origin && git push private main && git push private --tags` |
+| Add a new public release tag to private | `git push private vX.Y.Z` |
+| Start a new WIP branch | `git checkout -b dev-<name> && git push -u private dev-<name>` |
+| List branches on each remote | `git branch -r` (shows both `origin/*` and `private/*`) |
+
+Reason for the split: AGPL is fine to develop in private — AGPL only triggers on *distribution*. Pushing to a private repo is not distribution. Pushing to `origin/main` or releasing the APK is. So WIP can stay private until quality + translations are ready.
 
 ---
 
@@ -284,6 +312,30 @@ Last updated: 2026-05-04
 | Settings feature toggle | DONE | `FeatureToggleManager` + `SettingsScreen` |
 | Included in backup/restore automatically | DONE | `.hint.enc` files in `vault/passwords/` |
 | 5-locale translations (22 keys) | DONE | EN/AR/FR/ES/ZH |
+
+### v2.1 / dev-v3-calibrate (IN PROGRESS — private branch)
+
+Substantial WIP committed on `private/dev-v3-calibrate`. Not yet released; not yet merged to public `main`.
+
+| Area | What landed | Files |
+|---|---|---|
+| **Health top-level feature** | New "Health" route in home grid + bottom-tab. Three sub-tabs: Vitals (renamed from HealthTab), Medications (moved), Cycle (new). Shared profile filter. Mirrors Insights' auth + duress patterns. | `ui/health/HealthScreen.kt`, `ui/health/VitalsTab.kt`, `ui/health/MedicationsTab.kt` (moved from `ui/insights/`) |
+| **Cycle / period tracker (v1.1)** | Monthly calendar with chevron navigation, day-of-month labels, 12-cycle forward prediction projection, today-only-when-current ring, period fills + ringed estimates, 5 canonical symptoms, first-use non-medical disclaimer. Stored as `${id}.cycle.enc` files (same DEK). | `ui/health/CycleTab.kt`, `ui/health/CycleCalendar.kt`, `ui/health/AddCycleDialog.kt`, `ui/health/CycleDisclaimerDialog.kt`, `security/InsightsRepository.kt` (CycleEntry + CRUD + predictNextPeriod) |
+| **Insights cleanup** | Health and Medications cases removed from InsightsScreen — Insights now hosts only Expenses + Habits. | `ui/insights/InsightsScreen.kt` |
+| **Calibration wizard (expanded)** | First-run + Settings-rerun guided flow. **13 steps**: 5 actions (Layout / Modules / Device test / Emergency PIN / AI download) + 7 info pages (Vault, Health, Backup, AI, Emergency PIN, Calculator, Intruder) + Finish. Refresh icon in Settings top-bar re-runs the wizard. | `ui/calibrate/CalibrationWizardScreen.kt`, `ui/calibrate/WizardManager.kt` |
+| **Grid header redesign** | LargeTopAppBar replaced with compact TopAppBar. Reminders bell with count badge → today's-reminders popup. Tip card upgrades to AI-generated tip when Gemma is available. Static-tip pool refreshed with 8 new AI-focused entries. | `ui/home/HomeScreen.kt`, `ui/home/HomeLandingData.kt` |
+| **Camera pinch-to-zoom** | CameraX `cameraControl.setZoomRatio` wired via `detectTransformGestures`. "1.5x" overlay fades after 900ms. Photo + video. | `ui/camera/CaptureScreen.kt`, `ui/camera/CameraPreview.kt` |
+| **Settings polish** | "Privora version" auto-tracks `BuildConfig.VERSION_NAME` (no more stale 1.0.0). Refresh icon in top bar re-runs the calibration wizard. | `ui/settings/SettingsScreen.kt`, all `strings.xml` (settings_privo_desc → `%1$s`) |
+| **Profile-link dialog** | Fully translated (no more English fallback). Empty state offers one-tap "Open People" shortcut to add a contact. | `ui/health/HealthScreen.kt#LinkHealthProfileDialog` |
+| **Strings** | ~50 new keys × 5 locales (EN/FR/ES/ZH/AR). **Arabic needs human review** for menstruation vocabulary cultural sensitivity. | All `values-*/strings.xml` |
+| **Backup/Restore** | Cycle entries auto-included via existing `vault/...*.enc` recursive walk in BackupManager. No code change. Verified. | `security/BackupManager.kt` (no change) |
+
+**Pending before public ship**:
+- Real-device testing of cycle tracker across multiple cycles
+- Arabic translation review for menstruation vocabulary
+- Version bump (likely 2.1.0)
+- Updated changelog + AAB build
+- Merge to `main`, tag, push to `origin`, GitHub release, Play upload
 
 ---
 
