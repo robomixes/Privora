@@ -1,6 +1,6 @@
 # Privora — Project Status
 
-Last updated: 2026-05-05
+Last updated: 2026-05-06
 
 ---
 
@@ -329,6 +329,13 @@ Substantial WIP committed on `private/dev-v3-calibrate`. Not yet released; not y
 | **Profile-link dialog** | Fully translated (no more English fallback). Empty state offers one-tap "Open People" shortcut to add a contact. | `ui/health/HealthScreen.kt#LinkHealthProfileDialog` |
 | **Strings** | ~50 new keys × 5 locales (EN/FR/ES/ZH/AR). **Arabic needs human review** for menstruation vocabulary cultural sensitivity. | All `values-*/strings.xml` |
 | **Backup/Restore** | Cycle entries auto-included via existing `vault/...*.enc` recursive walk in BackupManager. No code change. Verified. | `security/BackupManager.kt` (no change) |
+| **AI Assistant: bigger input + writing chips** | OutlinedTextField raised to `minLines=4` / `heightIn(min=110.dp)` / `maxLines=18`. Below the input: 8 quick-action chips that wrap typed text in a directive and send — Grammar / Rewrite / Summarize / Formal / Simpler / Translate (with language picker) / Expand / Bullets. | `ui/assistant/AssistantScreen.kt` |
+| **AI Assistant: bubble action row** | Below every assistant reply: discoverable Copy / Share / Save-as-note icons. Save creates a note tagged `[assistant]`, deduplicated — once-saved replies show a green checkmark and the button disables to prevent duplicate notes from re-taps. | `ui/assistant/ChatBubble.kt`, `ui/assistant/AssistantScreen.kt` |
+| **AI Assistant: longer context** | Per-message history truncation bumped 500 → 1500 chars in `formatTurn`. Multi-turn refinements on email-length text now actually have the prior reply in scope; previously the model only remembered the first paragraph. | `bridge/AssistantPrompts.kt:81` |
+| **Vault: gallery scroll preserved** | `LazyListState` hoisted above the `when (page)` switch so the gallery survives the gallery → viewer → gallery round-trip. With 1500 photos the user no longer lands at the top after peeking at one. | `ui/vault/VaultScreen.kt` (galleryListState) |
+| **Vault: viewer polish** | Viewer background flipped to white. `Crossfade(180ms)` between images on swipe / tap-next so transitions are smooth instead of a hard pop. | `ui/vault/VaultScreen.kt` (VIEWER branch) |
+| **Vault: trash batch fix** | New `moveToTrashBatch(photos)` in `VaultRepository` — per-item try/catch + load-and-save the encrypted index ONCE (not 73× per item). `deletePhotos` runs on `Dispatchers.IO` so the UI doesn't freeze, and surfaces honest "Moved X of N" / orphan-warning toasts when not all succeed. Fixes a silent-data-loss bug where 73 multi-deletes could fail mid-loop and leave items removed-from-view-but-not-in-trash. | `security/VaultRepository.kt` (`moveToTrashBatch`), `ui/vault/VaultScreen.kt` (`deletePhotos`) |
+| **Vault: viewer delete sweeps to next** | Deleting the displayed image now navigates to the next item in the folder (or previous, if it was the last one). Only falls back to the gallery when the list is empty after delete. | `ui/vault/VaultScreen.kt` (delete dialog confirm handler) |
 
 **Pending before public ship**:
 - Real-device testing of cycle tracker across multiple cycles
