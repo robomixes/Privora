@@ -67,6 +67,9 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
         "privacy_settings",     // grace period, etc.
         "qr_history",           // QR scan/generate history
         "totp_settings",        // Authenticator hide-until-tap / autolock toggles
+        "gemma_settings",       // AI assistant enabled flag (without this, restore
+                                // leaves model file in place but flag unset → Assistant
+                                // appears "off" with no obvious recovery path)
     )
     private val prefsDirInZip = "__prefs__/"
 
@@ -346,6 +349,26 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
             if (fixed > 0) Log.i(TAG, "Reapplied dateTaken to mtime for $fixed photos")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to reapply photo mtimes from sidecars: ${e.message}")
+        }
+
+        // AI Assistant self-heal:
+        //  (a) Old backups (pre-fix) didn't include `gemma_settings` — after restore,
+        //      the model file is on disk but `ai_enabled` is unset, so the Assistant
+        //      stays hidden with no obvious recovery path. If the model is present,
+        //      auto-enable.
+        //  (b) Crash flags (`load_crashed`, `vision_crashed`) are device-specific —
+        //      a flag set on the source phone (e.g. an OpenCL crash) shouldn't
+        //      transfer to the target phone where Gemma may load fine. Clear both.
+        try {
+            if (com.privateai.camera.bridge.GemmaRunner.isModelDownloaded(context) &&
+                !com.privateai.camera.bridge.GemmaRunner.isEnabled(context)) {
+                com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
+                Log.i(TAG, "Re-enabled AI Assistant (model present, flag was unset post-restore)")
+            }
+            com.privateai.camera.bridge.GemmaRunner.resetCrashFlag(context)
+            com.privateai.camera.bridge.GemmaRunner.resetVisionCrashFlag(context)
+        } catch (e: Exception) {
+            Log.w(TAG, "AI Assistant self-heal failed: ${e.message}")
         }
 
         Log.i(TAG, "Backup imported: $imported files, $skipped skipped" +
