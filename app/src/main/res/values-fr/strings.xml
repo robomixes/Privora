@@ -779,6 +779,13 @@
     <string name="wizard_step4_setup">Configurer le code d\'urgence</string>
     <string name="wizard_step4_change">Modifier le code d\'urgence</string>
     <string name="wizard_step4_skip_hint">Vous pouvez ignorer cette étape et la définir plus tard dans Paramètres → Avancé.</string>
+    <string name="wizard_privacy_title">Paramètres de confidentialité</string>
+    <string name="wizard_privacy_subtitle">Deux réglages qui protègent ce qui s\'affiche à l\'écran et la rapidité du verrouillage.</string>
+    <string name="wizard_privacy_screenshot_title">Bloquer les captures d\'écran</string>
+    <string name="wizard_privacy_screenshot_desc">Masquer Privora des captures, de l\'enregistrement d\'écran et de l\'aperçu des récentes. Recommandé.</string>
+    <string name="wizard_privacy_autolock_title">Verrouiller après inactivité</string>
+    <string name="wizard_privacy_autolock_desc">Lorsque vous quittez Privora, verrouiller le coffre après ce délai.</string>
+    <string name="wizard_privacy_change_later_hint">Vous pouvez modifier les deux ultérieurement dans Paramètres → Sécurité.</string>
     <string name="wizard_step5_title">Modèle IA</string>
     <string name="wizard_step5_subtitle">Gemma 4 fonctionne localement pour le chat, les résumés et les descriptions de photos. Optionnel.</string>
     <string name="wizard_step5_storage">Requis : %1$s   •   Libre : %2$s</string>

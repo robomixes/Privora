@@ -781,6 +781,13 @@
     <string name="wizard_step4_setup">设置紧急 PIN</string>
     <string name="wizard_step4_change">更改紧急 PIN</string>
     <string name="wizard_step4_skip_hint">您可以跳过此步骤，稍后在设置 → 高级中设置。</string>
+    <string name="wizard_privacy_title">隐私默认设置</string>
+    <string name="wizard_privacy_subtitle">两项设置：保护屏幕显示，并控制 Privora 锁定速度。</string>
+    <string name="wizard_privacy_screenshot_title">阻止截屏</string>
+    <string name="wizard_privacy_screenshot_desc">在截屏、屏幕录制和最近列表预览中隐藏 Privora。建议开启。</string>
+    <string name="wizard_privacy_autolock_title">闲置后锁定</string>
+    <string name="wizard_privacy_autolock_desc">离开 Privora 后，按此延迟锁定保险库。</string>
+    <string name="wizard_privacy_change_later_hint">您稍后可以在设置 → 安全中修改两项设置。</string>
     <string name="wizard_step5_title">AI 模型</string>
     <string name="wizard_step5_subtitle">Gemma 4 本地运行，用于聊天、摘要、照片描述。可选。</string>
     <string name="wizard_step5_storage">需要：%1$s   •   可用：%2$s</string>

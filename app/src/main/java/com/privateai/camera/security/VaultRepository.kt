@@ -503,6 +503,46 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
     private fun JSONObject.optDoubleOrNull(key: String): Double? =
         if (has(key) && !isNull(key)) optDouble(key) else null
 
+    /**
+     * One-shot pass over the entire vault directory: for every `<id>.meta.enc`
+     * sidecar, decrypt it, read the EXIF `dateTaken`, and re-apply it as the
+     * file mtime of the corresponding photo / thumb / video files.
+     *
+     * Used after backup restore to fix the situation where the extracted
+     * files all carry the restore-time mtime (because older backups didn't
+     * preserve mtime in the ZipEntry). Returns the count of photos updated.
+     */
+    fun restorePhotoTimestampsFromMetadata(): Int {
+        if (!vaultDir.exists()) return 0
+        var updated = 0
+        // Walk top-down through every dir (categories + custom folders + trash).
+        vaultDir.walkTopDown()
+            .filter { it.isFile && it.name.endsWith(".meta.enc") }
+            .forEach { sidecar ->
+                val id = sidecar.name.removeSuffix(".meta.enc")
+                val parent = sidecar.parentFile ?: return@forEach
+                val dateTaken = try {
+                    val obj = JSONObject(String(crypto.decryptFile(sidecar), Charsets.UTF_8))
+                    obj.optLongOrNull("d")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Sidecar unreadable during restore-fixup ${sidecar.name}: ${e.message}")
+                    null
+                } ?: return@forEach
+
+                // Apply to every plausible companion file for this id.
+                listOf(
+                    "$id.enc", "$id.thumb.enc",
+                    "$id.vid.enc", "$id.vid.thumb.enc",
+                    "$id.pdf.enc", "$id.file.enc"
+                ).forEach { name ->
+                    val f = File(parent, name)
+                    if (f.exists()) f.setLastModified(dateTaken)
+                }
+                updated++
+            }
+        return updated
+    }
+
     // ===== Starred photos =====
 
     private val starredFile = File(vaultDir, "_starred.enc")

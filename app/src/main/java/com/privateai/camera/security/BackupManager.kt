@@ -125,10 +125,16 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
         zos.write(wrappedKeyData)
         zos.closeEntry()
 
-        // Write vault files preserving directory structure
+        // Write vault files preserving directory structure.
+        // Critically, preserve each file's mtime into the ZipEntry — VaultPhoto
+        // grouping ("Today", "This Week", etc.) reads file.lastModified(), and
+        // for fresh-import photos that mtime was set to the EXIF dateTaken at
+        // import time. Without this, restored photos all collapse into one
+        // group ("now"), losing date-based gallery navigation.
         allFiles.forEachIndexed { index, file ->
             val relativePath = file.relativeTo(context.filesDir).path.replace('\\', '/')
-            zos.putNextEntry(ZipEntry(relativePath))
+            val entry = ZipEntry(relativePath).apply { time = file.lastModified() }
+            zos.putNextEntry(entry)
             FileInputStream(file).use { fis ->
                 fis.copyTo(zos)
             }
@@ -308,6 +314,13 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
                             targetFile.outputStream().use { out ->
                                 zis.copyTo(out, bufferSize = 8192)
                             }
+                            // Carry the original mtime forward so VaultPhoto's
+                            // date-grouping doesn't collapse all restored files
+                            // into "Today". Backups created before this fix
+                            // shipped have entry.time = backup-creation-time;
+                            // the post-import sidecar pass below corrects those.
+                            val zipMtime = entry.time
+                            if (zipMtime > 0) targetFile.setLastModified(zipMtime)
                             imported++
                         } catch (e: Exception) {
                             Log.e(TAG, "Failed to extract: ${entry.name}: ${e.message}")
@@ -320,6 +333,19 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
                 zis.closeEntry()
                 entry = zis.nextEntry
             }
+        }
+
+        // Belt-and-suspenders for backups created before mtime preservation
+        // shipped: walk the vault dir and re-apply each photo's `dateTaken`
+        // from its `.meta.enc` sidecar to the corresponding file mtimes.
+        // Cheap (only the small encrypted JSON sidecars get decrypted) and
+        // catches the case where the ZipEntry mtime was the backup-creation
+        // time rather than the original capture date.
+        try {
+            val fixed = VaultRepository(context, crypto).restorePhotoTimestampsFromMetadata()
+            if (fixed > 0) Log.i(TAG, "Reapplied dateTaken to mtime for $fixed photos")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to reapply photo mtimes from sidecars: ${e.message}")
         }
 
         Log.i(TAG, "Backup imported: $imported files, $skipped skipped" +

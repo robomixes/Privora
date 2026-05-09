@@ -783,6 +783,13 @@
     <string name="wizard_step4_setup">Configurar PIN de emergencia</string>
     <string name="wizard_step4_change">Cambiar PIN de emergencia</string>
     <string name="wizard_step4_skip_hint">Puede saltar este paso y configurarlo después en Ajustes → Avanzado.</string>
+    <string name="wizard_privacy_title">Ajustes de privacidad</string>
+    <string name="wizard_privacy_subtitle">Dos ajustes que protegen lo que aparece en pantalla y la rapidez con que Privora se bloquea.</string>
+    <string name="wizard_privacy_screenshot_title">Bloquear capturas de pantalla</string>
+    <string name="wizard_privacy_screenshot_desc">Ocultar Privora de las capturas, grabaciones de pantalla y la vista previa de recientes. Recomendado.</string>
+    <string name="wizard_privacy_autolock_title">Bloquear tras inactividad</string>
+    <string name="wizard_privacy_autolock_desc">Al salir de Privora, bloquear la bóveda tras este retraso.</string>
+    <string name="wizard_privacy_change_later_hint">Puedes cambiar ambos después en Ajustes → Seguridad.</string>
     <string name="wizard_step5_title">Modelo IA</string>
     <string name="wizard_step5_subtitle">Gemma 4 funciona localmente para chat, resúmenes y descripciones de fotos. Opcional.</string>
     <string name="wizard_step5_storage">Necesario: %1$s   •   Libre: %2$s</string>

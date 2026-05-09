@@ -856,6 +856,13 @@
     <string name="wizard_step4_setup">Set up emergency PIN</string>
     <string name="wizard_step4_change">Change emergency PIN</string>
     <string name="wizard_step4_skip_hint">You can skip this and set it later from Settings → Advanced.</string>
+    <string name="wizard_privacy_title">Privacy defaults</string>
+    <string name="wizard_privacy_subtitle">Two settings that protect what\'s on screen and how quickly Privora locks.</string>
+    <string name="wizard_privacy_screenshot_title">Block screenshots</string>
+    <string name="wizard_privacy_screenshot_desc">Hide Privora from screenshots, screen recording, and the recents preview. Recommended.</string>
+    <string name="wizard_privacy_autolock_title">Lock after inactivity</string>
+    <string name="wizard_privacy_autolock_desc">When you leave Privora, lock the vault after this delay.</string>
+    <string name="wizard_privacy_change_later_hint">You can change both later from Settings → Security.</string>
     <string name="wizard_step5_title">AI model</string>
     <string name="wizard_step5_subtitle">Gemma 4 runs locally for chat, summaries, photo descriptions. Optional.</string>
     <string name="wizard_step5_storage">Required: %1$s   •   Free: %2$s</string>

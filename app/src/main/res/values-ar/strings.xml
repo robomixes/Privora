@@ -783,6 +783,13 @@
     <string name="wizard_step4_setup">تعيين رمز الطوارئ</string>
     <string name="wizard_step4_change">تغيير رمز الطوارئ</string>
     <string name="wizard_step4_skip_hint">يمكنك تخطي هذه الخطوة وتعيينه لاحقاً من الإعدادات ← متقدم.</string>
+    <string name="wizard_privacy_title">إعدادات الخصوصية</string>
+    <string name="wizard_privacy_subtitle">إعدادان يحميان ما يظهر على الشاشة وسرعة قفل Privora.</string>
+    <string name="wizard_privacy_screenshot_title">حظر لقطات الشاشة</string>
+    <string name="wizard_privacy_screenshot_desc">إخفاء Privora من لقطات الشاشة وتسجيل الشاشة وقائمة التطبيقات الأخيرة. موصى به.</string>
+    <string name="wizard_privacy_autolock_title">القفل بعد عدم النشاط</string>
+    <string name="wizard_privacy_autolock_desc">عند الخروج من Privora، يتم قفل الخزينة بعد هذه المدة.</string>
+    <string name="wizard_privacy_change_later_hint">يمكنك تغيير الاثنين لاحقاً من الإعدادات ← الأمان.</string>
     <string name="wizard_step5_title">نموذج الذكاء الاصطناعي</string>
     <string name="wizard_step5_subtitle">Gemma 4 يعمل محلياً للدردشة والتلخيص ووصف الصور. اختياري.</string>
     <string name="wizard_step5_storage">المطلوب: %1$s   •   المتاح: %2$s</string>

@@ -51,7 +51,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -115,7 +117,7 @@ fun CalibrationWizardScreen(
     // 5 action steps + 7 informational pages + 1 finish = 13 total. The info
     // pages walk the user through each major Privora module so they leave the
     // wizard knowing what's there to use.
-    val totalSteps = 14
+    val totalSteps = 15
 
     Scaffold(
         topBar = {
@@ -150,16 +152,17 @@ fun CalibrationWizardScreen(
                     1 -> Step2Modules()
                     2 -> Step3DeviceTest()
                     3 -> Step4DuressPin(onSetDuressPin = onSetDuressPin)
-                    4 -> Step5AIModel()
-                    5 -> InfoPageContent(InfoPages.VAULT)
-                    6 -> InfoPageContent(InfoPages.HEALTH)
-                    7 -> InfoPageContent(InfoPages.BACKUP)
-                    8 -> InfoPageContent(InfoPages.AI)
-                    9 -> InfoPageContent(InfoPages.EMERGENCY)
-                    10 -> InfoPageContent(InfoPages.CALCULATOR)
-                    11 -> InfoPageContent(InfoPages.INTRUDER)
-                    12 -> InfoPageContent(InfoPages.AUTHENTICATOR)
-                    13 -> Step6Finish()
+                    4 -> StepPrivacyDefaults()
+                    5 -> Step5AIModel()
+                    6 -> InfoPageContent(InfoPages.VAULT)
+                    7 -> InfoPageContent(InfoPages.HEALTH)
+                    8 -> InfoPageContent(InfoPages.BACKUP)
+                    9 -> InfoPageContent(InfoPages.AI)
+                    10 -> InfoPageContent(InfoPages.EMERGENCY)
+                    11 -> InfoPageContent(InfoPages.CALCULATOR)
+                    12 -> InfoPageContent(InfoPages.INTRUDER)
+                    13 -> InfoPageContent(InfoPages.AUTHENTICATOR)
+                    14 -> Step6Finish()
                 }
             }
 
@@ -513,6 +516,152 @@ private fun Step4DuressPin(onSetDuressPin: () -> Unit) {
         }
         Text(
             stringResource(R.string.wizard_step4_skip_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+// ───────── Step 4.5 — Privacy defaults ─────────
+
+@Composable
+private fun StepPrivacyDefaults() {
+    val context = LocalContext.current
+    val prefs = remember {
+        context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE)
+    }
+
+    var blockScreenshots by remember {
+        mutableStateOf(prefs.getBoolean("block_screenshots", true))
+    }
+    var graceSeconds by remember {
+        mutableStateOf(prefs.getInt("lock_grace_seconds", 30))
+    }
+    val graceOptions = listOf(0, 10, 30, 60, 120, 300)
+    val graceLabels = listOf(
+        stringResource(R.string.grace_immediately),
+        stringResource(R.string.grace_10_seconds),
+        stringResource(R.string.grace_30_seconds),
+        stringResource(R.string.grace_1_minute),
+        stringResource(R.string.grace_2_minutes),
+        stringResource(R.string.grace_5_minutes)
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        StepHeader(
+            title = stringResource(R.string.wizard_privacy_title),
+            subtitle = stringResource(R.string.wizard_privacy_subtitle)
+        )
+
+        // Screenshot protection — toggle. Applied immediately to the live
+        // window so the user sees the effect (recents preview goes black).
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            )
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(Icons.Default.Security, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.wizard_privacy_screenshot_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        stringResource(R.string.wizard_privacy_screenshot_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = blockScreenshots,
+                    onCheckedChange = { v ->
+                        blockScreenshots = v
+                        prefs.edit().putBoolean("block_screenshots", v).apply()
+                        val activity = context as? android.app.Activity
+                        if (v) {
+                            activity?.window?.setFlags(
+                                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                                android.view.WindowManager.LayoutParams.FLAG_SECURE
+                            )
+                        } else {
+                            activity?.window?.clearFlags(
+                                android.view.WindowManager.LayoutParams.FLAG_SECURE
+                            )
+                        }
+                    }
+                )
+            }
+        }
+
+        // Lock-after-inactivity radio list. Same options & key as Settings.
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            )
+        ) {
+            Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(Icons.Default.Lock, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            stringResource(R.string.wizard_privacy_autolock_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            stringResource(R.string.wizard_privacy_autolock_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                graceOptions.forEachIndexed { index, value ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                graceSeconds = value
+                                prefs.edit().putInt("lock_grace_seconds", value).apply()
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = graceSeconds == value,
+                            onClick = {
+                                graceSeconds = value
+                                prefs.edit().putInt("lock_grace_seconds", value).apply()
+                            }
+                        )
+                        Text(graceLabels[index], modifier = Modifier.padding(start = 4.dp))
+                    }
+                }
+            }
+        }
+
+        Text(
+            stringResource(R.string.wizard_privacy_change_later_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
