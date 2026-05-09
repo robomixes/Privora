@@ -706,6 +706,127 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         return vaultDir.walkTopDown().filter { it.isFile }.fold(0L) { acc, file -> acc + file.length() }
     }
 
+    // ===== Rename =====
+
+    /** Outcome of a rename attempt — used by callers to display the right toast. */
+    sealed class RenameResult {
+        data class Success(val updated: VaultPhoto) : RenameResult()
+        object InvalidName : RenameResult()
+        object NameAlreadyExists : RenameResult()
+        object Failed : RenameResult()
+    }
+
+    /**
+     * Rename a vault item. The user supplies a base name (e.g. "Lease 2024");
+     * we preserve the existing extension/suffix internally so the item type
+     * detection in [listPhotos] / [listFolderItems] keeps working. Updates:
+     *   - the encrypted file
+     *   - the thumbnail file (if separate from the encrypted file)
+     *   - `<id>.meta.enc` sidecar (EXIF preservation)
+     *   - `<id>.ocr.enc` sidecar (Ask My Documents)
+     *   - the starred set entry, if the item was starred
+     *
+     * Refuses if the resulting filename already exists in the same dir
+     * (uniqueness is the source of truth for the id, so two items with the
+     * same name would silently collide).
+     */
+    fun renameItem(photo: VaultPhoto, newBaseName: String): RenameResult {
+        // Sanitize: strip any path separators and a few characters that would
+        // confuse downstream filesystems / our id parsing. Empty or only-dot
+        // names are rejected.
+        val cleaned = newBaseName.trim()
+            .replace(Regex("""[/\\:*?"<>| ]"""), "")
+        if (cleaned.isBlank() || cleaned == "." || cleaned == "..") return RenameResult.InvalidName
+
+        val parent = photo.encryptedFile.parentFile ?: return RenameResult.Failed
+        val oldEncFile = photo.encryptedFile
+        val oldEncName = oldEncFile.name
+        val oldId = photo.id
+
+        // Determine the encrypted-file suffix we need to preserve based on
+        // current naming. listFolderItems / listPhotos detect type by suffix.
+        val encSuffix = when {
+            oldEncName.endsWith(".pdf.enc") -> ".pdf.enc"
+            oldEncName.endsWith(".vid.enc") -> ".vid.enc"
+            oldEncName.endsWith(".file.enc") -> ".file.enc"
+            oldEncName.endsWith(".enc") -> ".enc"
+            else -> return RenameResult.Failed
+        }
+
+        // For PDFs the id (== old filename) keeps the .pdf hint. Strip it so
+        // the user types just "Lease 2024" and we add ".pdf" back. For files
+        // we preserve any extension the user typed; for photos/videos there's
+        // no conventional extension on the id.
+        val newId = when {
+            encSuffix == ".pdf.enc" -> if (cleaned.lowercase().endsWith(".pdf")) cleaned else "$cleaned.pdf"
+            encSuffix == ".vid.enc" -> cleaned
+            encSuffix == ".file.enc" -> cleaned
+            else -> cleaned
+        }
+        if (newId == oldId) return RenameResult.Success(photo)  // no-op
+
+        val newEncFile = File(parent, "$newId$encSuffix")
+        if (newEncFile.exists()) return RenameResult.NameAlreadyExists
+
+        // Atomic-enough: rename the primary file first; if that fails, we
+        // never touched anything else. After it succeeds, sidecar renames
+        // are best-effort.
+        if (!oldEncFile.renameTo(newEncFile)) return RenameResult.Failed
+
+        // Thumbnail (only when stored in a separate file — for PDFs the
+        // encrypted file IS the thumbnail).
+        if (photo.thumbnailFile != photo.encryptedFile && photo.thumbnailFile.exists()) {
+            val thumbSuffix = when {
+                photo.thumbnailFile.name.endsWith(".vid.thumb.enc") -> ".vid.thumb.enc"
+                photo.thumbnailFile.name.endsWith(".thumb.enc") -> ".thumb.enc"
+                else -> null
+            }
+            if (thumbSuffix != null) {
+                val newThumb = File(parent, "$newId$thumbSuffix")
+                photo.thumbnailFile.renameTo(newThumb)
+            }
+        }
+        // Metadata sidecar.
+        val oldMeta = File(parent, "$oldId.meta.enc")
+        if (oldMeta.exists()) oldMeta.renameTo(File(parent, "$newId.meta.enc"))
+        // OCR sidecar.
+        val oldOcr = File(parent, "$oldId.ocr.enc")
+        if (oldOcr.exists()) oldOcr.renameTo(File(parent, "$newId.ocr.enc"))
+
+        // Starred set: if this id was starred, replace with the new id.
+        try {
+            val starred = loadStarred()
+            if (oldId in starred) {
+                val updated = starred.toMutableSet().apply {
+                    remove(oldId)
+                    add(newId)
+                }
+                saveStarred(updated)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "rename: failed to update starred set for $oldId → $newId: ${e.message}")
+        }
+
+        // Build the updated VaultPhoto. Thumbnail file is recomputed because
+        // for non-PDFs it was a separate file (we just renamed it).
+        val newThumbFile = when {
+            photo.thumbnailFile == photo.encryptedFile -> newEncFile
+            photo.thumbnailFile.name.endsWith(".vid.thumb.enc") ->
+                File(parent, "$newId.vid.thumb.enc")
+            else -> File(parent, "$newId.thumb.enc")
+        }
+        val updated = VaultPhoto(
+            id = newId,
+            timestamp = photo.timestamp,
+            category = photo.category,
+            encryptedFile = newEncFile,
+            thumbnailFile = newThumbFile,
+            mediaType = photo.mediaType
+        )
+        Log.d(TAG, "Renamed: $oldId → $newId")
+        return RenameResult.Success(updated)
+    }
+
     // ===== Trash / Recycle Bin =====
 
     private val trashDir = File(vaultDir, "_trash").also { it.mkdirs() }

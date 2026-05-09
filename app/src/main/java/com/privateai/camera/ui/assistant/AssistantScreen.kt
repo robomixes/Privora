@@ -89,6 +89,19 @@ private const val TAG = "AssistantScreen"
  */
 private object AssistantSession {
     val messages = mutableStateListOf<ChatMessage>()
+    /**
+     * The vault document the user is currently asking about, if any.
+     * Set when the user enters the assistant via the vault PDF viewer's
+     * "Summarize" / "Ask the Assistant" entries. Bound to the chat session
+     * so follow-up questions ("now translate this", "give me the next part")
+     * stay grounded without re-specifying the doc id.
+     *
+     * The id is the encrypted-file basename (e.g. `scan_1714944000000.pdf`).
+     * Using the id directly in tool calls fails on Gemma 4 E2B — the model
+     * truncates the 13-digit timestamp. We bypass that by injecting the OCR
+     * text into the prompt directly (see `runAssistantTurn`).
+     */
+    var attachedDocId: String? = null
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -96,7 +109,8 @@ private object AssistantSession {
 fun AssistantScreen(
     onBack: (() -> Unit)? = null,
     onNavigate: ((route: String) -> Unit)? = null,
-    seedPrompt: String? = null
+    seedPrompt: String? = null,
+    attachedDocId: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -113,9 +127,27 @@ fun AssistantScreen(
 
     // Deep-link: when the vault viewer's "Ask the Assistant" / "Summarize"
     // entries route here with a seed prompt, drop it into the input field
-    // so the user can review and edit before sending.
-    var seedConsumed by remember { mutableStateOf(false) }
-    LaunchedEffect(seedPrompt) {
+    // so the user can review and edit before sending. If a doc id is
+    // attached, bind it to the session — runAssistantTurn will inject the
+    // OCR text directly into the prompt (Gemma 4 E2B can't reliably
+    // round-trip a 13-digit doc id through a tool call, so we bypass it).
+    //
+    // Key seedConsumed to attachedDocId so re-entering the assistant with a
+    // different doc re-seeds the input (otherwise the prior `seedConsumed=true`
+    // would block it).
+    var seedConsumed by remember(attachedDocId) { mutableStateOf(false) }
+    LaunchedEffect(seedPrompt, attachedDocId) {
+        if (!attachedDocId.isNullOrBlank()) {
+            // Switching FROM one doc TO a different doc — wipe the chat so the
+            // model isn't biased by a previous doc's summary. First attach
+            // (previous == null) preserves any unrelated chat the user may
+            // already have going.
+            val previous = AssistantSession.attachedDocId
+            if (previous != null && previous != attachedDocId) {
+                AssistantSession.messages.clear()
+            }
+            AssistantSession.attachedDocId = attachedDocId
+        }
         if (!seedConsumed && !seedPrompt.isNullOrBlank()) {
             inputText = seedPrompt
             seedConsumed = true
@@ -200,7 +232,13 @@ fun AssistantScreen(
                 actions = {
                     // "New chat" — clears the session so the user starts fresh
                     if (messages.isNotEmpty()) {
-                        IconButton(onClick = { messages.clear() }) {
+                        IconButton(onClick = {
+                            messages.clear()
+                            // Drop the doc binding when starting a fresh chat — the
+                            // user shouldn't keep accidentally answering against the
+                            // last doc they were asking about.
+                            AssistantSession.attachedDocId = null
+                        }) {
                             Icon(
                                 Icons.Default.Add,
                                 contentDescription = stringResource(R.string.assistant_new_chat),
@@ -573,6 +611,29 @@ private suspend fun runAssistantTurn(
     val snapshot = KnowledgeSnapshot.build(context)
     val snapshotJson = snapshot.toJson()
 
+    // 1b. If a vault document is attached to this session, load its OCR text
+    // and prepend it to the prompt as DOCUMENT CONTEXT. This bypasses the
+    // tool-call dance — Gemma 4 E2B can't reliably echo a 13-digit doc id
+    // back through a structured tool call, but it CAN read text that's
+    // already in its context. Phase 0 of the "Ask My Documents" spike.
+    val attachedDocId = AssistantSession.attachedDocId
+    val attachedOcr: String? = if (!attachedDocId.isNullOrBlank()) {
+        try {
+            val crypto = com.privateai.camera.security.CryptoManager(context)
+            if (crypto.initialize()) {
+                val vaultRepo = com.privateai.camera.security.VaultRepository(context, crypto)
+                // Find the doc across all categories (it's typically in SCAN).
+                val doc = com.privateai.camera.security.VaultCategory.entries.asSequence()
+                    .flatMap { vaultRepo.listPhotos(it).asSequence() }
+                    .firstOrNull { it.id == attachedDocId }
+                doc?.let { vaultRepo.loadOcr(it) }
+            } else null
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load attached doc OCR: ${e.message}")
+            null
+        }
+    } else null
+
     // 2. Assemble recent chat history — 8 exchanges (16 messages) for real follow-up context
     val history = allMessages
         .dropLast(1)
@@ -588,7 +649,42 @@ private suspend fun runAssistantTurn(
     val temp = classifyTemperature(userText)
 
     // 4. First turn — stream and decide free-text vs JSON-wrapped on the fly
-    val prompt = AssistantPrompts.formatTurn(snapshotJson, history, userText)
+    val basePrompt = AssistantPrompts.formatTurn(snapshotJson, history, userText)
+    val prompt = if (attachedOcr != null) {
+        // 4 KB budget (down from 6 KB) leaves more headroom for the model's
+        // reply. Hitting the output limit mid-answer was producing truncated
+        // JSON that leaked into the chat as raw `{"type":"answer","text":"…`.
+        val docBudget = 4096
+        val clipped = if (attachedOcr.length > docBudget) attachedOcr.take(docBudget) else attachedOcr
+        val truncatedNote = if (attachedOcr.length > docBudget)
+            "\n[Note: only the first ~4 KB of this document is shown. If the answer isn't in this excerpt, say so rather than guessing.]"
+        else ""
+        // Detect the dominant language of the user's question — used to nudge
+        // the model away from defaulting to English when the UI is Arabic /
+        // the document is French / etc.
+        val langHint = describeLanguage(userText)
+        buildString {
+            append("ATTACHED DOCUMENT (id: $attachedDocId):\n")
+            append(clipped)
+            append(truncatedNote)
+            append("\n\n---\n\n")
+            // Grounding rules — small-model assistants on noisy OCR text
+            // reliably hallucinate digits and reformat values. Forcing
+            // verbatim quoting + an "I can't find it" escape valve is the
+            // cheapest mitigation before we add real RAG citations.
+            append("Use the attached document above as your primary source when the user asks about it.\n")
+            append("Critical rules:\n")
+            append("- Copy any number, date, name, or value EXACTLY as it appears in the document text. Do NOT reformat, normalize, or paraphrase numbers — copy the digits character-by-character.\n")
+            append("- When the user asks for a value, quote the exact phrase from the document where you found it.\n")
+            append("- If the answer isn't clearly in the text, say \"I can't find that in the document\" rather than guessing.\n")
+            append("- The document text above came from OCR and may contain layout artefacts (extra spaces, mis-ordered columns). Don't try to fix or re-render it — work with what's there.\n")
+            append("- Reply in the same language as the user's question")
+            if (langHint != null) append(" ($langHint)")
+            append(". Do NOT default to English unless the user wrote in English. If the user's message is too short to tell, match the document's language instead.\n")
+            append("- Keep answers compact. Don't list every section of the document if the user asked about one specific thing. Long replies get cut off mid-sentence — be concise.\n\n")
+            append(basePrompt)
+        }
+    } else basePrompt
     val rawFirst = streamAndCollect(context, prompt, temp, onChunk)
     Log.d(TAG, "First reply (raw): ${rawFirst.take(200)}")
 
@@ -793,6 +889,60 @@ private fun extractJsonStringPartial(input: String): Pair<String, Boolean> {
         }
     }
     return sb.toString() to false
+}
+
+/**
+ * Best-effort language hint to nudge Gemma away from defaulting to English
+ * (or the document's language) when the user is asking in something else.
+ * Returns null when we genuinely can't tell — the model's general "match
+ * the user's language" rule still applies in that case.
+ *
+ * Strategy:
+ *  1. Non-Latin scripts (Arabic, CJK, Cyrillic, etc.) — return the script's
+ *     language directly. High-confidence signal.
+ *  2. Latin script — count uniquely-French / uniquely-Spanish stop-words
+ *     (i.e. *not* "document" or "resume" which collide with English). Only
+ *     commit if at least 2 hit, otherwise tie-breaks fall to the wrong side.
+ *  3. Final fallback — the device's display locale. If Privora's UI is set
+ *     to English, short queries like "Summarize this document." get tagged
+ *     English; if UI is French, they get tagged French.
+ */
+private fun describeLanguage(userText: String): String? {
+    // 1. Script detection — fast and reliable.
+    val firstNonAscii = userText.firstOrNull { it.code > 127 }
+    if (firstNonAscii != null) {
+        val block = Character.UnicodeBlock.of(firstNonAscii)
+        when (block) {
+            Character.UnicodeBlock.ARABIC,
+            Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_A,
+            Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_B -> return "Arabic"
+            Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS -> return "Chinese"
+            Character.UnicodeBlock.CYRILLIC -> return "Russian"
+            Character.UnicodeBlock.HIRAGANA, Character.UnicodeBlock.KATAKANA -> return "Japanese"
+            Character.UnicodeBlock.HANGUL_SYLLABLES -> return "Korean"
+            else -> {}
+        }
+    }
+    // 2. Latin-script: only uniquely-French / uniquely-Spanish markers count.
+    // Words that collide with English ("document", "resume") are excluded so
+    // a short English question like "Summarize this document." doesn't get
+    // mis-tagged as French.
+    val lower = " ${userText.lowercase()} "
+    val frenchUnique = listOf(" le ", " les ", " une ", " et ", " est ", " du ", " des ", " que ", " qu'", " ce ", " cette ", "résume", "résumé", "français", "à propos")
+    val spanishUnique = listOf(" el ", " los ", " las ", " los ", " es ", " del ", " esta ", " este ", " con ", " por ", " para ", "español", "qué")
+    val frenchHits = frenchUnique.count { lower.contains(it) }
+    val spanishHits = spanishUnique.count { lower.contains(it) }
+    if (frenchHits >= 2 && frenchHits > spanishHits) return "French"
+    if (spanishHits >= 2 && spanishHits > frenchHits) return "Spanish"
+    // 3. Fallback: device locale.
+    return when (java.util.Locale.getDefault().language) {
+        "en" -> "English"
+        "fr" -> "French"
+        "es" -> "Spanish"
+        "ar" -> "Arabic"
+        "zh" -> "Chinese"
+        else -> null  // unknown — let Gemma's general rule handle it
+    }
 }
 
 /** Classify user intent → temperature. Creative tasks need warmer, data queries need colder. */

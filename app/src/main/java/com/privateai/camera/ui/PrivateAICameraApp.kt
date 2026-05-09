@@ -186,14 +186,19 @@ fun PrivateAICameraApp() {
                 )
             }
             composable(
-                "assistant?seed={seed}",
-                arguments = listOf(navArgument("seed") { defaultValue = ""; type = NavType.StringType })
+                "assistant?seed={seed}&docId={docId}",
+                arguments = listOf(
+                    navArgument("seed") { defaultValue = ""; type = NavType.StringType },
+                    navArgument("docId") { defaultValue = ""; type = NavType.StringType }
+                )
             ) { backStackEntry ->
                 val seed = backStackEntry.arguments?.getString("seed")?.ifBlank { null }
+                val docId = backStackEntry.arguments?.getString("docId")?.ifBlank { null }
                 AssistantScreen(
                     onBack = safeBack,
                     onNavigate = { route -> navController.navigate(route) },
-                    seedPrompt = seed
+                    seedPrompt = seed,
+                    attachedDocId = docId
                 )
             }
             composable(

@@ -33,15 +33,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Summarize
+import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -89,7 +94,9 @@ fun PdfViewerScreen(
     title: String,
     onBack: () -> Unit,
     onAskAssistant: (() -> Unit)? = null,
-    onSummarize: (() -> Unit)? = null
+    onSummarize: (() -> Unit)? = null,
+    onViewExtractedText: (() -> Unit)? = null,
+    onRename: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -203,14 +210,23 @@ fun PdfViewerScreen(
             // Right side: share + (optionally) overflow menu with AI actions.
             // When the document has an OCR sidecar, the host wires onAskAssistant
             // / onSummarize and we surface the overflow. Otherwise just Share.
-            val hasAiActions = onAskAssistant != null || onSummarize != null
+            val hasAiActions = onAskAssistant != null || onSummarize != null ||
+                onViewExtractedText != null || onRename != null
             if (hasAiActions) {
                 var menuOpen by remember { mutableStateOf(false) }
+                var showRenameDialog by remember { mutableStateOf(false) }
                 Box(modifier = Modifier.align(Alignment.CenterEnd)) {
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(Icons.Default.MoreVert, stringResource(R.string.action_more), tint = Color.White)
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        if (onRename != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.vault_rename)) },
+                                leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, null) },
+                                onClick = { menuOpen = false; showRenameDialog = true }
+                            )
+                        }
                         if (onSummarize != null) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.assistant_summarize)) },
@@ -223,6 +239,13 @@ fun PdfViewerScreen(
                                 text = { Text(stringResource(R.string.assistant_ask)) },
                                 leadingIcon = { Icon(Icons.Default.AutoAwesome, null) },
                                 onClick = { menuOpen = false; onAskAssistant() }
+                            )
+                        }
+                        if (onViewExtractedText != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.assistant_view_extracted_text)) },
+                                leadingIcon = { Icon(Icons.Default.TextSnippet, null) },
+                                onClick = { menuOpen = false; onViewExtractedText() }
                             )
                         }
                         DropdownMenuItem(
@@ -242,6 +265,39 @@ fun PdfViewerScreen(
                             }
                         )
                     }
+                }
+                if (showRenameDialog && onRename != null) {
+                    // Strip the .pdf hint from the displayed name so the user
+                    // edits the readable part. The repo re-attaches the
+                    // extension on save (so the file type detection still works).
+                    val initial = title.removeSuffix(".pdf").removeSuffix(".PDF")
+                    var newName by remember(initial) { mutableStateOf(initial) }
+                    AlertDialog(
+                        onDismissRequest = { showRenameDialog = false },
+                        title = { Text(stringResource(R.string.vault_rename_dialog_title)) },
+                        text = {
+                            OutlinedTextField(
+                                value = newName,
+                                onValueChange = { newName = it },
+                                singleLine = true,
+                                label = { Text(stringResource(R.string.vault_rename_label)) }
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                enabled = newName.isNotBlank() && newName != initial,
+                                onClick = {
+                                    showRenameDialog = false
+                                    onRename(newName)
+                                }
+                            ) { Text(stringResource(R.string.totp_save)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showRenameDialog = false }) {
+                                Text(stringResource(R.string.cancel))
+                            }
+                        }
+                    )
                 }
             } else {
                 IconButton(

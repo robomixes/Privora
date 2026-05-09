@@ -43,14 +43,33 @@ sealed class ParsedReply {
             val json = GemmaRunner.extractFirstJsonObject(raw)
             if (json != null) {
                 val type = json.optString("type", "answer").lowercase()
-                if (type == "tool") {
-                    val name = json.optString("name", "")
+                // Tolerate Gemma's frequent misformat where it puts the tool
+                // name in the `type` field instead of `type:"tool"`. e.g.
+                // `{"type":"search_notes","query":"x"}` is treated the same
+                // as `{"type":"tool","name":"search_notes","query":"x"}`.
+                //
+                // summarize_document / ask_document are no longer advertised
+                // in the system prompt (the assistant reads doc text directly
+                // from the ATTACHED DOCUMENT block). They stay in this set
+                // only as a safety net: if Gemma emits them anyway from
+                // training-data memory, the dispatcher returns a graceful
+                // error rather than leaking raw JSON to the chat.
+                val knownTools = setOf(
+                    "search_notes", "fetch_note", "summarize_expenses",
+                    "summarize_document", "ask_document"
+                )
+                val effectiveToolName = when {
+                    type == "tool" -> json.optString("name", "")
+                    type in knownTools -> type
+                    else -> ""
+                }
+                if (effectiveToolName.isNotBlank()) {
                     // Tool param can be "query", "id", or "period" depending on the tool
                     val query = json.optString("query", "")
                         .ifEmpty { json.optString("id", "") }
                         .ifEmpty { json.optString("period", "") }
-                    if (name.isNotBlank() && query.isNotBlank()) {
-                        return ToolCall(name, query)
+                    if (query.isNotBlank()) {
+                        return ToolCall(effectiveToolName, query)
                     }
                 }
                 if (type == "action") {
@@ -94,6 +113,29 @@ sealed class ParsedReply {
                     val inner = obj.optString("text", "").trim()
                     if (inner.isNotEmpty()) return inner
                 } catch (_: Exception) { /* not valid JSON, proceed with regex cleanup */ }
+            }
+
+            // Truncated-output salvage: when Gemma's reply hits the output budget
+            // mid-string, the JSON is unclosed (`{"type":"answer","text":"…content`)
+            // and the closed-JSON regexes below all fail to match. Extract whatever
+            // text was emitted between `"text":"` and the cutoff so the user at
+            // least sees the partial answer instead of raw JSON.
+            if (cleaned.startsWith("{")) {
+                val openMarker = Regex("""[\"]?text[\"]?\s*:\s*[\"]""").find(cleaned)
+                if (openMarker != null) {
+                    val start = openMarker.range.last + 1
+                    var partial = cleaned.substring(start)
+                    // Trim a trailing closing-quote-and-brace if it happens to be there.
+                    partial = partial.trimEnd().trimEnd('}', ' ').trimEnd('"', ' ')
+                    val decoded = partial
+                        .replace("\\n", "\n")
+                        .replace("\\t", "\t")
+                        .replace("\\\"", "\"")
+                        .replace("\\\\", "\\")
+                    if (decoded.isNotBlank() && decoded.length > 10) {
+                        return decoded.trim()
+                    }
+                }
             }
 
             // Regex: strip {type:answer, text: ...} wrapper (with or without quotes)

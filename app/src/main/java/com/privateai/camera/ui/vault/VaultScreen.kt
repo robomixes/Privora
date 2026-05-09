@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -211,6 +212,9 @@ fun VaultScreen(
     var videoTempFile by remember { mutableStateOf<File?>(null) }
     var pdfTempFile by remember { mutableStateOf<File?>(null) }
     var pdfTitle by remember { mutableStateOf("") }
+    // Holds the decrypted OCR text when the user taps "View extracted text"
+    // in the PDF viewer overflow. null = dialog hidden.
+    var extractedTextDialog by remember { mutableStateOf<String?>(null) }
     var showEditor by remember { mutableStateOf(false) }
 
     // Custom folders
@@ -846,6 +850,40 @@ fun VaultScreen(
 
     // Details dialog
     var showDetailsDialog by remember { mutableStateOf(false) }
+
+    // Extracted-OCR-text inspector dialog. Lets the user verify whether a
+    // wrong answer from the assistant came from bad OCR (the text shows
+    // "202024" too) or from Gemma hallucinating digits (text shows "2024").
+    extractedTextDialog?.let { ocrText ->
+        AlertDialog(
+            onDismissRequest = { extractedTextDialog = null },
+            title = { Text(stringResource(R.string.assistant_view_extracted_text)) },
+            text = {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp)
+                ) {
+                    item {
+                        Text(
+                            if (ocrText.isBlank()) stringResource(R.string.assistant_view_extracted_text_empty) else ocrText,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                        as? android.content.ClipboardManager
+                    cm?.setPrimaryClip(android.content.ClipData.newPlainText("OCR text", ocrText))
+                    Toast.makeText(context, context.getString(R.string.totp_copied), Toast.LENGTH_SHORT).show()
+                }) { Text(stringResource(R.string.totp_copy)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { extractedTextDialog = null }) { Text(stringResource(R.string.close)) }
+            }
+        )
+    }
     // Gallery / folder overflow menu (3-dot top-right). One state var works
     // for both because GALLERY and FOLDER_VIEW are mutually exclusive pages.
     var showOverflowMenu by remember { mutableStateOf(false) }
@@ -3343,16 +3381,56 @@ fun VaultScreen(
                 val docHasOcr = viewerDoc != null && vault.hasOcr(viewerDoc)
                 val seedAsk = if (docHasOcr && onNavigate != null) {
                     {
-                        val seed = context.getString(R.string.assistant_seed_ask, viewerDoc!!.id)
-                        onNavigate("assistant?seed=${android.net.Uri.encode(seed)}")
+                        // The doc binds to the assistant session via docId
+                        // separately; the seed prompt embeds the doc *name*
+                        // (post-rename, this is the readable label) so the
+                        // user's first chat bubble shows what they're asking
+                        // about. Strip the .pdf hint for readability.
+                        val id = viewerDoc!!.id
+                        val displayName = id.removeSuffix(".pdf").removeSuffix(".PDF")
+                        val seed = context.getString(R.string.assistant_seed_ask, displayName)
+                        onNavigate(
+                            "assistant?seed=${android.net.Uri.encode(seed)}" +
+                                "&docId=${android.net.Uri.encode(id)}"
+                        )
                     }
                 } else null
                 val seedSummarize = if (docHasOcr && onNavigate != null) {
                     {
-                        val seed = context.getString(R.string.assistant_seed_summarize, viewerDoc!!.id)
-                        onNavigate("assistant?seed=${android.net.Uri.encode(seed)}")
+                        val id = viewerDoc!!.id
+                        val displayName = id.removeSuffix(".pdf").removeSuffix(".PDF")
+                        val seed = context.getString(R.string.assistant_seed_summarize, displayName)
+                        onNavigate(
+                            "assistant?seed=${android.net.Uri.encode(seed)}" +
+                                "&docId=${android.net.Uri.encode(id)}"
+                        )
                     }
                 } else null
+                val viewOcr = if (docHasOcr) {
+                    { extractedTextDialog = vault.loadOcr(viewerDoc!!) ?: "" }
+                } else null
+                val rename: (String) -> Unit = { newName ->
+                    val current = viewerPhoto
+                    if (current != null) {
+                        val result = vault.renameItem(current, newName)
+                        when (result) {
+                            is com.privateai.camera.security.VaultRepository.RenameResult.Success -> {
+                                viewerPhoto = result.updated
+                                pdfTitle = result.updated.id
+                                // Refresh the gallery list so the rename is
+                                // visible the next time the user backs out.
+                                photos = photos.map { if (it.id == current.id) result.updated else it }
+                                Toast.makeText(context, context.getString(R.string.vault_rename_done), Toast.LENGTH_SHORT).show()
+                            }
+                            com.privateai.camera.security.VaultRepository.RenameResult.NameAlreadyExists ->
+                                Toast.makeText(context, context.getString(R.string.vault_rename_collision), Toast.LENGTH_SHORT).show()
+                            com.privateai.camera.security.VaultRepository.RenameResult.InvalidName ->
+                                Toast.makeText(context, context.getString(R.string.vault_rename_invalid), Toast.LENGTH_SHORT).show()
+                            com.privateai.camera.security.VaultRepository.RenameResult.Failed ->
+                                Toast.makeText(context, context.getString(R.string.vault_rename_failed), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
                 PdfViewerScreen(
                     pdfFile = file,
                     title = pdfTitle,
@@ -3363,7 +3441,9 @@ fun VaultScreen(
                         page = VaultPage.GALLERY
                     },
                     onAskAssistant = seedAsk,
-                    onSummarize = seedSummarize
+                    onSummarize = seedSummarize,
+                    onViewExtractedText = viewOcr,
+                    onRename = rename
                 )
             } else {
                 page = VaultPage.GALLERY
