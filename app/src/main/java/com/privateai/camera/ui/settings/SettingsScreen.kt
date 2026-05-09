@@ -1179,6 +1179,15 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                             // Model already on disk — just flip the switch.
                                             // The download dialog is for storage/RAM warnings before
                                             // a fresh download; not relevant if we already have the file.
+                                            //
+                                            // Also clear sticky crash flags. `load_crashed` /
+                                            // `vision_crashed` survive across app launches; if the
+                                            // user is explicitly re-enabling, treat it as "retry."
+                                            // Without this, a previous failed load (or a flag carried
+                                            // over from a backup of a different device) leaves the
+                                            // Assistant permanently dark even though the toggle says ON.
+                                            com.privateai.camera.bridge.GemmaRunner.resetCrashFlag(context)
+                                            com.privateai.camera.bridge.GemmaRunner.resetVisionCrashFlag(context)
                                             com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
                                             aiEnabled = true
                                         } else {
