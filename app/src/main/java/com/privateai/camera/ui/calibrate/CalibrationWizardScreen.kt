@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockClock
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -114,7 +115,7 @@ fun CalibrationWizardScreen(
     // 5 action steps + 7 informational pages + 1 finish = 13 total. The info
     // pages walk the user through each major Privora module so they leave the
     // wizard knowing what's there to use.
-    val totalSteps = 13
+    val totalSteps = 14
 
     Scaffold(
         topBar = {
@@ -157,7 +158,8 @@ fun CalibrationWizardScreen(
                     9 -> InfoPageContent(InfoPages.EMERGENCY)
                     10 -> InfoPageContent(InfoPages.CALCULATOR)
                     11 -> InfoPageContent(InfoPages.INTRUDER)
-                    12 -> Step6Finish()
+                    12 -> InfoPageContent(InfoPages.AUTHENTICATOR)
+                    13 -> Step6Finish()
                 }
             }
 
@@ -736,6 +738,7 @@ private object InfoPages {
     val EMERGENCY = InfoPage(Icons.Default.Security, R.string.wizard_info_emergency_title, R.string.wizard_info_emergency_body, Color(0xFFD32F2F))
     val CALCULATOR = InfoPage(Icons.Default.Calculate, R.string.wizard_info_calculator_title, R.string.wizard_info_calculator_body, Color(0xFF37474F))
     val INTRUDER = InfoPage(Icons.Default.PhotoCamera, R.string.wizard_info_intruder_title, R.string.wizard_info_intruder_body, Color(0xFFE65100))
+    val AUTHENTICATOR = InfoPage(Icons.Default.LockClock, R.string.wizard_info_authenticator_title, R.string.wizard_info_authenticator_body, Color(0xFF0097A7))
 }
 
 @Composable

@@ -19,12 +19,23 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.ShortText
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Spellcheck
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.UnfoldMore
+import androidx.compose.material.icons.filled.WorkOutline
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -91,6 +102,7 @@ fun AssistantScreen(
     val messages = AssistantSession.messages
     var thinking by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
+    var showLanguagePicker by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     // Pre-warm the Gemma engine so the first reply doesn't pay cold-load latency
@@ -111,6 +123,10 @@ fun AssistantScreen(
         inputText = ""
         messages += ChatMessage.User(text)
         thinking = true
+
+        // The trailing function body lives below — keep this declaration as the
+        // single source of truth for the message-send flow; quick-action chips
+        // route through here by prepending a directive and calling sendMessage().
 
         // Streaming index is allocated lazily — set when the first non-empty
         // chunk arrives, so the typing indicator is replaced cleanly by a real
@@ -269,6 +285,42 @@ fun AssistantScreen(
                         onActionDismiss = {
                             val current = messages.getOrNull(msgIndex) as? ChatMessage.Assistant ?: return@ChatBubble
                             messages[msgIndex] = current.copy(actionStatus = ActionStatus.DISMISSED)
+                        },
+                        onSaveAsNote = { replyText ->
+                            // Guard against re-taps before the save completes.
+                            // The button itself disables when savedAsNote becomes
+                            // true, but this catches concurrent taps too.
+                            val cur = messages.getOrNull(msgIndex) as? ChatMessage.Assistant
+                            if (cur == null || cur.savedAsNote) return@ChatBubble
+                            scope.launch {
+                                val ok = withContext(Dispatchers.IO) {
+                                    try {
+                                        val crypto = CryptoManager(context).also { it.initialize() }
+                                        val noteRepo = NoteRepository(File(context.filesDir, "vault/notes"), crypto)
+                                        val title = replyText.lineSequence().firstOrNull { it.isNotBlank() }
+                                            ?.take(60)?.trim()
+                                            ?: context.getString(R.string.assistant_saved_default_title)
+                                        noteRepo.createNote(
+                                            title = title,
+                                            content = replyText,
+                                            tags = listOf("assistant")
+                                        )
+                                        true
+                                    } catch (_: Exception) { false }
+                                }
+                                if (ok && msgIndex < messages.size) {
+                                    val updated = (messages[msgIndex] as? ChatMessage.Assistant)?.copy(savedAsNote = true)
+                                    if (updated != null) messages[msgIndex] = updated
+                                }
+                                android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(
+                                        if (ok) R.string.assistant_saved_to_notes
+                                        else R.string.note_save_failed
+                                    ),
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
                     )
                 }
@@ -280,7 +332,10 @@ fun AssistantScreen(
                 item { Spacer(Modifier.height(8.dp)) }
             }
 
-            // Input bar
+            // Input bar — taller default (~4 visible lines at rest, expands to
+            // 18 for pasted emails / drafts). The system text field already
+            // exposes paste via long-press; we don't add a separate paste icon
+            // because it consumed input width users want for the field itself.
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -293,10 +348,10 @@ fun AssistantScreen(
                     onValueChange = { inputText = it },
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 56.dp),   // enough for 2 visible lines at rest
+                        .heightIn(min = 110.dp),
                     placeholder = { Text(stringResource(R.string.assistant_input_hint)) },
-                    minLines = 2,
-                    maxLines = 15,                 // expands for pasted emails / long text
+                    minLines = 4,
+                    maxLines = 18,
                     enabled = !thinking
                 )
                 IconButton(
@@ -313,6 +368,141 @@ fun AssistantScreen(
                     )
                 }
             }
+            // Char counter — surfaces only when the user has typed enough that
+            // length matters (e.g., targeting an email of a specific size).
+            if (inputText.length > 50) {
+                Text(
+                    stringResource(R.string.assistant_chars, inputText.length),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp)
+                )
+            }
+
+            // Quick-action tag row — under the input field. Each chip wraps
+            // the typed text in a writing-task directive and sends. Disabled
+            // when the field is empty so the user never sends a directive with
+            // nothing to act on.
+            val canApplyChip = inputText.isNotBlank() && !thinking
+            fun applyQuickAction(directive: String) {
+                if (!canApplyChip) return
+                inputText = "$directive\n\n${inputText.trim()}"
+                sendMessage()
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                QuickActionChip(
+                    label = stringResource(R.string.assistant_chip_grammar),
+                    icon = Icons.Default.Spellcheck,
+                    enabled = canApplyChip,
+                    onClick = {
+                        applyQuickAction(context.getString(R.string.assistant_directive_grammar))
+                    }
+                )
+                QuickActionChip(
+                    label = stringResource(R.string.assistant_chip_rewrite),
+                    icon = Icons.Default.AutoFixHigh,
+                    enabled = canApplyChip,
+                    onClick = {
+                        applyQuickAction(context.getString(R.string.assistant_directive_rewrite))
+                    }
+                )
+                QuickActionChip(
+                    label = stringResource(R.string.assistant_chip_summarize),
+                    icon = Icons.AutoMirrored.Filled.ShortText,
+                    enabled = canApplyChip,
+                    onClick = {
+                        applyQuickAction(context.getString(R.string.assistant_directive_summarize))
+                    }
+                )
+                QuickActionChip(
+                    label = stringResource(R.string.assistant_chip_formal),
+                    icon = Icons.Default.WorkOutline,
+                    enabled = canApplyChip,
+                    onClick = {
+                        applyQuickAction(context.getString(R.string.assistant_directive_formal))
+                    }
+                )
+                QuickActionChip(
+                    label = stringResource(R.string.assistant_chip_simple),
+                    icon = Icons.Default.Lightbulb,
+                    enabled = canApplyChip,
+                    onClick = {
+                        applyQuickAction(context.getString(R.string.assistant_directive_simple))
+                    }
+                )
+                QuickActionChip(
+                    label = stringResource(R.string.assistant_chip_translate),
+                    icon = Icons.Default.Translate,
+                    enabled = canApplyChip,
+                    onClick = {
+                        // Defer the directive until the user picks a target language.
+                        showLanguagePicker = true
+                    }
+                )
+                QuickActionChip(
+                    label = stringResource(R.string.assistant_chip_expand),
+                    icon = Icons.Default.UnfoldMore,
+                    enabled = canApplyChip,
+                    onClick = {
+                        applyQuickAction(context.getString(R.string.assistant_directive_expand))
+                    }
+                )
+                QuickActionChip(
+                    label = stringResource(R.string.assistant_chip_bullets),
+                    icon = Icons.AutoMirrored.Filled.FormatListBulleted,
+                    enabled = canApplyChip,
+                    onClick = {
+                        applyQuickAction(context.getString(R.string.assistant_directive_bullets))
+                    }
+                )
+            }
+
+            // Translate target-language picker — opened from the Translate chip.
+            // Five built-in languages match Privora's UI locales; users can extend
+            // by typing a language name themselves into the chat.
+            if (showLanguagePicker) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showLanguagePicker = false },
+                    title = { Text(stringResource(R.string.assistant_translate_pick_title)) },
+                    text = {
+                        Column {
+                            val languages = listOf(
+                                R.string.assistant_translate_lang_en to "English",
+                                R.string.assistant_translate_lang_fr to "French",
+                                R.string.assistant_translate_lang_es to "Spanish",
+                                R.string.assistant_translate_lang_zh to "Chinese",
+                                R.string.assistant_translate_lang_ar to "Arabic"
+                            )
+                            languages.forEach { (labelRes, modelLangName) ->
+                                androidx.compose.material3.TextButton(
+                                    onClick = {
+                                        showLanguagePicker = false
+                                        applyQuickAction(
+                                            context.getString(R.string.assistant_directive_translate, modelLangName)
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(stringResource(labelRes), modifier = Modifier.fillMaxWidth())
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { showLanguagePicker = false }) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -323,6 +513,32 @@ private data class TurnResult(
     val refs: List<DataRef>,
     val action: ProposedAction? = null
 )
+
+/**
+ * Compact AssistChip with a leading icon, used in the quick-action row above
+ * the input field. Disabled state visually dims the chip so users know they
+ * need to type something first.
+ */
+@Composable
+private fun QuickActionChip(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    AssistChip(
+        onClick = onClick,
+        enabled = enabled,
+        label = { Text(label) },
+        leadingIcon = {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(AssistChipDefaults.IconSize)
+            )
+        }
+    )
+}
 
 /**
  * Execute one assistant turn: build snapshot → Gemma → optional tool → answer

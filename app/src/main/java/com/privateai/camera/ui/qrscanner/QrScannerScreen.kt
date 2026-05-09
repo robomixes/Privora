@@ -89,7 +89,10 @@ import java.util.concurrent.Executors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QrScannerScreen(onBack: (() -> Unit)? = null) {
+fun QrScannerScreen(
+    onBack: (() -> Unit)? = null,
+    onOtpAuthScanned: ((String) -> Unit)? = null
+) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     val history = remember { mutableStateListOf<QrHistoryItem>() }
@@ -159,7 +162,8 @@ fun QrScannerScreen(onBack: (() -> Unit)? = null) {
                         history.add(0, item)
                         if (history.size > 200) history.removeAt(history.lastIndex)
                     },
-                    onShowDetail = { detailItem = it }
+                    onShowDetail = { detailItem = it },
+                    onOtpAuthScanned = onOtpAuthScanned
                 )
                 1 -> QrGenerateTab(
                     onBack = onBack,
@@ -194,7 +198,8 @@ fun QrScannerScreen(onBack: (() -> Unit)? = null) {
 private fun QrScanTab(
     onBack: (() -> Unit)?,
     onCodeScanned: (QrHistoryItem) -> Unit,
-    onShowDetail: (QrHistoryItem) -> Unit
+    onShowDetail: (QrHistoryItem) -> Unit,
+    onOtpAuthScanned: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -279,9 +284,20 @@ private fun QrScanTab(
                                     .addOnSuccessListener { barcodes ->
                                         if (barcodes.isNotEmpty() && !showResult) {
                                             val barcode = barcodes[0]
+                                            val raw = barcode.rawValue ?: ""
+                                            // TOTP shortcut — when the scanned QR is an
+                                            // otpauth:// URI and the host wired a callback,
+                                            // skip the generic result sheet and route to
+                                            // the Authenticator add screen instead.
+                                            if (onOtpAuthScanned != null && raw.startsWith("otpauth://", ignoreCase = true)) {
+                                                try { vibrate() } catch (_: Exception) {}
+                                                showResult = true  // suppress further frames
+                                                onOtpAuthScanned(raw)
+                                                return@addOnSuccessListener
+                                            }
                                             val item = QrHistoryItem(
-                                                rawValue = barcode.rawValue ?: "",
-                                                displayValue = barcode.displayValue ?: barcode.rawValue ?: "",
+                                                rawValue = raw,
+                                                displayValue = barcode.displayValue ?: raw,
                                                 format = barcode.format,
                                                 valueType = barcode.valueType,
                                                 typeLabel = getTypeLabel(barcode.valueType),

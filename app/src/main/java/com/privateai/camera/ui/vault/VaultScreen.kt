@@ -72,6 +72,8 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Lock
@@ -80,6 +82,10 @@ import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.outlined.LabelOff
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Wifi
@@ -92,7 +98,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -271,6 +280,12 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
     var isVirtualPhotos by remember { mutableStateOf(false) }
     var isVirtualVideos by remember { mutableStateOf(false) }
     var isVirtualFiles by remember { mutableStateOf(false) }
+
+    // Gallery scroll state — hoisted above the page `when` switch so it
+    // survives the gallery → viewer → gallery round-trip. Otherwise the
+    // user lands at the top of a 1500-photo list every time they peek at
+    // an image.
+    val galleryListState = androidx.compose.foundation.lazy.rememberLazyListState()
     var filesFilter by remember { mutableStateOf("all") } // "all", "photo", "video", "pdf", "other"
 
     // Auto-lock with shared grace period
@@ -330,8 +345,9 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             val bytes = context.contentResolver.openInputStream(uri)?.readBytes()
                             if (bytes == null) { importErrors++; withContext(Dispatchers.Main) { importProgress = idx + 1 }; return@forEachIndexed }
                             if (mimeType?.startsWith("image/") == true) {
+                                val meta = com.privateai.camera.util.ExifUtils.readMetadata(bytes)
                                 val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                                if (bitmap != null) { vault.savePhoto(bitmap, VaultCategory.CAMERA); bitmap.recycle(); importedImages++ }
+                                if (bitmap != null) { vault.savePhoto(bitmap, VaultCategory.CAMERA, metadata = meta); bitmap.recycle(); importedImages++ }
                                 else importErrors++
                             } else if (mimeType == "application/pdf") {
                                 vault.saveFile(bytes, "share_${System.currentTimeMillis()}.pdf", VaultCategory.SCAN); importedPdfs++
@@ -410,12 +426,17 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             val bytes = context.contentResolver.openInputStream(uri)?.readBytes()
                             if (bytes == null) { importErrors++; withContext(Dispatchers.Main) { importProgress = idx + 1 }; return@forEachIndexed }
                             if (mimeType?.startsWith("image/") == true) {
+                                // Pull full EXIF metadata before BitmapFactory
+                                // strips it — preserves capture date,
+                                // original dimensions, orientation, and GPS
+                                // via an encrypted sidecar.
+                                val meta = com.privateai.camera.util.ExifUtils.readMetadata(bytes)
                                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                                 if (bitmap == null) { importErrors++; withContext(Dispatchers.Main) { importProgress = idx + 1 }; return@forEachIndexed }
                                 if (folderDir != null) {
-                                    vault.savePhotoToFolder(bitmap, folderDir)
+                                    vault.savePhotoToFolder(bitmap, folderDir, metadata = meta)
                                 } else {
-                                    vault.savePhoto(bitmap, VaultCategory.CAMERA)
+                                    vault.savePhoto(bitmap, VaultCategory.CAMERA, metadata = meta)
                                 }
                                 bitmap.recycle()
                                 importedImages++
@@ -550,18 +571,34 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
         scope.launch {
             if (!crypto.isUnlocked()) crypto.initialize()
             val loaded = withContext(Dispatchers.IO) { vault.listPhotos(cat) }
-            val thumbMap = mutableMapOf<String, Bitmap>()
-            withContext(Dispatchers.IO) {
-                loaded.forEach { photo ->
-                    vault.loadThumbnail(photo)?.let { thumbMap[photo.id] = it }
-                }
-            }
+
+            // Show the gallery immediately. With 1500 photos, the previous
+            // approach blocked the page transition for ~3 seconds while every
+            // thumbnail was decrypted + decoded. Now the LazyColumn renders
+            // right away with grey placeholders (existing aspect-ratio default
+            // in the cell code), and thumbnails fill in as they arrive.
             photos = loaded
-            thumbnails = thumbMap
+            thumbnails = emptyMap()
             currentCategory = cat
             selectedIds = emptySet()
             isSelectionMode = false
             page = VaultPage.GALLERY
+
+            // Stream thumbnails in chunks. Chunk size 40 keeps the recompose
+            // rate reasonable (~38 state updates for 1500 items at <100ms
+            // each) while still feeling progressive.
+            val acc = mutableMapOf<String, Bitmap>()
+            loaded.chunked(40).forEach { chunk ->
+                withContext(Dispatchers.IO) {
+                    chunk.forEach { photo ->
+                        vault.loadThumbnail(photo)?.let { acc[photo.id] = it }
+                    }
+                }
+                // Bail if the user navigated away mid-stream — avoids a
+                // misleading UI update on a stale gallery.
+                if (currentCategory != cat || page != VaultPage.GALLERY) return@launch
+                thumbnails = acc.toMap()
+            }
         }
     }
 
@@ -616,19 +653,45 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
     }
 
     fun deletePhotos(ids: Set<String>) {
-        // Move to trash instead of permanent delete — keep index entries for fast restore
+        // Move to trash instead of permanent delete — keep index entries for fast restore.
+        // The work runs on Dispatchers.IO so the UI doesn't freeze on large
+        // multi-deletes (73 photos = 73 file renames + an encrypted index
+        // write; on the main thread the user sees no feedback for seconds).
         val allKnown = (photos + searchResults).distinctBy { it.id }
         val toDelete = allKnown.filter { it.id in ids }
-        toDelete.forEach { vault.moveToTrash(it) }
+        if (toDelete.isEmpty()) {
+            Toast.makeText(context, "Nothing to delete", Toast.LENGTH_SHORT).show()
+            return
+        }
+        // Optimistic UI update — remove from view immediately so taps feel responsive.
         thumbnails = thumbnails - ids
         photos = photos.filter { it.id !in ids }
         searchResults = searchResults.filter { it.id !in ids }
         searchThumbnails = searchThumbnails - ids
-        // Don't remove from photoIndex — keep entries so restore doesn't need re-indexing
-        categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders(); trashCount = vault.trashCount()
         selectedIds = emptySet()
         isSelectionMode = false
-        Toast.makeText(context, "Moved to Trash", Toast.LENGTH_SHORT).show()
+
+        scope.launch {
+            val movedCount = withContext(Dispatchers.IO) {
+                vault.moveToTrashBatch(toDelete)
+            }
+            // Refresh state on main thread.
+            categoryCounts = vault.countByCategory()
+            rootFolders = folderManager.listRootFolders()
+            trashCount = vault.trashCount()
+
+            // Surface honest counts — silently dropping items would mask
+            // exactly the bug we just fixed.
+            val msg = when {
+                movedCount == toDelete.size -> "Moved ${movedCount} to Trash"
+                movedCount in 0 until toDelete.size ->
+                    "Moved ${movedCount} of ${toDelete.size} to Trash — ${toDelete.size - movedCount} failed"
+                movedCount < 0 ->
+                    "Moved ${-movedCount} to Trash but index save failed — restart the app to recover"
+                else -> "Moved to Trash"
+            }
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        }
     }
 
     fun sharePdf(ids: Set<String>) {
@@ -779,6 +842,18 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
 
     // Details dialog
     var showDetailsDialog by remember { mutableStateOf(false) }
+    // Gallery / folder overflow menu (3-dot top-right). One state var works
+    // for both because GALLERY and FOLDER_VIEW are mutually exclusive pages.
+    var showOverflowMenu by remember { mutableStateOf(false) }
+    var starredOnly by remember { mutableStateOf(false) }
+    // AI detection / description label visibility in the photo viewer.
+    // Hidden by default; toggled from the gallery overflow menu.
+    var showAiLabels by remember { mutableStateOf(false) }
+    // Reset the Starred-only filter whenever the user returns to the
+    // categories list — it's a per-folder browsing state, not global.
+    LaunchedEffect(page) {
+        if (page == VaultPage.CATEGORIES) starredOnly = false
+    }
     val detailsItem = viewerPhoto
     if (showDetailsDialog && detailsItem != null) {
         val item = detailsItem
@@ -813,16 +888,49 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
             )
         }
 
+        // Lazy-load the metadata sidecar (decrypts a tiny JSON, ~10ms).
+        // Only photos have sidecars; videos/PDFs/files always return null.
+        val photoMeta = remember(item.id) {
+            if (item.mediaType == VaultMediaType.PHOTO) vault.loadMetadata(item) else null
+        }
+
         AlertDialog(
             onDismissRequest = { showDetailsDialog = false },
             title = { Text(stringResource(R.string.file_details)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     DetailRow(stringResource(R.string.detail_type), typeLabel)
                     DetailRow(stringResource(R.string.detail_name), item.id)
                     DetailRow(stringResource(R.string.detail_date), dateStr)
                     DetailRow(stringResource(R.string.detail_encrypted_size), com.privateai.camera.service.StorageManager.formatSize(encSize))
                     DetailRow(stringResource(R.string.detail_category), item.category.label)
+
+                    // Original metadata section — only shown when the sidecar
+                    // actually has at least one populated field.
+                    if (photoMeta != null && (photoMeta.width != null || photoMeta.gpsLat != null)) {
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                        Text(
+                            stringResource(R.string.detail_original_metadata),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (photoMeta.width != null && photoMeta.height != null) {
+                            DetailRow(
+                                stringResource(R.string.detail_dimensions),
+                                "${photoMeta.width} × ${photoMeta.height}"
+                            )
+                        }
+                        if (photoMeta.gpsLat != null && photoMeta.gpsLng != null) {
+                            DetailRow(
+                                stringResource(R.string.detail_gps),
+                                formatGps(photoMeta.gpsLat, photoMeta.gpsLng)
+                            )
+                        }
+                    }
+
                     HorizontalDivider(Modifier.padding(vertical = 4.dp))
                     Text(stringResource(R.string.security), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                     DetailRow(stringResource(R.string.detail_encryption), stringResource(R.string.aes_256_gcm))
@@ -1003,11 +1111,34 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                 TextButton(onClick = {
                     showDeleteDialog = false
                     if (isSelectionMode) deletePhotos(selectedIds)
-                    else viewerPhoto?.let {
-                        deletePhotos(setOf(it.id))
+                    else viewerPhoto?.let { current ->
+                        // Find the next item BEFORE deletion mutates `photos`.
+                        // Prefer the photo that currently sits after this one;
+                        // if this was the last item, fall back to the one
+                        // before. Only navigate back to the gallery when the
+                        // viewable list is empty after delete.
+                        val navigable = photos.filter { it.mediaType != VaultMediaType.PDF }
+                        val idx = navigable.indexOfFirst { it.id == current.id }
+                        val nextItem = when {
+                            idx < 0 -> null
+                            idx + 1 < navigable.size -> navigable[idx + 1]
+                            idx > 0 -> navigable[idx - 1]
+                            else -> null
+                        }
+
+                        deletePhotos(setOf(current.id))
                         videoTempFile?.delete()
                         videoTempFile = null
-                        page = VaultPage.GALLERY
+
+                        if (nextItem != null) {
+                            // Stays on VaultPage.VIEWER (or switches to video
+                            // player if the next item is a video) — re-uses
+                            // the same code path the user takes when they
+                            // tap a thumbnail in the gallery.
+                            openViewer(nextItem)
+                        } else {
+                            page = VaultPage.GALLERY
+                        }
                     }
                 }) { Text(stringResource(R.string.delete), color = Color.Red) }
             },
@@ -2417,6 +2548,70 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                 if (!isDuressActive) categoryCounts = vault.countByCategory(); rootFolders = folderManager.listRootFolders()
                                 page = VaultPage.CATEGORIES
                             }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                        },
+                        actions = {
+                            // Overflow menu — first action is "Select all".
+                            // Hidden during duress (no actions on a fake-empty
+                            // gallery) and when there's nothing to select.
+                            if (!isDuressActive && photos.isNotEmpty()) {
+                                Box {
+                                    IconButton(onClick = { showOverflowMenu = true }) {
+                                        Icon(Icons.Default.MoreVert, stringResource(R.string.action_more))
+                                    }
+                                    DropdownMenu(
+                                        expanded = showOverflowMenu,
+                                        onDismissRequest = { showOverflowMenu = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.action_select_all)) },
+                                            leadingIcon = { Icon(Icons.Default.SelectAll, null) },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                selectedIds = photos.map { it.id }.toSet()
+                                                isSelectionMode = true
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(stringResource(
+                                                    if (starredOnly) R.string.filter_show_all
+                                                    else R.string.filter_starred_only
+                                                ))
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    if (starredOnly) Icons.Default.Star else Icons.Outlined.StarBorder,
+                                                    null,
+                                                    tint = if (starredOnly) Color(0xFFFFC107) else LocalContentColor.current
+                                                )
+                                            },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                starredOnly = !starredOnly
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(stringResource(
+                                                    if (showAiLabels) R.string.ai_labels_hide
+                                                    else R.string.ai_labels_show
+                                                ))
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                    if (showAiLabels) Icons.Default.Label
+                                                    else Icons.Outlined.LabelOff,
+                                                    null
+                                                )
+                                            },
+                                            onClick = {
+                                                showOverflowMenu = false
+                                                showAiLabels = !showAiLabels
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     )
                 }
@@ -2427,7 +2622,7 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                     }
                 } else {
                     // Apply files filter if in virtual files mode
-                    val displayPhotos = if (isVirtualFiles && filesFilter != "all") {
+                    val typeFiltered = if (isVirtualFiles && filesFilter != "all") {
                         when (filesFilter) {
                             "photo" -> photos.filter { it.mediaType == VaultMediaType.PHOTO }
                             "video" -> photos.filter { it.mediaType == VaultMediaType.VIDEO }
@@ -2436,10 +2631,15 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                             else -> photos
                         }
                     } else photos
+                    val displayPhotos = if (starredOnly) {
+                        val starredIds = remember(starredOnly, typeFiltered) { vault.listStarred() }
+                        typeFiltered.filter { it.id in starredIds }
+                    } else typeFiltered
                     val grouped = remember(displayPhotos) { groupPhotosByDate(displayPhotos) }
 
                     val galleryGridWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 16.dp
                     LazyColumn(
+                        state = galleryListState,
                         contentPadding = PaddingValues(4.dp),
                         verticalArrangement = Arrangement.spacedBy(3.dp),
                         modifier = Modifier.padding(padding)
@@ -2631,15 +2831,23 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                 }
             }
 
-            Box(Modifier.fillMaxSize().background(Color.Black)) {
+            Box(Modifier.fillMaxSize().background(Color.White)) {
                 viewerBitmap?.let { bmp ->
                     // Pinch-to-zoom + pan + swipe-to-navigate (when not zoomed)
                     var scale by remember(viewerPhoto?.id) { mutableStateOf(1f) }
                     var offsetX by remember(viewerPhoto?.id) { mutableStateOf(0f) }
                     var offsetY by remember(viewerPhoto?.id) { mutableStateOf(0f) }
 
+                    // Smooth crossfade when the current image swaps for the
+                    // next/previous one. Snappier 100ms duration — long enough
+                    // to soften the swap, short enough to feel responsive.
+                    androidx.compose.animation.Crossfade(
+                        targetState = bmp,
+                        animationSpec = androidx.compose.animation.core.tween(100),
+                        label = "vault-viewer-crossfade"
+                    ) { animatedBmp ->
                     Image(
-                        bmp.asImageBitmap(), stringResource(R.string.photo),
+                        animatedBmp.asImageBitmap(), stringResource(R.string.photo),
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
                             .fillMaxSize()
@@ -2701,117 +2909,216 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                                 )
                             }
                     )
+                    } // end Crossfade
                 }
 
-                // Counter
-                if (viewablePhotos.size > 1 && currentIndex >= 0) {
-                    Text(
-                        "${currentIndex + 1} / ${viewablePhotos.size}",
-                        color = Color.White,
-                        modifier = Modifier
+                // Top-center: datetime of the photo, counter underneath when
+                // multiple items are visible.
+                viewerPhoto?.let { vp ->
+                    val dateLabel = remember(vp.id) {
+                        SimpleDateFormat("MMM d, yyyy · HH:mm", java.util.Locale.getDefault())
+                            .format(java.util.Date(vp.timestamp))
+                    }
+                    Column(
+                        Modifier
                             .align(Alignment.TopCenter)
                             .padding(top = 54.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
+                            .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(dateLabel, color = Color(0xFF333333), fontSize = 12.sp)
+                        if (viewablePhotos.size > 1 && currentIndex >= 0) {
+                            Text(
+                                "${currentIndex + 1} / ${viewablePhotos.size}",
+                                color = Color(0xFF555555),
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
                 }
 
                 IconButton(
                     onClick = { viewerBitmap = null; page = VaultPage.GALLERY },
-                    Modifier.align(Alignment.TopStart).padding(top = 48.dp, start = 16.dp).size(40.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = Color.White) }
+                    Modifier.align(Alignment.TopStart).padding(top = 48.dp, start = 16.dp).size(40.dp).background(Color.White.copy(alpha = 0.9f), CircleShape)
+                ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = Color(0xFF333333)) }
 
                 val blurDefault = com.privateai.camera.ui.settings.isFaceBlurEnabled(context)
 
-                Row(
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 40.dp, start = 24.dp, end = 24.dp)
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(24.dp)).padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    // Share (respects global setting)
-                    IconButton(onClick = { viewerPhoto?.let { sharePhoto(it) } }) {
-                        Icon(Icons.Default.Share, stringResource(R.string.share), tint = Color.White)
+                // Star button — sits to the left of the 3-dot. Toggles the
+                // photo's starred flag; persisted in an encrypted set on disk.
+                // Smaller, white-circle pill for a lighter feel.
+                viewerPhoto?.let { vp ->
+                    var isStarred by remember(vp.id) { mutableStateOf(vault.isStarred(vp.id)) }
+                    IconButton(
+                        onClick = {
+                            val next = !isStarred
+                            vault.setStarred(vp.id, next)
+                            isStarred = next
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 52.dp, end = 56.dp)
+                            .size(32.dp)
+                            .background(Color.White.copy(alpha = 0.9f), CircleShape)
+                    ) {
+                        Icon(
+                            if (isStarred) Icons.Default.Star else Icons.Outlined.StarBorder,
+                            stringResource(if (isStarred) R.string.action_unstar else R.string.action_star),
+                            tint = if (isStarred) Color(0xFFFFC107) else Color(0xFF333333),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
-                    // Toggle button: opposite of global setting
-                    IconButton(onClick = {
-                        viewerPhoto?.let { photo ->
-                            scope.launch {
-                                withContext(Dispatchers.IO) {
-                                    var bitmap = vault.loadFullPhoto(photo) ?: return@withContext
-                                    if (!blurDefault) {
-                                        // Setting OFF → this button blurs
-                                        bitmap = com.privateai.camera.util.FaceBlur.blurFaces(bitmap)
+                }
+
+                // Top-right overflow menu — Info / Find similar / Share with
+                // face blur. Mirrors the gallery's 3-dot pattern and keeps
+                // the bottom action bar uncluttered (Share / Edit / Delete only).
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 16.dp)
+                ) {
+                    IconButton(
+                        onClick = { showOverflowMenu = true },
+                        modifier = Modifier.size(40.dp).background(Color.White.copy(alpha = 0.9f), CircleShape)
+                    ) {
+                        Icon(Icons.Default.MoreVert, stringResource(R.string.action_more), tint = Color(0xFF333333))
+                    }
+                    DropdownMenu(
+                        expanded = showOverflowMenu,
+                        onDismissRequest = { showOverflowMenu = false }
+                    ) {
+                        // Find similar — search-same-image. Only when the
+                        // photo index is built (AI search has run).
+                        if (photoIndex != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.find_similar)) },
+                                leadingIcon = { Icon(Icons.Default.Search, null) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    val pi = photoIndex ?: return@DropdownMenuItem
+                                    val vp = viewerPhoto ?: return@DropdownMenuItem
+                                    scope.launch {
+                                        val similarIds = withContext(Dispatchers.IO) {
+                                            pi.findSimilar(vp.id).map { it.first }.toSet()
+                                        }
+                                        if (similarIds.isNotEmpty()) {
+                                            val allPhotos = withContext(Dispatchers.IO) { getAllVaultItems() }
+                                            searchResults = allPhotos.filter { it.id in similarIds }
+                                            isSearching = true
+                                            smartMode = null
+                                            searchFromViewer = true
+                                            page = VaultPage.CATEGORIES
+                                            val thumbMap = mutableMapOf<String, Bitmap>()
+                                            withContext(Dispatchers.IO) {
+                                                searchResults.forEach { p ->
+                                                    vault.loadThumbnail(p)?.let { thumbMap[p.id] = it }
+                                                }
+                                            }
+                                            searchThumbnails = thumbMap
+                                        } else {
+                                            Toast.makeText(context, context.getString(R.string.no_similar_found), Toast.LENGTH_SHORT).show()
+                                        }
                                     }
-                                    // Setting ON → this button shares clean (no blur)
-                                    val uri = com.privateai.camera.util.saveBitmapToCache(context, bitmap, "vault_alt_share.jpg")
-                                    bitmap.recycle()
-                                    withContext(Dispatchers.Main) {
-                                        val label = if (blurDefault) context.getString(R.string.share_no_blur) else context.getString(R.string.share_faces_blurred)
-                                        context.startActivity(Intent.createChooser(
-                                            Intent(Intent.ACTION_SEND).apply {
-                                                type = "image/jpeg"
-                                                putExtra(Intent.EXTRA_STREAM, uri)
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            }, label
-                                        ))
+                                }
+                            )
+                        }
+                        // Share with face blur (or share without blur if blur
+                        // is the default). Same logic as the old face-toggle
+                        // button — moved into the overflow because it's a
+                        // less-frequent action than plain Share.
+                        DropdownMenuItem(
+                            text = {
+                                Text(stringResource(
+                                    if (blurDefault) R.string.share_without_blur else R.string.blur_and_share
+                                ))
+                            },
+                            leadingIcon = { Icon(Icons.Default.Face, null) },
+                            onClick = {
+                                showOverflowMenu = false
+                                viewerPhoto?.let { photo ->
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            var bitmap = vault.loadFullPhoto(photo) ?: return@withContext
+                                            if (!blurDefault) {
+                                                bitmap = com.privateai.camera.util.FaceBlur.blurFaces(bitmap)
+                                            }
+                                            val uri = com.privateai.camera.util.saveBitmapToCache(context, bitmap, "vault_alt_share.jpg")
+                                            bitmap.recycle()
+                                            withContext(Dispatchers.Main) {
+                                                val label = if (blurDefault) context.getString(R.string.share_no_blur)
+                                                            else context.getString(R.string.share_faces_blurred)
+                                                context.startActivity(Intent.createChooser(
+                                                    Intent(Intent.ACTION_SEND).apply {
+                                                        type = "image/jpeg"
+                                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                    }, label
+                                                ))
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
-                    }) {
-                        Icon(
-                            Icons.Default.Face,
-                            if (blurDefault) stringResource(R.string.share_without_blur) else stringResource(R.string.blur_and_share),
-                            tint = if (blurDefault) Color.White else Color(0xFF4CAF50)
                         )
+                        // Details — moved from the bottom action bar.
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.details)) },
+                            leadingIcon = { Icon(Icons.Default.Info, null) },
+                            onClick = {
+                                showOverflowMenu = false
+                                showDetailsDialog = true
+                            }
+                        )
+                    }
+                }
+
+                // Bottom action bar — primary actions only (Share / Edit /
+                // Delete). Less-frequent actions (Find similar, Share with
+                // face blur, Details) live in the top-right overflow menu.
+                Row(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(bottom = 40.dp, start = 24.dp, end = 24.dp)
+                        .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(28.dp)).padding(horizontal = 32.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Share (respects global face-blur setting)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(
+                            onClick = { viewerPhoto?.let { sharePhoto(it) } },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.Default.Share, stringResource(R.string.share), tint = Color(0xFF333333), modifier = Modifier.size(28.dp))
+                        }
+                        Text(stringResource(R.string.share), color = Color(0xFF333333), fontSize = 10.sp)
                     }
                     // Edit (photos only)
                     if (viewerPhoto?.mediaType == VaultMediaType.PHOTO) {
-                        IconButton(onClick = {
-                            viewerPhoto?.let { photo ->
-                                viewerBitmap?.let { bmp ->
-                                    showEditor = true
-                                    editorPhoto = photo
-                                    editorBitmap = bmp
-                                }
-                            }
-                        }) {
-                            Icon(Icons.Default.Edit, stringResource(R.string.edit), tint = Color.White)
-                        }
-                    }
-                    // Find Similar button
-                    if (photoIndex != null && viewerPhoto != null) {
-                        IconButton(onClick = {
-                            val pi = photoIndex ?: return@IconButton
-                            val vp = viewerPhoto ?: return@IconButton
-                            scope.launch {
-                                val similarIds = withContext(Dispatchers.IO) { pi.findSimilar(vp.id).map { it.first }.toSet() }
-                                if (similarIds.isNotEmpty()) {
-                                    val allPhotos = withContext(Dispatchers.IO) { getAllVaultItems() }
-                                    searchResults = allPhotos.filter { it.id in similarIds }
-                                    isSearching = true
-                                    smartMode = null
-                                    searchFromViewer = true
-                                    page = VaultPage.CATEGORIES
-                                    val thumbMap = mutableMapOf<String, Bitmap>()
-                                    withContext(Dispatchers.IO) {
-                                        searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            IconButton(
+                                onClick = {
+                                    viewerPhoto?.let { photo ->
+                                        viewerBitmap?.let { bmp ->
+                                            showEditor = true
+                                            editorPhoto = photo
+                                            editorBitmap = bmp
+                                        }
                                     }
-                                    searchThumbnails = thumbMap
-                                } else {
-                                    Toast.makeText(context, context.getString(R.string.no_similar_found), Toast.LENGTH_SHORT).show()
-                                }
+                                },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(Icons.Default.Edit, stringResource(R.string.edit), tint = Color(0xFF333333), modifier = Modifier.size(28.dp))
                             }
-                        }) {
-                            Icon(Icons.Default.Search, stringResource(R.string.find_similar), tint = Color.White)
+                            Text(stringResource(R.string.edit), color = Color(0xFF333333), fontSize = 10.sp)
                         }
                     }
-                    // Details
-                    IconButton(onClick = { showDetailsDialog = true }) {
-                        Icon(Icons.Default.Info, stringResource(R.string.details), tint = Color.White)
-                    }
-                    IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = Color(0xFFFF6B6B))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(
+                            onClick = { showDeleteDialog = true },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = Color(0xFFD32F2F), modifier = Modifier.size(28.dp))
+                        }
+                        Text(stringResource(R.string.delete), color = Color(0xFFD32F2F), fontSize = 10.sp)
                     }
                 }
 
@@ -2877,69 +3184,71 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // AI description text
-                        if (aiDescription.isNotEmpty()) {
-                            Text(
-                                aiDescription,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White,
-                                modifier = Modifier
-                                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        } else if (aiDescLoading) {
-                            Text(
-                                "Describing image…",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.White.copy(alpha = 0.7f),
-                                modifier = Modifier
-                                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        }
-
-                        // AI action chips
-                        if (aiAvailable) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                if (aiDescription.isEmpty() && !aiDescLoading) {
-                                    SuggestionChip(
-                                        onClick = { generateDescription() },
-                                        label = { Text("Describe", style = MaterialTheme.typography.labelSmall) }
-                                    )
-                                }
-                                SuggestionChip(
-                                    onClick = { showAskDialog = true },
-                                    label = { Text("Ask about this image", style = MaterialTheme.typography.labelSmall) }
+                        if (showAiLabels) {
+                            // AI description text
+                            if (aiDescription.isNotEmpty()) {
+                                Text(
+                                    aiDescription,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White,
+                                    modifier = Modifier
+                                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            } else if (aiDescLoading) {
+                                Text(
+                                    "Describing image…",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    modifier = Modifier
+                                        .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
                             }
-                        }
 
-                        // Label chips
-                        photoIndex?.getLabelsWithScores(vp.id)?.let { labelsWithScores ->
-                            if (labelsWithScores.isNotEmpty()) {
-                                Row(
-                                    Modifier.horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    labelsWithScores.forEach { (label, score) ->
-                                        val pct = (score * 100).toInt()
-                                        SuggestionChip(onClick = {
-                                            searchQuery = label
-                                            searchFromViewer = true
-                                            scope.launch {
-                                                val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
-                                                val labelMatches = photoIndex?.searchByLabel(label)?.toSet() ?: emptySet()
-                                                searchResults = allItems.filter { it.id in labelMatches }
-                                                isSearching = true
-                                                smartMode = null
-                                                page = VaultPage.CATEGORIES
-                                                val thumbMap = mutableMapOf<String, Bitmap>()
-                                                withContext(Dispatchers.IO) {
-                                                    searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                            // AI action chips
+                            if (aiAvailable) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (aiDescription.isEmpty() && !aiDescLoading) {
+                                        SuggestionChip(
+                                            onClick = { generateDescription() },
+                                            label = { Text("Describe", style = MaterialTheme.typography.labelSmall) }
+                                        )
+                                    }
+                                    SuggestionChip(
+                                        onClick = { showAskDialog = true },
+                                        label = { Text("Ask about this image", style = MaterialTheme.typography.labelSmall) }
+                                    )
+                                }
+                            }
+
+                            // Label chips
+                            photoIndex?.getLabelsWithScores(vp.id)?.let { labelsWithScores ->
+                                if (labelsWithScores.isNotEmpty()) {
+                                    Row(
+                                        Modifier.horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        labelsWithScores.forEach { (label, score) ->
+                                            val pct = (score * 100).toInt()
+                                            SuggestionChip(onClick = {
+                                                searchQuery = label
+                                                searchFromViewer = true
+                                                scope.launch {
+                                                    val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
+                                                    val labelMatches = photoIndex?.searchByLabel(label)?.toSet() ?: emptySet()
+                                                    searchResults = allItems.filter { it.id in labelMatches }
+                                                    isSearching = true
+                                                    smartMode = null
+                                                    page = VaultPage.CATEGORIES
+                                                    val thumbMap = mutableMapOf<String, Bitmap>()
+                                                    withContext(Dispatchers.IO) {
+                                                        searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
+                                                    }
+                                                    searchThumbnails = thumbMap
                                                 }
-                                                searchThumbnails = thumbMap
-                                            }
-                                        }, label = { Text("$label $pct%", style = MaterialTheme.typography.labelSmall) })
+                                            }, label = { Text("$label $pct%", style = MaterialTheme.typography.labelSmall) })
+                                        }
                                     }
                                 }
                             }
@@ -3081,20 +3390,56 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                         page = VaultPage.GALLERY
                     },
                     Modifier.align(Alignment.TopStart).padding(top = 48.dp, start = 16.dp)
-                        .size(40.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = Color.White) }
+                        .size(40.dp).background(Color.White.copy(alpha = 0.9f), CircleShape)
+                ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = Color(0xFF333333)) }
 
-                // Counter
-                if (viewablePhotos.size > 1 && currentVideoIndex >= 0) {
-                    Text(
-                        "${currentVideoIndex + 1} / ${viewablePhotos.size}",
-                        color = Color.White,
-                        modifier = Modifier
+                // Top-center: datetime + counter (matches photo viewer).
+                viewerPhoto?.let { vp ->
+                    val dateLabel = remember(vp.id) {
+                        SimpleDateFormat("MMM d, yyyy · HH:mm", java.util.Locale.getDefault())
+                            .format(java.util.Date(vp.timestamp))
+                    }
+                    Column(
+                        Modifier
                             .align(Alignment.TopCenter)
                             .padding(top = 54.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
+                            .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(dateLabel, color = Color(0xFF333333), fontSize = 12.sp)
+                        if (viewablePhotos.size > 1 && currentVideoIndex >= 0) {
+                            Text(
+                                "${currentVideoIndex + 1} / ${viewablePhotos.size}",
+                                color = Color(0xFF555555),
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+
+                // Star button — top-right of the video viewer.
+                viewerPhoto?.let { vp ->
+                    var isStarred by remember(vp.id) { mutableStateOf(vault.isStarred(vp.id)) }
+                    IconButton(
+                        onClick = {
+                            val next = !isStarred
+                            vault.setStarred(vp.id, next)
+                            isStarred = next
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 52.dp, end = 16.dp)
+                            .size(32.dp)
+                            .background(Color.White.copy(alpha = 0.9f), CircleShape)
+                    ) {
+                        Icon(
+                            if (isStarred) Icons.Default.Star else Icons.Outlined.StarBorder,
+                            stringResource(if (isStarred) R.string.action_unstar else R.string.action_star),
+                            tint = if (isStarred) Color(0xFFFFC107) else Color(0xFF333333),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
 
                 // Prev/Next arrows on sides
@@ -3122,70 +3467,95 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                 Row(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .padding(bottom = 40.dp, start = 24.dp, end = 24.dp)
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                        .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(28.dp))
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Share video
-                    IconButton(onClick = {
-                        viewerPhoto?.let { photo ->
-                            scope.launch {
-                                withContext(Dispatchers.IO) {
-                                    val tempFile = vault.decryptVideoToTempFile(photo) ?: return@withContext
-                                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
-                                    withContext(Dispatchers.Main) {
-                                        context.startActivity(Intent.createChooser(
-                                            Intent(Intent.ACTION_SEND).apply {
-                                                type = "video/mp4"
-                                                putExtra(Intent.EXTRA_STREAM, uri)
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            }, context.getString(R.string.share_video)
-                                        ))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(
+                            onClick = {
+                                viewerPhoto?.let { photo ->
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            val tempFile = vault.decryptVideoToTempFile(photo) ?: return@withContext
+                                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
+                                            withContext(Dispatchers.Main) {
+                                                context.startActivity(Intent.createChooser(
+                                                    Intent(Intent.ACTION_SEND).apply {
+                                                        type = "video/mp4"
+                                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                    }, context.getString(R.string.share_video)
+                                                ))
+                                            }
+                                        }
                                     }
                                 }
-                            }
+                            },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.Default.Share, stringResource(R.string.share), tint = Color(0xFF333333), modifier = Modifier.size(28.dp))
                         }
-                    }) {
-                        Icon(Icons.Default.Share, stringResource(R.string.share), tint = Color.White)
+                        Text(stringResource(R.string.share), color = Color(0xFF333333), fontSize = 10.sp)
                     }
                     // Save to device
-                    IconButton(onClick = {
-                        viewerPhoto?.let { photo ->
-                            scope.launch {
-                                withContext(Dispatchers.IO) {
-                                    try {
-                                        val bytes = vault.loadFile(photo.encryptedFile) ?: return@withContext
-                                        val filename = "vault_${photo.id}.mp4"
-                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                            val values = ContentValues().apply {
-                                                put(MediaStore.Video.Media.DISPLAY_NAME, filename)
-                                                put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-                                                put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/PrivateAICamera")
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(
+                            onClick = {
+                                viewerPhoto?.let { photo ->
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            try {
+                                                val bytes = vault.loadFile(photo.encryptedFile) ?: return@withContext
+                                                val filename = "vault_${photo.id}.mp4"
+                                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                                    val values = ContentValues().apply {
+                                                        put(MediaStore.Video.Media.DISPLAY_NAME, filename)
+                                                        put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                                                        put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/PrivateAICamera")
+                                                    }
+                                                    val uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+                                                    uri?.let { context.contentResolver.openOutputStream(it)?.use { out -> out.write(bytes) } }
+                                                }
+                                                withContext(Dispatchers.Main) {
+                                                    Toast.makeText(context, context.getString(R.string.video_saved_to_gallery), Toast.LENGTH_SHORT).show()
+                                                }
+                                            } catch (_: Exception) {
+                                                withContext(Dispatchers.Main) {
+                                                    Toast.makeText(context, context.getString(R.string.save_failed), Toast.LENGTH_SHORT).show()
+                                                }
                                             }
-                                            val uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
-                                            uri?.let { context.contentResolver.openOutputStream(it)?.use { out -> out.write(bytes) } }
-                                        }
-                                        withContext(Dispatchers.Main) {
-                                            Toast.makeText(context, context.getString(R.string.video_saved_to_gallery), Toast.LENGTH_SHORT).show()
-                                        }
-                                    } catch (_: Exception) {
-                                        withContext(Dispatchers.Main) {
-                                            Toast.makeText(context, context.getString(R.string.save_failed), Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 }
-                            }
+                            },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.Default.SaveAlt, stringResource(R.string.save_to_device), tint = Color(0xFF333333), modifier = Modifier.size(28.dp))
                         }
-                    }) {
-                        Icon(Icons.Default.SaveAlt, stringResource(R.string.save_to_device), tint = Color.White)
+                        Text(stringResource(R.string.save_to_device), color = Color(0xFF333333), fontSize = 10.sp)
                     }
                     // Details
-                    IconButton(onClick = { showDetailsDialog = true }) {
-                        Icon(Icons.Default.Info, stringResource(R.string.details), tint = Color.White)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(
+                            onClick = { showDetailsDialog = true },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.Default.Info, stringResource(R.string.details), tint = Color(0xFF333333), modifier = Modifier.size(28.dp))
+                        }
+                        Text(stringResource(R.string.details), color = Color(0xFF333333), fontSize = 10.sp)
                     }
                     // Delete
-                    IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = Color(0xFFFF6B6B))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(
+                            onClick = { showDeleteDialog = true },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, stringResource(R.string.delete), tint = Color(0xFFD32F2F), modifier = Modifier.size(28.dp))
+                        }
+                        Text(stringResource(R.string.delete), color = Color(0xFFD32F2F), fontSize = 10.sp)
                     }
                 }
             }
@@ -3245,6 +3615,29 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                         IconButton(onClick = { showCreateFolderDialog = true }) { Icon(Icons.Default.CreateNewFolder, stringResource(R.string.new_subfolder)) }
                         IconButton(onClick = { showRenameFolderDialog = true }) { Icon(Icons.Default.Edit, stringResource(R.string.rename)) }
                         IconButton(onClick = { showDeleteFolderDialog = true }) { Icon(Icons.Default.Delete, stringResource(R.string.delete)) }
+                        // Overflow menu — Select all (first action). Hidden
+                        // when there's nothing in the folder to select.
+                        if (!isDuressActive && photos.isNotEmpty()) {
+                            Box {
+                                IconButton(onClick = { showOverflowMenu = true }) {
+                                    Icon(Icons.Default.MoreVert, stringResource(R.string.action_more))
+                                }
+                                DropdownMenu(
+                                    expanded = showOverflowMenu,
+                                    onDismissRequest = { showOverflowMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.action_select_all)) },
+                                        leadingIcon = { Icon(Icons.Default.SelectAll, null) },
+                                        onClick = {
+                                            showOverflowMenu = false
+                                            selectedIds = photos.map { it.id }.toSet()
+                                            isSelectionMode = true
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 )
                 } // end else (not selection mode)
@@ -3640,4 +4033,15 @@ private fun DetailRow(label: String, value: String) {
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodySmall)
     }
+}
+
+/**
+ * Format GPS coordinates as `48.8520°N, 2.3500°E`. Locale-neutral — uses
+ * `Locale.US` for the number format so European decimals (`48,8520`) don't
+ * appear in a row that's read as compass coordinates.
+ */
+private fun formatGps(lat: Double, lng: Double): String {
+    val latHemi = if (lat >= 0) "N" else "S"
+    val lngHemi = if (lng >= 0) "E" else "W"
+    return "%.4f°%s, %.4f°%s".format(java.util.Locale.US, kotlin.math.abs(lat), latHemi, kotlin.math.abs(lng), lngHemi)
 }

@@ -3,6 +3,7 @@
 
 package com.privateai.camera.ui.assistant
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,11 +22,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -33,6 +37,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -65,7 +70,10 @@ sealed class ChatMessage {
         val text: String,
         val refs: List<DataRef> = emptyList(),
         val proposedAction: ProposedAction? = null,
-        val actionStatus: ActionStatus = ActionStatus.PENDING
+        val actionStatus: ActionStatus = ActionStatus.PENDING,
+        // Tracks whether the user has saved this reply as a note. Prevents
+        // accidentally creating a stack of duplicate notes from re-taps.
+        val savedAsNote: Boolean = false
     ) : ChatMessage()
 }
 
@@ -75,7 +83,8 @@ fun ChatBubble(
     message: ChatMessage,
     onRefClick: ((DataRef) -> Unit)? = null,
     onActionConfirm: ((ProposedAction) -> Unit)? = null,
-    onActionDismiss: (() -> Unit)? = null
+    onActionDismiss: (() -> Unit)? = null,
+    onSaveAsNote: ((String) -> Unit)? = null
 ) {
     val isUser = message is ChatMessage.User
     val text = when (message) {
@@ -147,6 +156,27 @@ fun ChatBubble(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
+                        // Discoverable action row — Copy / Share / Save as note.
+                        // Long-press copy stays as a fallback on the bubble itself.
+                        val isSaved = (message as? ChatMessage.Assistant)?.savedAsNote == true
+                        BubbleActionRow(
+                            text = text,
+                            isSaved = isSaved,
+                            onCopy = {
+                                clipboard.setText(AnnotatedString(text))
+                                Toast.makeText(context, R.string.assistant_copied, Toast.LENGTH_SHORT).show()
+                            },
+                            onShare = {
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, text)
+                                }
+                                context.startActivity(
+                                    Intent.createChooser(intent, context.getString(R.string.assistant_bubble_share))
+                                )
+                            },
+                            onSaveAsNote = onSaveAsNote?.let { cb -> { cb(text) } }
+                        )
                     }
                     // Tappable data references (notes, reminders, habits, health)
                     val refs = (message as? ChatMessage.Assistant)?.refs ?: emptyList()
@@ -183,6 +213,67 @@ fun ChatBubble(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Compact icon row below an assistant message bubble. Surfaces the three
+ * common "what do I do with this reply" actions: Copy / Share / Save as note.
+ * Save is hidden when no callback is provided (e.g. screens that don't have
+ * a note repo wired in).
+ */
+@Composable
+private fun BubbleActionRow(
+    text: String,
+    isSaved: Boolean,
+    onCopy: () -> Unit,
+    onShare: () -> Unit,
+    onSaveAsNote: (() -> Unit)?
+) {
+    Row(
+        modifier = Modifier.padding(top = 2.dp, start = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(0.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onCopy, modifier = Modifier.size(32.dp)) {
+            Icon(
+                Icons.Default.ContentCopy,
+                contentDescription = stringResource(R.string.assistant_bubble_copy),
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = onShare, modifier = Modifier.size(32.dp)) {
+            Icon(
+                Icons.Default.Share,
+                contentDescription = stringResource(R.string.assistant_bubble_share),
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (onSaveAsNote != null) {
+            // After save: switch to a checkmark + green tint, disable click.
+            // This both confirms the save visually and prevents duplicate notes
+            // from re-taps.
+            IconButton(
+                onClick = onSaveAsNote,
+                enabled = !isSaved,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    if (isSaved) Icons.Default.CheckCircle else Icons.Default.Save,
+                    contentDescription = stringResource(
+                        if (isSaved) R.string.assistant_bubble_saved
+                        else R.string.assistant_bubble_save_note
+                    ),
+                    modifier = Modifier.size(16.dp),
+                    tint = if (isSaved)
+                        androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

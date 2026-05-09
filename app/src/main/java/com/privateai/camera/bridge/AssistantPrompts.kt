@@ -78,7 +78,9 @@ Guidelines:
         if (chatHistory.isNotEmpty()) {
             append("RECENT CONVERSATION:\n")
             chatHistory.forEach { (role, text) ->
-                append("${role.uppercase()}: ${text.take(500)}\n")
+                // 1500 chars/message keeps email-length context intact through
+                // multi-turn refinements; the 16-message window cap still bounds total.
+                append("${role.uppercase()}: ${text.take(1500)}\n")
             }
             append("\n")
         }

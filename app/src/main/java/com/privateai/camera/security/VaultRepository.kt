@@ -8,6 +8,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.util.Log
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
@@ -31,6 +33,30 @@ data class VaultPhoto(
     val thumbnailFile: File,
     val mediaType: VaultMediaType = VaultMediaType.PHOTO
 )
+
+/**
+ * Source-side metadata preserved per photo. Stored as an encrypted
+ * `<id>.meta.enc` sidecar next to the photo's encrypted JPEG. Everything is
+ * optional — fields stay null when the source didn't include that EXIF tag.
+ *
+ * Why a sidecar (vs. extending VaultPhoto): the file listing path
+ * (`listFolderItems` etc.) uses filesystem walks for performance — fast for
+ * 1500 photos. Reading per-photo metadata sidecars in that same walk would
+ * undo the gain. The sidecar is loaded lazily by callers that need it
+ * (e.g., the photo-details dialog).
+ */
+data class PhotoMetadata(
+    val dateTaken: Long? = null,
+    val width: Int? = null,
+    val height: Int? = null,
+    val orientation: Int? = null,   // EXIF ORIENTATION_* enum (1..8)
+    val gpsLat: Double? = null,
+    val gpsLng: Double? = null
+) {
+    fun isEmpty(): Boolean =
+        dateTaken == null && width == null && height == null &&
+            orientation == null && gpsLat == null && gpsLng == null
+}
 
 /**
  * Manages encrypted photo storage.
@@ -115,10 +141,18 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
 
     /**
      * Save a bitmap to the vault (encrypted).
+     *
+     * `metadata`, when supplied, becomes the source of the stored timestamp
+     * (so 2018 photos sort at 2018, not the import date) and gets written
+     * out as an encrypted `<id>.meta.enc` sidecar carrying original
+     * dimensions, orientation, and GPS — fields the Bitmap pipeline would
+     * otherwise drop. Callers importing from external sources (Wi-Fi,
+     * ACTION_SEND, gallery picker) should pull metadata via
+     * `ExifUtils.readMetadata(bytes)` BEFORE decoding to Bitmap.
      */
-    fun savePhoto(bitmap: Bitmap, category: VaultCategory = VaultCategory.CAMERA): VaultPhoto {
+    fun savePhoto(bitmap: Bitmap, category: VaultCategory = VaultCategory.CAMERA, metadata: PhotoMetadata? = null): VaultPhoto {
         val id = UUID.randomUUID().toString()
-        val timestamp = System.currentTimeMillis()
+        val timestamp = metadata?.dateTaken ?: System.currentTimeMillis()
         val dir = categoryDir(category)
 
         val jpegBytes = ByteArrayOutputStream().use { out ->
@@ -144,6 +178,12 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
 
         crypto.encryptToFile(jpegBytes, photoFile)
         crypto.encryptToFile(thumbBytes, thumbFile)
+        // Align the file mtime with the photo's authoritative timestamp so
+        // listPhotos() — which sorts by lastModified() — returns the correct
+        // chronological order without having to decrypt sidecars on every list.
+        photoFile.setLastModified(timestamp)
+        thumbFile.setLastModified(timestamp)
+        if (metadata != null && !metadata.isEmpty()) saveMetadataSidecar(id, dir, metadata)
 
         Log.d(TAG, "Photo saved: $id ($category, ${jpegBytes.size / 1024}KB)")
 
@@ -251,13 +291,14 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
 
         val items = mutableListOf<VaultPhoto>()
 
-        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, .pdf.enc, .file.enc, _tobedeleted_)
+        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, .pdf.enc, .file.enc, .meta.enc, _tobedeleted_)
         files.filter {
             it.name.endsWith(".enc") &&
                 !it.name.endsWith(".thumb.enc") &&
                 !it.name.endsWith(".vid.enc") &&
                 !it.name.endsWith(".pdf.enc") &&
                 !it.name.endsWith(".file.enc") &&
+                !it.name.endsWith(".meta.enc") &&
                 !it.name.startsWith("_tobedeleted_")
         }.forEach { file ->
             val id = file.name.removeSuffix(".enc")
@@ -376,10 +417,14 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
 
     /**
      * Save a photo to a custom folder.
+     *
+     * See `savePhoto` for the `metadata` semantics — pulls timestamp from
+     * `metadata.dateTaken` if present and writes a `.meta.enc` sidecar with
+     * the rest of the EXIF (dimensions, orientation, GPS).
      */
-    fun savePhotoToFolder(bitmap: Bitmap, folderDir: File): VaultPhoto {
+    fun savePhotoToFolder(bitmap: Bitmap, folderDir: File, metadata: PhotoMetadata? = null): VaultPhoto {
         val id = UUID.randomUUID().toString()
-        val timestamp = System.currentTimeMillis()
+        val timestamp = metadata?.dateTaken ?: System.currentTimeMillis()
         folderDir.mkdirs()
 
         val jpegBytes = ByteArrayOutputStream().use { out ->
@@ -398,9 +443,102 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         val thumbFile = File(folderDir, "$id.thumb.enc")
         crypto.encryptToFile(jpegBytes, photoFile)
         crypto.encryptToFile(thumbBytes, thumbFile)
+        photoFile.setLastModified(timestamp)
+        thumbFile.setLastModified(timestamp)
+        if (metadata != null && !metadata.isEmpty()) saveMetadataSidecar(id, folderDir, metadata)
 
         Log.d(TAG, "Photo saved to folder: $id (${jpegBytes.size / 1024}KB)")
         return VaultPhoto(id, timestamp, VaultCategory.FILES, photoFile, thumbFile)
+    }
+
+    // ===== Metadata sidecars (encrypted JSON per photo) =====
+
+    /**
+     * Encrypted JSON written next to a photo as `<id>.meta.enc`. JSON keys
+     * are short (`d`, `w`, `h`, `o`, `lat`, `lng`) to keep the encrypted
+     * payload tiny — most sidecars are <80 bytes plaintext.
+     */
+    fun saveMetadataSidecar(photoId: String, dir: File, metadata: PhotoMetadata) {
+        val json = JSONObject().apply {
+            metadata.dateTaken?.let { put("d", it) }
+            metadata.width?.let { put("w", it) }
+            metadata.height?.let { put("h", it) }
+            metadata.orientation?.let { put("o", it) }
+            metadata.gpsLat?.let { put("lat", it) }
+            metadata.gpsLng?.let { put("lng", it) }
+        }.toString()
+        try {
+            crypto.encryptToFile(json.toByteArray(Charsets.UTF_8), File(dir, "$photoId.meta.enc"))
+        } catch (e: Exception) {
+            // Sidecar failure shouldn't block the photo save — photo + thumb
+            // are already on disk above this call. Just log and move on.
+            Log.w(TAG, "Failed to write metadata sidecar for $photoId: ${e.message}")
+        }
+    }
+
+    /** Load the sidecar for a given photo. Returns null when absent or unreadable. */
+    fun loadMetadata(photo: VaultPhoto): PhotoMetadata? {
+        val sidecar = File(photo.encryptedFile.parentFile, "${photo.id}.meta.enc")
+        if (!sidecar.exists()) return null
+        return try {
+            val obj = JSONObject(String(crypto.decryptFile(sidecar), Charsets.UTF_8))
+            PhotoMetadata(
+                dateTaken = obj.optLongOrNull("d"),
+                width = obj.optIntOrNull("w"),
+                height = obj.optIntOrNull("h"),
+                orientation = obj.optIntOrNull("o"),
+                gpsLat = obj.optDoubleOrNull("lat"),
+                gpsLng = obj.optDoubleOrNull("lng")
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read metadata sidecar for ${photo.id}: ${e.message}")
+            null
+        }
+    }
+
+    private fun JSONObject.optLongOrNull(key: String): Long? =
+        if (has(key) && !isNull(key)) optLong(key) else null
+    private fun JSONObject.optIntOrNull(key: String): Int? =
+        if (has(key) && !isNull(key)) optInt(key) else null
+    private fun JSONObject.optDoubleOrNull(key: String): Double? =
+        if (has(key) && !isNull(key)) optDouble(key) else null
+
+    // ===== Starred photos =====
+
+    private val starredFile = File(vaultDir, "_starred.enc")
+
+    fun isStarred(photoId: String): Boolean = loadStarred().contains(photoId)
+
+    fun setStarred(photoId: String, starred: Boolean) {
+        val current = loadStarred().toMutableSet()
+        if (starred) current.add(photoId) else current.remove(photoId)
+        saveStarred(current)
+    }
+
+    fun listStarred(): Set<String> = loadStarred()
+
+    private fun loadStarred(): Set<String> {
+        if (!starredFile.exists()) return emptySet()
+        return try {
+            val plaintext = crypto.decryptFile(starredFile)
+            val arr = JSONArray(String(plaintext, Charsets.UTF_8))
+            buildSet {
+                for (i in 0 until arr.length()) add(arr.getString(i))
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load starred set: ${e.message}")
+            emptySet()
+        }
+    }
+
+    private fun saveStarred(ids: Set<String>) {
+        try {
+            val arr = JSONArray()
+            ids.forEach { arr.put(it) }
+            crypto.encryptToFile(arr.toString().toByteArray(Charsets.UTF_8), starredFile)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to save starred set: ${e.message}")
+        }
     }
 
     /**
@@ -418,6 +556,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
                 !it.name.endsWith(".vid.enc") &&
                 !it.name.endsWith(".pdf.enc") &&
                 !it.name.endsWith(".file.enc") &&
+                !it.name.endsWith(".meta.enc") &&
                 !it.name.contains(".pdf.") &&
                 !it.name.startsWith("_tobedeleted_")
         }.forEach { file ->
@@ -466,6 +605,10 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         if (photo.thumbnailFile.exists() && photo.thumbnailFile != photo.encryptedFile) {
             photo.thumbnailFile.renameTo(newThumbFile)
         }
+        // Carry the metadata sidecar along — otherwise restoring a moved
+        // photo's "date taken" / GPS would silently disappear.
+        val srcMeta = File(photo.encryptedFile.parentFile, "${photo.id}.meta.enc")
+        if (srcMeta.exists()) srcMeta.renameTo(File(targetDir, "${photo.id}.meta.enc"))
         Log.d(TAG, "Photo moved to folder: ${photo.id}")
     }
 
@@ -499,11 +642,67 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         if (photo.thumbnailFile.exists() && photo.thumbnailFile != photo.encryptedFile) {
             photo.thumbnailFile.renameTo(trashedThumb)
         }
+        // Move metadata sidecar (best-effort — not all photos have one).
+        val srcMeta = File(photo.encryptedFile.parentFile, "${photo.id}.meta.enc")
+        if (srcMeta.exists()) {
+            srcMeta.renameTo(File(trashDir, "${photo.id}.meta.enc"))
+        }
         // Add to trash index
         val items = loadTrashIndex().toMutableList()
         items.add(TrashedItem(photo.id, photo.category, System.currentTimeMillis(), trashedEnc, trashedThumb, photo.mediaType))
         saveTrashIndex(items)
         Log.d(TAG, "Moved to trash: ${photo.id}")
+    }
+
+    /**
+     * Bulk move to trash. Each item is processed independently — a single
+     * failed rename or exception does NOT abort the rest. The trash index is
+     * loaded once and saved once at the end, which makes large multi-deletes
+     * dramatically faster (turns 73× read+encrypt+write into 1× read + 1×
+     * write) and prevents partial-failure orphans where the loop blew up
+     * mid-iteration after a few photos succeeded.
+     *
+     * Returns the number of items successfully moved (so callers can surface
+     * "moved X of N" to the user when not all succeed).
+     */
+    fun moveToTrashBatch(photos: List<VaultPhoto>): Int {
+        if (photos.isEmpty()) return 0
+        val items = loadTrashIndex().toMutableList()
+        var successCount = 0
+        val now = System.currentTimeMillis()
+        photos.forEach { photo ->
+            try {
+                val trashedEnc = File(trashDir, photo.encryptedFile.name)
+                val trashedThumb = File(trashDir, photo.thumbnailFile.name)
+                val encMoved = photo.encryptedFile.renameTo(trashedEnc)
+                if (!encMoved) {
+                    Log.w(TAG, "moveToTrashBatch: rename failed for ${photo.id} (file missing or cross-device)")
+                    return@forEach
+                }
+                if (photo.thumbnailFile.exists() && photo.thumbnailFile != photo.encryptedFile) {
+                    photo.thumbnailFile.renameTo(trashedThumb)
+                }
+                // Best-effort sidecar move alongside the photo.
+                val srcMeta = File(photo.encryptedFile.parentFile, "${photo.id}.meta.enc")
+                if (srcMeta.exists()) srcMeta.renameTo(File(trashDir, "${photo.id}.meta.enc"))
+                items.add(TrashedItem(photo.id, photo.category, now, trashedEnc, trashedThumb, photo.mediaType))
+                successCount++
+            } catch (e: Exception) {
+                Log.e(TAG, "moveToTrashBatch failed for ${photo.id}: ${e.message}")
+            }
+        }
+        try {
+            saveTrashIndex(items)
+        } catch (e: Exception) {
+            // Index save failed — the files are already renamed into _trash/
+            // but the index doesn't know about them. They become orphans.
+            // Returning 0 here would also be wrong (they ARE in _trash, just
+            // unreferenced). Surface the failure honestly.
+            Log.e(TAG, "moveToTrashBatch: index save failed — ${successCount} items orphaned: ${e.message}")
+            return -successCount  // negative signals "moved but unindexed"
+        }
+        Log.d(TAG, "moveToTrashBatch: ${successCount}/${photos.size} moved to trash")
+        return successCount
     }
 
     /** Restore a photo from trash to its original category. */
@@ -518,6 +717,9 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         if (item.thumbnailFile.exists() && item.thumbnailFile != item.encryptedFile) {
             item.thumbnailFile.renameTo(restoredThumb)
         }
+        // Restore the metadata sidecar if it's in the trash dir.
+        val trashedMeta = File(trashDir, "$itemId.meta.enc")
+        if (trashedMeta.exists()) trashedMeta.renameTo(File(targetDir, "$itemId.meta.enc"))
         items.removeAll { it.id == itemId }
         saveTrashIndex(items)
         Log.d(TAG, "Restored from trash: $itemId")
@@ -532,6 +734,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         val item = items.find { it.id == itemId } ?: return
         item.encryptedFile.delete()
         item.thumbnailFile.delete()
+        File(trashDir, "$itemId.meta.enc").delete()
         items.removeAll { it.id == itemId }
         saveTrashIndex(items)
         Log.d(TAG, "Permanently deleted from trash: $itemId")
@@ -540,7 +743,10 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
     /** Empty all trash. */
     fun emptyTrash() {
         val items = loadTrashIndex()
-        items.forEach { it.encryptedFile.delete(); it.thumbnailFile.delete() }
+        items.forEach {
+            it.encryptedFile.delete(); it.thumbnailFile.delete()
+            File(trashDir, "${it.id}.meta.enc").delete()
+        }
         saveTrashIndex(emptyList())
         Log.d(TAG, "Trash emptied: ${items.size} items")
     }
@@ -551,7 +757,10 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         val items = loadTrashIndex().toMutableList()
         val expired = items.filter { it.trashedAt < cutoff }
         if (expired.isEmpty()) return
-        expired.forEach { it.encryptedFile.delete(); it.thumbnailFile.delete() }
+        expired.forEach {
+            it.encryptedFile.delete(); it.thumbnailFile.delete()
+            File(trashDir, "${it.id}.meta.enc").delete()
+        }
         items.removeAll { it.trashedAt < cutoff }
         saveTrashIndex(items)
         Log.d(TAG, "Auto-purged ${expired.size} items from trash")

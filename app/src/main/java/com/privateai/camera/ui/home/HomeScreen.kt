@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockClock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Key
@@ -120,6 +121,7 @@ val features = listOf(
     FeatureItem("health", R.string.feature_health, R.string.feature_health_desc, Icons.Default.MonitorHeart, Color(0xFFAD1457)),
     FeatureItem("reminders", R.string.feature_reminders, R.string.feature_reminders_desc, Icons.Default.Notifications, Color(0xFFD32F2F)),
     FeatureItem("passwords", R.string.feature_passwords, R.string.feature_passwords_desc, Icons.Default.Key, Color(0xFF7B1FA2)),
+    FeatureItem("totp", R.string.feature_authenticator, R.string.feature_authenticator_desc, Icons.Default.LockClock, Color(0xFF0097A7)),
     FeatureItem("tools", R.string.feature_tools, R.string.feature_tools_desc, Icons.Default.Build, Color(0xFF37474F)),
     FeatureItem("contacts", R.string.feature_contacts, R.string.feature_contacts_desc, Icons.Default.Person, Color(0xFFEF6C00)),
 )

@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockClock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.DeleteForever
@@ -224,6 +225,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 "insights" to Triple(stringResource(R.string.feature_insights), stringResource(R.string.feature_insights_desc), Icons.Default.Info),
                 "reminders" to Triple(stringResource(R.string.feature_reminders), stringResource(R.string.feature_reminders_desc), Icons.Default.Notifications),
                 "passwords" to Triple(stringResource(R.string.feature_passwords), stringResource(R.string.feature_passwords_desc), Icons.Default.Lock),
+                "totp" to Triple(stringResource(R.string.feature_authenticator), stringResource(R.string.feature_authenticator_desc), Icons.Default.LockClock),
                 "tools" to Triple(stringResource(R.string.feature_tools), stringResource(R.string.feature_tools_desc), Icons.Default.Info),
                 "contacts" to Triple(stringResource(R.string.feature_contacts), stringResource(R.string.feature_contacts_desc), Icons.Default.Person)
             )

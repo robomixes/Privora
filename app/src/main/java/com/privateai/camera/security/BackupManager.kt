@@ -66,6 +66,7 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
         "app_settings",         // language preference
         "privacy_settings",     // grace period, etc.
         "qr_history",           // QR scan/generate history
+        "totp_settings",        // Authenticator hide-until-tap / autolock toggles
     )
     private val prefsDirInZip = "__prefs__/"
 

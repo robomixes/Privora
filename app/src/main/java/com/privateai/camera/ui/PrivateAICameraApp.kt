@@ -47,6 +47,7 @@ import com.privateai.camera.ui.settings.FeatureToggleManager
 import com.privateai.camera.ui.settings.HomeLayout
 import com.privateai.camera.ui.settings.SettingsScreen
 import com.privateai.camera.ui.tools.UnitConverterScreen
+import com.privateai.camera.ui.totp.TotpListScreen
 import com.privateai.camera.ui.translate.TranslateScreen
 import com.privateai.camera.ui.vault.VaultScreen
 
@@ -204,7 +205,17 @@ fun PrivateAICameraApp() {
                 ScannerScreen(onBack = safeBack)
             }
             composable("qrscanner") {
-                QrScannerScreen(onBack = safeBack)
+                QrScannerScreen(
+                    onBack = safeBack,
+                    onOtpAuthScanned = { uri ->
+                        // Any scanned otpauth:// URI — regardless of where the user
+                        // entered the scanner — routes into the Authenticator add screen
+                        // pre-populated with the parsed entry.
+                        navController.navigate("totp?uri=${android.net.Uri.encode(uri)}") {
+                            popUpTo("qrscanner") { inclusive = true }
+                        }
+                    }
+                )
             }
             composable("translate") {
                 TranslateScreen(onBack = safeBack)
@@ -265,6 +276,23 @@ fun PrivateAICameraApp() {
             }
             composable("passwords") {
                 PasswordHintsScreen(onBack = safeBack)
+            }
+            composable(
+                "totp?uri={uri}",
+                arguments = listOf(navArgument("uri") { defaultValue = ""; type = NavType.StringType })
+            ) { backStackEntry ->
+                val uri = backStackEntry.arguments?.getString("uri")?.ifBlank { null }
+                TotpListScreen(
+                    onBack = safeBack,
+                    onScanQr = { navController.navigate("qrscanner") },
+                    seedFromUri = uri
+                )
+            }
+            composable("totp") {
+                TotpListScreen(
+                    onBack = safeBack,
+                    onScanQr = { navController.navigate("qrscanner") }
+                )
             }
             composable("tools") {
                 UnitConverterScreen(onBack = safeBack)
