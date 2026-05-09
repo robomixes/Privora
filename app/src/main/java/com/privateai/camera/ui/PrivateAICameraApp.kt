@@ -186,6 +186,17 @@ fun PrivateAICameraApp() {
                 )
             }
             composable(
+                "assistant?seed={seed}",
+                arguments = listOf(navArgument("seed") { defaultValue = ""; type = NavType.StringType })
+            ) { backStackEntry ->
+                val seed = backStackEntry.arguments?.getString("seed")?.ifBlank { null }
+                AssistantScreen(
+                    onBack = safeBack,
+                    onNavigate = { route -> navController.navigate(route) },
+                    seedPrompt = seed
+                )
+            }
+            composable(
                 "notes?openNoteId={openNoteId}",
                 arguments = listOf(navArgument("openNoteId") { defaultValue = ""; type = NavType.StringType })
             ) { backStackEntry ->
@@ -221,13 +232,20 @@ fun PrivateAICameraApp() {
                 TranslateScreen(onBack = safeBack)
             }
             composable("vault") {
-                VaultScreen(onBack = safeBack)
+                VaultScreen(
+                    onBack = safeBack,
+                    onNavigate = { route -> navController.navigate(route) }
+                )
             }
             composable("vault?search={query}",
                 arguments = listOf(androidx.navigation.navArgument("query") { defaultValue = ""; type = androidx.navigation.NavType.StringType })
             ) { backStackEntry ->
                 val query = backStackEntry.arguments?.getString("query") ?: ""
-                VaultScreen(onBack = safeBack, initialSearchQuery = query)
+                VaultScreen(
+                    onBack = safeBack,
+                    initialSearchQuery = query,
+                    onNavigate = { route -> navController.navigate(route) }
+                )
             }
             composable("notes") {
                 NotesScreen(onBack = safeBack)

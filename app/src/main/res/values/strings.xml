@@ -611,6 +611,10 @@
     <string name="detail_gps">Location</string>
     <string name="action_more">More</string>
     <string name="action_select_all">Select all</string>
+    <string name="assistant_ask">Ask the Assistant</string>
+    <string name="assistant_summarize">Summarize</string>
+    <string name="assistant_seed_summarize">Summarize the document with id %1$s.</string>
+    <string name="assistant_seed_ask">About the document with id %1$s, </string>
     <string name="action_star">Star</string>
     <string name="action_unstar">Unstar</string>
     <string name="filter_starred_only">Starred only</string>

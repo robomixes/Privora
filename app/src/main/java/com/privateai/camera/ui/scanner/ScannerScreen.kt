@@ -11,6 +11,7 @@ import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
+import android.util.Log
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -507,7 +508,39 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
                                         pdfDocument.close()
                                         out.toByteArray()
                                     }
-                                    vault.saveFile(pdfBytes, "scan_${System.currentTimeMillis()}.pdf", VaultCategory.SCAN)
+                                    val pdfFilename = "scan_${System.currentTimeMillis()}.pdf"
+                                    val savedFile = vault.saveFile(pdfBytes, pdfFilename, VaultCategory.SCAN)
+
+                                    // OCR every page and write an encrypted sidecar so the
+                                    // Assistant can answer questions about this document.
+                                    // Best-effort: failures here don't block the PDF save.
+                                    try {
+                                        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                                        val perPage = mutableListOf<String>()
+                                        for (i in scannedPages.indices) {
+                                            val pageBmp = loadAndEnhanceBitmap(context, scannedPages[i], enhancementMode) ?: continue
+                                            try {
+                                                val img = InputImage.fromBitmap(pageBmp, 0)
+                                                val res = recognizer.process(img).await()
+                                                perPage.add(res.text)
+                                            } catch (e: Exception) {
+                                                Log.w("ScannerScreen", "OCR failed on page ${i+1}: ${e.message}")
+                                                perPage.add("")
+                                            } finally {
+                                                pageBmp.recycle()
+                                            }
+                                        }
+                                        val fullText = perPage.joinToString("\n\n").trim()
+                                        if (fullText.isNotEmpty()) {
+                                            // sidecar id is the encFile basename minus `.pdf.enc`
+                                            // (== the filename we passed to saveFile, including `.pdf`).
+                                            val sidecarId = savedFile.name.removeSuffix(".pdf.enc")
+                                            vault.saveOcrSidecar(sidecarId, savedFile.parentFile!!, fullText, perPage)
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.w("ScannerScreen", "OCR sidecar pass failed: ${e.message}")
+                                    }
+
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(context, "PDF saved to vault (${scannedPages.size} pages)", Toast.LENGTH_SHORT).show()
                                     }

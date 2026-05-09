@@ -180,7 +180,11 @@ private enum class VaultPage { LOCKED, CATEGORIES, GALLERY, VIEWER, VIDEO_PLAYER
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
+fun VaultScreen(
+    onBack: (() -> Unit)? = null,
+    initialSearchQuery: String = "",
+    onNavigate: ((route: String) -> Unit)? = null
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -3332,6 +3336,23 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
         VaultPage.PDF_VIEWER -> {
             val file = pdfTempFile
             if (file != null) {
+                // AI actions are surfaced only when the doc has an OCR sidecar
+                // (i.e. it was scanned through Privora's scanner — we have text
+                // for Gemma to read). Imported PDFs without OCR see only Share.
+                val viewerDoc = viewerPhoto
+                val docHasOcr = viewerDoc != null && vault.hasOcr(viewerDoc)
+                val seedAsk = if (docHasOcr && onNavigate != null) {
+                    {
+                        val seed = context.getString(R.string.assistant_seed_ask, viewerDoc!!.id)
+                        onNavigate("assistant?seed=${android.net.Uri.encode(seed)}")
+                    }
+                } else null
+                val seedSummarize = if (docHasOcr && onNavigate != null) {
+                    {
+                        val seed = context.getString(R.string.assistant_seed_summarize, viewerDoc!!.id)
+                        onNavigate("assistant?seed=${android.net.Uri.encode(seed)}")
+                    }
+                } else null
                 PdfViewerScreen(
                     pdfFile = file,
                     title = pdfTitle,
@@ -3340,7 +3361,9 @@ fun VaultScreen(onBack: (() -> Unit)? = null, initialSearchQuery: String = "") {
                         pdfTempFile = null
                         pdfTitle = ""
                         page = VaultPage.GALLERY
-                    }
+                    },
+                    onAskAssistant = seedAsk,
+                    onSummarize = seedSummarize
                 )
             } else {
                 page = VaultPage.GALLERY

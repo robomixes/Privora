@@ -555,6 +555,10 @@
     <string name="detail_gps">Ubicación</string>
     <string name="action_more">Más</string>
     <string name="action_select_all">Seleccionar todo</string>
+    <string name="assistant_ask">Preguntar al asistente</string>
+    <string name="assistant_summarize">Resumir</string>
+    <string name="assistant_seed_summarize">Resume el documento con id %1$s.</string>
+    <string name="assistant_seed_ask">Sobre el documento con id %1$s, </string>
     <string name="action_star">Destacar</string>
     <string name="action_unstar">Quitar destacado</string>
     <string name="filter_starred_only">Solo destacados</string>

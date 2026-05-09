@@ -95,7 +95,8 @@ private object AssistantSession {
 @Composable
 fun AssistantScreen(
     onBack: (() -> Unit)? = null,
-    onNavigate: ((route: String) -> Unit)? = null
+    onNavigate: ((route: String) -> Unit)? = null,
+    seedPrompt: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -108,6 +109,17 @@ fun AssistantScreen(
     // Pre-warm the Gemma engine so the first reply doesn't pay cold-load latency
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) { GemmaRunner.load(context) }
+    }
+
+    // Deep-link: when the vault viewer's "Ask the Assistant" / "Summarize"
+    // entries route here with a seed prompt, drop it into the input field
+    // so the user can review and edit before sending.
+    var seedConsumed by remember { mutableStateOf(false) }
+    LaunchedEffect(seedPrompt) {
+        if (!seedConsumed && !seedPrompt.isNullOrBlank()) {
+            inputText = seedPrompt
+            seedConsumed = true
+        }
     }
 
     // Auto-scroll to bottom when a new message is added
@@ -622,6 +634,14 @@ private suspend fun runAssistantTurn(
                 }
                 "summarize_expenses" -> {
                     AssistantTools.summarizeExpenses(insightsRepo, firstReply.query)
+                }
+                "summarize_document" -> {
+                    val vaultRepo = com.privateai.camera.security.VaultRepository(context, crypto)
+                    AssistantTools.summarizeDocument(vaultRepo, firstReply.query)
+                }
+                "ask_document" -> {
+                    val vaultRepo = com.privateai.camera.security.VaultRepository(context, crypto)
+                    AssistantTools.askDocument(vaultRepo, firstReply.query)
                 }
                 else -> "[]"
             }

@@ -557,6 +557,10 @@
     <string name="detail_gps">位置</string>
     <string name="action_more">更多</string>
     <string name="action_select_all">全选</string>
+    <string name="assistant_ask">问一下助手</string>
+    <string name="assistant_summarize">摘要</string>
+    <string name="assistant_seed_summarize">请总结 ID 为 %1$s 的文档。</string>
+    <string name="assistant_seed_ask">关于 ID 为 %1$s 的文档，</string>
     <string name="action_star">收藏</string>
     <string name="action_unstar">取消收藏</string>
     <string name="filter_starred_only">仅收藏</string>

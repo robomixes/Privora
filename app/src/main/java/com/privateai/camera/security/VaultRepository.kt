@@ -291,7 +291,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
 
         val items = mutableListOf<VaultPhoto>()
 
-        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, .pdf.enc, .file.enc, .meta.enc, _tobedeleted_)
+        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, .pdf.enc, .file.enc, .meta.enc, .ocr.enc, _tobedeleted_)
         files.filter {
             it.name.endsWith(".enc") &&
                 !it.name.endsWith(".thumb.enc") &&
@@ -299,6 +299,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
                 !it.name.endsWith(".pdf.enc") &&
                 !it.name.endsWith(".file.enc") &&
                 !it.name.endsWith(".meta.enc") &&
+                !it.name.endsWith(".ocr.enc") &&
                 !it.name.startsWith("_tobedeleted_")
         }.forEach { file ->
             val id = file.name.removeSuffix(".enc")
@@ -503,6 +504,49 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
     private fun JSONObject.optDoubleOrNull(key: String): Double? =
         if (has(key) && !isNull(key)) optDouble(key) else null
 
+    // ===== OCR sidecars (encrypted plaintext per scanned document) =====
+
+    /**
+     * Encrypted JSON written next to a scanned PDF as `<id>.ocr.enc`.
+     * Captures the OCR'd text so the AI Assistant can read the document
+     * without re-running OCR. Format:
+     *   { "v": 1, "text": "<concatenated text>", "perPage": ["p1","p2",...] }
+     */
+    fun saveOcrSidecar(photoId: String, dir: File, fullText: String, perPage: List<String>? = null) {
+        val json = JSONObject().apply {
+            put("v", 1)
+            put("text", fullText)
+            if (perPage != null) {
+                put("perPage", org.json.JSONArray(perPage))
+            }
+        }.toString()
+        try {
+            crypto.encryptToFile(json.toByteArray(Charsets.UTF_8), File(dir, "$photoId.ocr.enc"))
+        } catch (e: Exception) {
+            // Sidecar failure shouldn't block the doc save — PDF is already on
+            // disk above this call. The user just won't get Ask-the-Assistant
+            // until they re-scan or re-OCR.
+            Log.w(TAG, "Failed to write OCR sidecar for $photoId: ${e.message}")
+        }
+    }
+
+    /** Load the OCR text for a given vault item. Returns null when absent or unreadable. */
+    fun loadOcr(photo: VaultPhoto): String? {
+        val sidecar = File(photo.encryptedFile.parentFile, "${photo.id}.ocr.enc")
+        if (!sidecar.exists()) return null
+        return try {
+            val obj = JSONObject(String(crypto.decryptFile(sidecar), Charsets.UTF_8))
+            obj.optString("text", null)?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read OCR sidecar for ${photo.id}: ${e.message}")
+            null
+        }
+    }
+
+    /** True if an OCR sidecar exists for this item. Cheap file-existence check. */
+    fun hasOcr(photo: VaultPhoto): Boolean =
+        File(photo.encryptedFile.parentFile, "${photo.id}.ocr.enc").exists()
+
     /**
      * One-shot pass over the entire vault directory: for every `<id>.meta.enc`
      * sidecar, decrypt it, read the EXIF `dateTaken`, and re-apply it as the
@@ -589,7 +633,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         val files = folderDir.listFiles() ?: return emptyList()
         val items = mutableListOf<VaultPhoto>()
 
-        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, .pdf.enc, .file.enc, and any file containing .pdf)
+        // Photos: {id}.enc (excluding .thumb.enc, .vid.enc, .pdf.enc, .file.enc, .meta.enc, .ocr.enc, and any file containing .pdf)
         files.filter {
             it.isFile && it.name.endsWith(".enc") &&
                 !it.name.endsWith(".thumb.enc") &&
@@ -597,6 +641,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
                 !it.name.endsWith(".pdf.enc") &&
                 !it.name.endsWith(".file.enc") &&
                 !it.name.endsWith(".meta.enc") &&
+                !it.name.endsWith(".ocr.enc") &&
                 !it.name.contains(".pdf.") &&
                 !it.name.startsWith("_tobedeleted_")
         }.forEach { file ->
@@ -645,10 +690,12 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         if (photo.thumbnailFile.exists() && photo.thumbnailFile != photo.encryptedFile) {
             photo.thumbnailFile.renameTo(newThumbFile)
         }
-        // Carry the metadata sidecar along — otherwise restoring a moved
-        // photo's "date taken" / GPS would silently disappear.
+        // Carry the metadata + OCR sidecars along — otherwise moving a scanned
+        // doc would silently lose its dateTaken/GPS or its Ask-the-Assistant text.
         val srcMeta = File(photo.encryptedFile.parentFile, "${photo.id}.meta.enc")
         if (srcMeta.exists()) srcMeta.renameTo(File(targetDir, "${photo.id}.meta.enc"))
+        val srcOcr = File(photo.encryptedFile.parentFile, "${photo.id}.ocr.enc")
+        if (srcOcr.exists()) srcOcr.renameTo(File(targetDir, "${photo.id}.ocr.enc"))
         Log.d(TAG, "Photo moved to folder: ${photo.id}")
     }
 
@@ -682,10 +729,14 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         if (photo.thumbnailFile.exists() && photo.thumbnailFile != photo.encryptedFile) {
             photo.thumbnailFile.renameTo(trashedThumb)
         }
-        // Move metadata sidecar (best-effort — not all photos have one).
+        // Move metadata + OCR sidecars (best-effort — not all photos have them).
         val srcMeta = File(photo.encryptedFile.parentFile, "${photo.id}.meta.enc")
         if (srcMeta.exists()) {
             srcMeta.renameTo(File(trashDir, "${photo.id}.meta.enc"))
+        }
+        val srcOcr = File(photo.encryptedFile.parentFile, "${photo.id}.ocr.enc")
+        if (srcOcr.exists()) {
+            srcOcr.renameTo(File(trashDir, "${photo.id}.ocr.enc"))
         }
         // Add to trash index
         val items = loadTrashIndex().toMutableList()
@@ -725,6 +776,8 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
                 // Best-effort sidecar move alongside the photo.
                 val srcMeta = File(photo.encryptedFile.parentFile, "${photo.id}.meta.enc")
                 if (srcMeta.exists()) srcMeta.renameTo(File(trashDir, "${photo.id}.meta.enc"))
+                val srcOcr = File(photo.encryptedFile.parentFile, "${photo.id}.ocr.enc")
+                if (srcOcr.exists()) srcOcr.renameTo(File(trashDir, "${photo.id}.ocr.enc"))
                 items.add(TrashedItem(photo.id, photo.category, now, trashedEnc, trashedThumb, photo.mediaType))
                 successCount++
             } catch (e: Exception) {
@@ -757,9 +810,11 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         if (item.thumbnailFile.exists() && item.thumbnailFile != item.encryptedFile) {
             item.thumbnailFile.renameTo(restoredThumb)
         }
-        // Restore the metadata sidecar if it's in the trash dir.
+        // Restore the metadata + OCR sidecars if they're in the trash dir.
         val trashedMeta = File(trashDir, "$itemId.meta.enc")
         if (trashedMeta.exists()) trashedMeta.renameTo(File(targetDir, "$itemId.meta.enc"))
+        val trashedOcr = File(trashDir, "$itemId.ocr.enc")
+        if (trashedOcr.exists()) trashedOcr.renameTo(File(targetDir, "$itemId.ocr.enc"))
         items.removeAll { it.id == itemId }
         saveTrashIndex(items)
         Log.d(TAG, "Restored from trash: $itemId")
@@ -775,6 +830,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         item.encryptedFile.delete()
         item.thumbnailFile.delete()
         File(trashDir, "$itemId.meta.enc").delete()
+        File(trashDir, "$itemId.ocr.enc").delete()
         items.removeAll { it.id == itemId }
         saveTrashIndex(items)
         Log.d(TAG, "Permanently deleted from trash: $itemId")
@@ -786,6 +842,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         items.forEach {
             it.encryptedFile.delete(); it.thumbnailFile.delete()
             File(trashDir, "${it.id}.meta.enc").delete()
+            File(trashDir, "${it.id}.ocr.enc").delete()
         }
         saveTrashIndex(emptyList())
         Log.d(TAG, "Trash emptied: ${items.size} items")
@@ -800,6 +857,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         expired.forEach {
             it.encryptedFile.delete(); it.thumbnailFile.delete()
             File(trashDir, "${it.id}.meta.enc").delete()
+            File(trashDir, "${it.id}.ocr.enc").delete()
         }
         items.removeAll { it.trashedAt < cutoff }
         saveTrashIndex(items)

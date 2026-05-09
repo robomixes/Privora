@@ -555,6 +555,10 @@
     <string name="detail_gps">الموقع</string>
     <string name="action_more">المزيد</string>
     <string name="action_select_all">تحديد الكل</string>
+    <string name="assistant_ask">اسأل المساعد</string>
+    <string name="assistant_summarize">تلخيص</string>
+    <string name="assistant_seed_summarize">لخّص المستند ذا المعرّف %1$s.</string>
+    <string name="assistant_seed_ask">بخصوص المستند ذا المعرّف %1$s، </string>
     <string name="action_star">إضافة إلى المفضلة</string>
     <string name="action_unstar">إزالة من المفضلة</string>
     <string name="filter_starred_only">المفضلة فقط</string>

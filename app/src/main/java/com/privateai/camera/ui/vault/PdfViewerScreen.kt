@@ -32,8 +32,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Summarize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -82,7 +87,9 @@ import java.io.File
 fun PdfViewerScreen(
     pdfFile: File,
     title: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onAskAssistant: (() -> Unit)? = null,
+    onSummarize: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -193,21 +200,66 @@ fun PdfViewerScreen(
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
-            IconButton(
-                onClick = {
-                    try {
-                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", pdfFile)
-                        val send = Intent(Intent.ACTION_SEND).apply {
-                            type = "application/pdf"
-                            putExtra(Intent.EXTRA_STREAM, uri)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // Right side: share + (optionally) overflow menu with AI actions.
+            // When the document has an OCR sidecar, the host wires onAskAssistant
+            // / onSummarize and we surface the overflow. Otherwise just Share.
+            val hasAiActions = onAskAssistant != null || onSummarize != null
+            if (hasAiActions) {
+                var menuOpen by remember { mutableStateOf(false) }
+                Box(modifier = Modifier.align(Alignment.CenterEnd)) {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Default.MoreVert, stringResource(R.string.action_more), tint = Color.White)
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        if (onSummarize != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.assistant_summarize)) },
+                                leadingIcon = { Icon(Icons.Default.Summarize, null) },
+                                onClick = { menuOpen = false; onSummarize() }
+                            )
                         }
-                        context.startActivity(Intent.createChooser(send, context.getString(R.string.share_pdf)))
-                    } catch (_: Exception) {}
-                },
-                modifier = Modifier.align(Alignment.CenterEnd)
-            ) {
-                Icon(Icons.Default.IosShare, stringResource(R.string.share_pdf), tint = Color.White)
+                        if (onAskAssistant != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.assistant_ask)) },
+                                leadingIcon = { Icon(Icons.Default.AutoAwesome, null) },
+                                onClick = { menuOpen = false; onAskAssistant() }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.share_pdf)) },
+                            leadingIcon = { Icon(Icons.Default.IosShare, null) },
+                            onClick = {
+                                menuOpen = false
+                                try {
+                                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", pdfFile)
+                                    val send = Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/pdf"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(send, context.getString(R.string.share_pdf)))
+                                } catch (_: Exception) {}
+                            }
+                        )
+                    }
+                }
+            } else {
+                IconButton(
+                    onClick = {
+                        try {
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", pdfFile)
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/pdf"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(send, context.getString(R.string.share_pdf)))
+                        } catch (_: Exception) {}
+                    },
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Icon(Icons.Default.IosShare, stringResource(R.string.share_pdf), tint = Color.White)
+                }
             }
         }
     }
