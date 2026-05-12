@@ -152,6 +152,11 @@ dependencies {
     // ZXing (QR code generation)
     implementation(libs.zxing.core)
 
+    // PdfBox-Android — text-layer extraction from already-imported PDFs.
+    // Phase 2 of "Ask My Documents": lets the Assistant read PDFs that
+    // weren't scanned through Privora's scanner.
+    implementation(libs.pdfbox.android)
+
     // LiteRT-LM (Gemma 4 on-device LLM)
     implementation(libs.litertlm.android)
 

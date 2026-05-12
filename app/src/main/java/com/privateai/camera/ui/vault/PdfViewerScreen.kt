@@ -96,7 +96,10 @@ fun PdfViewerScreen(
     onAskAssistant: (() -> Unit)? = null,
     onSummarize: (() -> Unit)? = null,
     onViewExtractedText: (() -> Unit)? = null,
-    onRename: ((String) -> Unit)? = null
+    onRename: ((String) -> Unit)? = null,
+    onExtractText: (() -> Unit)? = null,
+    /** Pair of (currentPage, totalPages) while OCR extraction runs; null when idle. */
+    extractionProgress: Pair<Int, Int>? = null
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -211,7 +214,7 @@ fun PdfViewerScreen(
             // When the document has an OCR sidecar, the host wires onAskAssistant
             // / onSummarize and we surface the overflow. Otherwise just Share.
             val hasAiActions = onAskAssistant != null || onSummarize != null ||
-                onViewExtractedText != null || onRename != null
+                onViewExtractedText != null || onRename != null || onExtractText != null
             if (hasAiActions) {
                 var menuOpen by remember { mutableStateOf(false) }
                 var showRenameDialog by remember { mutableStateOf(false) }
@@ -232,6 +235,16 @@ fun PdfViewerScreen(
                                 text = { Text(stringResource(R.string.assistant_summarize)) },
                                 leadingIcon = { Icon(Icons.Default.Summarize, null) },
                                 onClick = { menuOpen = false; onSummarize() }
+                            )
+                        }
+                        if (onExtractText != null) {
+                            // Only present when the doc has no OCR sidecar yet —
+                            // host sets this to null otherwise (so Summarize / Ask
+                            // / View extracted text take over).
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.assistant_extract_text)) },
+                                leadingIcon = { Icon(Icons.Default.TextSnippet, null) },
+                                onClick = { menuOpen = false; onExtractText() }
                             )
                         }
                         if (onAskAssistant != null) {
@@ -317,6 +330,27 @@ fun PdfViewerScreen(
                     Icon(Icons.Default.IosShare, stringResource(R.string.share_pdf), tint = Color.White)
                 }
             }
+        }
+
+        // Extraction progress overlay — non-dismissible while the OCR
+        // fallback runs (which can take many seconds for image-only PDFs).
+        // For the fast PdfBox path the host typically goes from null →
+        // (1,1) → null almost instantly, so this dialog flashes briefly.
+        extractionProgress?.let { (current, total) ->
+            AlertDialog(
+                onDismissRequest = { /* not dismissible during extraction */ },
+                title = { Text(stringResource(R.string.assistant_extracting_title)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.assistant_extracting_page, current, total))
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { if (total > 0) current.toFloat() / total else 0f },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {}
+            )
         }
     }
 }

@@ -26,7 +26,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.ShortText
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Lightbulb
@@ -100,8 +103,14 @@ private object AssistantSession {
      * Using the id directly in tool calls fails on Gemma 4 E2B — the model
      * truncates the 13-digit timestamp. We bypass that by injecting the OCR
      * text into the prompt directly (see `runAssistantTurn`).
+     *
+     * Backed by a Compose `mutableStateOf` so the attached-doc chip can
+     * react when the user taps × to detach.
      */
-    var attachedDocId: String? = null
+    private val _attachedDocId = mutableStateOf<String?>(null)
+    var attachedDocId: String?
+        get() = _attachedDocId.value
+        set(value) { _attachedDocId.value = value }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -125,29 +134,30 @@ fun AssistantScreen(
         withContext(Dispatchers.IO) { GemmaRunner.load(context) }
     }
 
-    // Deep-link: when the vault viewer's "Ask the Assistant" / "Summarize"
-    // entries route here with a seed prompt, drop it into the input field
-    // so the user can review and edit before sending. If a doc id is
-    // attached, bind it to the session — runAssistantTurn will inject the
-    // OCR text directly into the prompt (Gemma 4 E2B can't reliably
-    // round-trip a 13-digit doc id through a tool call, so we bypass it).
-    //
-    // Key seedConsumed to attachedDocId so re-entering the assistant with a
-    // different doc re-seeds the input (otherwise the prior `seedConsumed=true`
-    // would block it).
-    var seedConsumed by remember(attachedDocId) { mutableStateOf(false) }
-    LaunchedEffect(seedPrompt, attachedDocId) {
+    // Deep-link: bind the doc id to the session SYNCHRONOUSLY during
+    // composition (via remember keyed on attachedDocId) so the attached-doc
+    // chip renders on the first frame, not after a LaunchedEffect fires.
+    // The session backing is a Compose mutableStateOf, so writes are
+    // observed by the chip's reader and trigger recomposition cleanly.
+    // Doc-switch behaviour: wipe the chat when moving between different
+    // docs so prior summaries don't bias the next one; first attach (prior
+    // session state is null) preserves any unrelated chat.
+    remember(attachedDocId) {
         if (!attachedDocId.isNullOrBlank()) {
-            // Switching FROM one doc TO a different doc — wipe the chat so the
-            // model isn't biased by a previous doc's summary. First attach
-            // (previous == null) preserves any unrelated chat the user may
-            // already have going.
             val previous = AssistantSession.attachedDocId
             if (previous != null && previous != attachedDocId) {
                 AssistantSession.messages.clear()
             }
             AssistantSession.attachedDocId = attachedDocId
         }
+        Unit
+    }
+
+    // Seed prompt fill — runs once per new attachedDocId. The seed is a
+    // UI-state side effect (writes to inputText), so it lives in
+    // LaunchedEffect rather than the synchronous remember block above.
+    var seedConsumed by remember(attachedDocId) { mutableStateOf(false) }
+    LaunchedEffect(seedPrompt, attachedDocId) {
         if (!seedConsumed && !seedPrompt.isNullOrBlank()) {
             inputText = seedPrompt
             seedConsumed = true
@@ -256,6 +266,59 @@ fun AssistantScreen(
                 .padding(padding)
                 .imePadding()
         ) {
+            // Attached-document chip — always visible while a vault doc is
+            // bound to the session, so the user can see which doc the
+            // assistant is grounded in (not just in the first chat bubble).
+            // Tap × to detach: clears the session binding so the next message
+            // is a normal chat, not a doc Q&A. The chat history is preserved.
+            val currentAttachedDoc = AssistantSession.attachedDocId
+            if (!currentAttachedDoc.isNullOrBlank()) {
+                val displayName = currentAttachedDoc.removeSuffix(".pdf").removeSuffix(".PDF")
+                androidx.compose.material3.AssistChip(
+                    onClick = {},
+                    label = {
+                        Text(
+                            stringResource(R.string.assistant_attached_doc, displayName),
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Description,
+                            null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = { AssistantSession.attachedDocId = null },
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                stringResource(R.string.assistant_attached_doc_detach),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                // OCR-language disclaimer. ML Kit Text Recognition v2 (Latin
+                // only) silently drops Arabic / Hebrew / CJK / Thai etc., so
+                // for mixed-script docs the OCR text is incomplete — and
+                // Gemma can't tell because there are no gap markers to look
+                // for. Surfacing the limitation to the user directly is the
+                // honest move until non-Latin OCR (Tesseract or equivalent)
+                // is added.
+                Text(
+                    stringResource(R.string.assistant_attached_doc_latin_only),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                )
+            }
             // Chat messages list
             LazyColumn(
                 modifier = Modifier
@@ -607,9 +670,18 @@ private suspend fun runAssistantTurn(
     userText: String,
     onChunk: (String) -> Unit
 ): TurnResult {
-    // 1. Build knowledge snapshot
+    // 1. Build knowledge snapshot. We always build it because the post-turn
+    // `buildContextRefs` consumes it to surface clickable references. But
+    // when an attached document is in play, the JSON we pass to Gemma is an
+    // empty stub — the user's notes / expenses / health are irrelevant noise
+    // for doc Q&A, and skipping them frees ~1-2 KB of context budget for the
+    // doc itself.
     val snapshot = KnowledgeSnapshot.build(context)
-    val snapshotJson = snapshot.toJson()
+    val snapshotJson = if (AssistantSession.attachedDocId.isNullOrBlank()) {
+        snapshot.toJson()
+    } else {
+        "{}"
+    }
 
     // 1b. If a vault document is attached to this session, load its OCR text
     // and prepend it to the prompt as DOCUMENT CONTEXT. This bypasses the
@@ -645,19 +717,24 @@ private suspend fun runAssistantTurn(
             }
         }
 
-    // 3. Dynamic temperature — creative tasks get warmer output, data queries stay precise
-    val temp = classifyTemperature(userText)
+    // 3. Dynamic temperature — creative tasks get warmer output, data queries
+    // stay precise. When an attached doc is in play, force a cooler temp:
+    // doc Q&A is factual / extractive, and warmer sampling pushes Gemma 4 E2B
+    // into degenerate repetition loops (same summary block emitted forever).
+    val temp = if (!AssistantSession.attachedDocId.isNullOrBlank()) 0.2
+               else classifyTemperature(userText)
 
     // 4. First turn — stream and decide free-text vs JSON-wrapped on the fly
     val basePrompt = AssistantPrompts.formatTurn(snapshotJson, history, userText)
     val prompt = if (attachedOcr != null) {
-        // 4 KB budget (down from 6 KB) leaves more headroom for the model's
-        // reply. Hitting the output limit mid-answer was producing truncated
-        // JSON that leaked into the chat as raw `{"type":"answer","text":"…`.
-        val docBudget = 4096
+        // 5 KB budget. The snapshot is now empty `{}` when a doc is attached
+        // (see step 1), so the freed context goes back to the doc. A 7 KB
+        // doc was previously over-truncated to 3 KB; now ~70% of it reaches
+        // the model. Real fix for long docs is still Phase 1 (RAG).
+        val docBudget = 5120
         val clipped = if (attachedOcr.length > docBudget) attachedOcr.take(docBudget) else attachedOcr
         val truncatedNote = if (attachedOcr.length > docBudget)
-            "\n[Note: only the first ~4 KB of this document is shown. If the answer isn't in this excerpt, say so rather than guessing.]"
+            "\n[Note: only the first part of this document is shown (${clipped.length}/${attachedOcr.length} chars). If the answer isn't in this excerpt, say so rather than guessing.]"
         else ""
         // Detect the dominant language of the user's question — used to nudge
         // the model away from defaulting to English when the UI is Arabic /
@@ -678,6 +755,7 @@ private suspend fun runAssistantTurn(
             append("- When the user asks for a value, quote the exact phrase from the document where you found it.\n")
             append("- If the answer isn't clearly in the text, say \"I can't find that in the document\" rather than guessing.\n")
             append("- The document text above came from OCR and may contain layout artefacts (extra spaces, mis-ordered columns). Don't try to fix or re-render it — work with what's there.\n")
+            append("- The OCR can only read Latin scripts. If the source document also contained Arabic, Hebrew, Chinese, Japanese, Korean, or other non-Latin text, those parts are MISSING from the text above. If a section looks short or incomplete, say so — do NOT invent or extrapolate content that isn't visible.\n")
             append("- Reply in the same language as the user's question")
             if (langHint != null) append(" ($langHint)")
             append(". Do NOT default to English unless the user wrote in English. If the user's message is too short to tell, match the document's language instead.\n")
@@ -798,6 +876,21 @@ private suspend fun streamAndCollect(
     ).collect { chunk ->
         raw.append(chunk)
 
+        // Repetition-loop guard. Gemma 4 E2B sometimes falls into a degenerate
+        // state where it emits the same block over and over until cancelled.
+        // If we see a 60-char suffix appear 3+ times in the last ~600 chars of
+        // output, cut the stream — better a truncated answer than an infinite
+        // loop draining battery and pinning the user on a "thinking…" state.
+        if (raw.length >= 300) {
+            val tail = raw.substring(raw.length - 60)
+            val window = raw.substring(maxOf(0, raw.length - 600))
+            if (tail.isNotBlank() && occurrences(window, tail) >= 3) {
+                Log.w(TAG, "Repetition loop detected (60-char tail seen 3× in last 600 chars) — cutting stream")
+                kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+                return@collect
+            }
+        }
+
         if (mode == StreamMode.UNDECIDED) {
             val trimmed = raw.toString().trimStart()
             if (trimmed.isEmpty()) return@collect
@@ -842,6 +935,20 @@ private suspend fun streamAndCollect(
 }
 
 private enum class StreamMode { UNDECIDED, RAW, JSON_WRAPPED }
+
+/** Cheap substring-occurrence count for the repetition-loop guard. */
+private fun occurrences(haystack: String, needle: String): Int {
+    if (needle.isEmpty()) return 0
+    var count = 0
+    var i = 0
+    while (true) {
+        val idx = haystack.indexOf(needle, i)
+        if (idx < 0) break
+        count++
+        i = idx + needle.length
+    }
+    return count
+}
 
 /** Matches the start of a JSON `"text": "..."` field with arbitrary whitespace. */
 private val TextFieldMarker = Regex("\"text\"\\s*:\\s*\"")

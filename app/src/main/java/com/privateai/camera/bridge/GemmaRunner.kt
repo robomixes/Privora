@@ -347,12 +347,19 @@ object GemmaRunner {
             )
             activeConversation = conversation
 
+            var emittedChars = 0
             try {
                 conversation.sendMessageAsync(prompt).collect { chunk ->
-                    emit(chunk.toString())
+                    val s = chunk.toString()
+                    emittedChars += s.length
+                    emit(s)
                 }
+                Log.d(TAG, "Streaming completed cleanly — $emittedChars chars emitted")
             } catch (e: Exception) {
-                Log.e(TAG, "Streaming inference failed: ${e.message}", e)
+                // Log enough to diagnose the "stopped mid-sentence" failure
+                // mode. Without this, partial answers in the chat look like
+                // the model decided to stop — when actually LiteRT-LM threw.
+                Log.e(TAG, "Streaming inference failed after $emittedChars chars: ${e.javaClass.simpleName}: ${e.message}", e)
             } finally {
                 closeActiveConversation()
             }

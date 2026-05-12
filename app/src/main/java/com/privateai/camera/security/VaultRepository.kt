@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.util.Log
+import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -546,6 +547,200 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
     /** True if an OCR sidecar exists for this item. Cheap file-existence check. */
     fun hasOcr(photo: VaultPhoto): Boolean =
         File(photo.encryptedFile.parentFile, "${photo.id}.ocr.enc").exists()
+
+    /**
+     * Heuristic: does this OCR output look like coherent Latin-script text,
+     * or did the recognizer give up on a non-Latin script and emit garbage?
+     *
+     * ML Kit Text Recognition v2 only ships a Latin model (no Arabic, no
+     * Hebrew, no Thai). Pointing it at Arabic glyphs returns either non-Latin
+     * Unicode (random) or short bursts of symbols. Writing a sidecar for that
+     * gives the AI Assistant a corpus it can't read — every answer will be
+     * wrong. We refuse to write the sidecar at all in that case.
+     *
+     * Heuristic: at least 50 non-whitespace chars, AND at least 40% of those
+     * are Latin letters (Unicode < U+024F, covering Basic Latin + Latin-1
+     * Supplement + Latin Extended-A/B). Not bulletproof — a Latin recognizer
+     * fed Arabic can still emit plausibly-Latin garbage — but catches the
+     * common failure mode where output is dominated by punctuation, digits,
+     * or non-Latin Unicode characters.
+     */
+    fun looksLikeReadableLatinOcr(text: String): Boolean {
+        if (text.length < 50) return false
+        val nonWhitespace = text.filterNot { it.isWhitespace() }
+        if (nonWhitespace.length < 30) return false
+        val latinLetters = nonWhitespace.count { it.isLetter() && it.code < 0x024F }
+        val ratio = latinLetters.toFloat() / nonWhitespace.length
+        return ratio >= 0.4f
+    }
+
+    /**
+     * Outcome of [extractOcrForPdf]. Lets the caller distinguish "wasn't a
+     * useable PDF" from "found pages but no text" so the UI can show the
+     * right message.
+     */
+    sealed class OcrExtractionResult {
+        /** Text was extracted and the sidecar was written. */
+        data class Success(val pageCount: Int, val charCount: Int, val viaOcr: Boolean) : OcrExtractionResult()
+        /** PDF opened OK but produced no readable text after both passes. */
+        object NoTextFound : OcrExtractionResult()
+        /** PDF couldn't be opened / decrypted / parsed at all. */
+        object Failed : OcrExtractionResult()
+    }
+
+    /**
+     * Try to extract text from an existing vault PDF and write an
+     * `<id>.ocr.enc` sidecar so the Assistant can answer questions about it.
+     *
+     * Hybrid strategy:
+     *  1. Native text-layer pull via PdfBox-Android — fast, accurate, works
+     *     on PDFs generated from Word / Pages / browsers / bank statements.
+     *  2. If PdfBox returns less than ~50 chars total, fall back to rendering
+     *     each page via [android.graphics.pdf.PdfRenderer] and running ML Kit
+     *     `TextRecognizer` on the bitmap — same pipeline the in-app scanner
+     *     uses for fresh scans. Slow (a few seconds per page) but works on
+     *     image-of-pages PDFs.
+     *
+     * `onProgress(current, total)` fires during the OCR fallback only — for
+     * PdfBox-only docs it skips straight to completion.
+     *
+     * Idempotent: if a sidecar already exists, it's overwritten. The caller
+     * is responsible for asking the user before re-extracting.
+     *
+     * Must be called from a coroutine on `Dispatchers.IO`. PdfBox + ML Kit
+     * are blocking; the scanner's parent fileprovider is also write-bound.
+     */
+    suspend fun extractOcrForPdf(
+        photo: VaultPhoto,
+        onProgress: (current: Int, total: Int) -> Unit = { _, _ -> }
+    ): OcrExtractionResult {
+        if (photo.mediaType != VaultMediaType.PDF) return OcrExtractionResult.Failed
+
+        // One-time PdfBox init — safe to call repeatedly, it short-circuits.
+        try {
+            com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context)
+        } catch (e: Exception) {
+            Log.w(TAG, "PdfBox init failed: ${e.message}")
+            // Not fatal — we can still try the render-OCR fallback.
+        }
+
+        // Decrypt to a temp file. Both PdfBox and PdfRenderer need a file
+        // handle, not raw bytes. Keep it in cacheDir so the OS reclaims it
+        // if we crash before the `finally` cleanup runs.
+        val tempPdf = File.createTempFile("ocr_extract_", ".pdf", context.cacheDir)
+        try {
+            val bytes = loadFile(photo.encryptedFile) ?: return OcrExtractionResult.Failed
+            tempPdf.writeBytes(bytes)
+
+            // 1. Try the cheap native path first.
+            val (nativeText, nativePageCount) = try {
+                com.tom_roush.pdfbox.pdmodel.PDDocument.load(tempPdf).use { doc ->
+                    val stripper = com.tom_roush.pdfbox.text.PDFTextStripper()
+                    stripper.getText(doc).trim() to doc.numberOfPages
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "PdfBox extraction failed for ${photo.id}: ${e.message}")
+                "" to 0
+            }
+
+            // If the native pass got a usable amount of text AND it actually
+            // looks like Latin script, write the sidecar and return. The
+            // looksLikeReadableLatinOcr check guards against ML Kit / PdfBox
+            // returning corrupted output when fed a non-Latin doc — better
+            // to fall through to the OCR pass (also Latin, but at least we
+            // can flag it later) than to write a garbage sidecar.
+            if (nativeText.length >= 50 && looksLikeReadableLatinOcr(nativeText)) {
+                val perPage = nativeText.split("")  // PdfBox separates pages with form-feed
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                saveOcrSidecar(
+                    photo.id,
+                    photo.encryptedFile.parentFile ?: return OcrExtractionResult.Failed,
+                    nativeText,
+                    perPage.takeIf { it.size > 1 }
+                )
+                Log.i(TAG, "OCR sidecar via PdfBox: ${photo.id} (${nativeText.length} chars, $nativePageCount pages)")
+                return OcrExtractionResult.Success(
+                    pageCount = nativePageCount.coerceAtLeast(1),
+                    charCount = nativeText.length,
+                    viaOcr = false
+                )
+            }
+
+            // 2. Fall back to render-and-OCR. Slow but covers image-of-pages
+            // PDFs that PdfBox can't read text from.
+            val pfd = android.os.ParcelFileDescriptor.open(
+                tempPdf, android.os.ParcelFileDescriptor.MODE_READ_ONLY
+            )
+            val renderer = android.graphics.pdf.PdfRenderer(pfd)
+            val pageCount = renderer.pageCount
+            val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
+                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+            )
+            val perPage = mutableListOf<String>()
+            try {
+                for (i in 0 until pageCount) {
+                    onProgress(i + 1, pageCount)
+                    val page = renderer.openPage(i)
+                    // Target ~1240px wide to match the scanner's saved-PDF
+                    // resolution — gives ML Kit comparable input quality.
+                    val targetW = 1240
+                    val targetH = (targetW.toFloat() * page.height / page.width).toInt().coerceAtLeast(1)
+                    val bmp = android.graphics.Bitmap.createBitmap(
+                        targetW, targetH, android.graphics.Bitmap.Config.ARGB_8888
+                    )
+                    bmp.eraseColor(android.graphics.Color.WHITE)
+                    page.render(bmp, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    page.close()
+                    try {
+                        val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
+                        val text = recognizer.process(image).await().text
+                        perPage.add(text)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "OCR failed for page $i of ${photo.id}: ${e.message}")
+                        perPage.add("")
+                    } finally {
+                        bmp.recycle()
+                    }
+                }
+            } finally {
+                try { renderer.close() } catch (_: Exception) {}
+                try { pfd.close() } catch (_: Exception) {}
+            }
+
+            val fullText = perPage.joinToString("\n\n").trim()
+            if (fullText.isEmpty()) {
+                Log.i(TAG, "OCR fallback produced no text for ${photo.id}")
+                return OcrExtractionResult.NoTextFound
+            }
+            // Refuse to write a sidecar of garbled non-Latin output — ML Kit
+            // v2 only ships a Latin model, so Arabic / Hebrew / Thai / etc.
+            // PDFs come back as corrupt symbols. Treating that as a successful
+            // extraction would point the Assistant at noise and produce
+            // confidently-wrong answers for every question.
+            if (!looksLikeReadableLatinOcr(fullText)) {
+                Log.i(TAG, "OCR fallback produced non-readable text for ${photo.id} (likely non-Latin script) — no sidecar written")
+                return OcrExtractionResult.NoTextFound
+            }
+            saveOcrSidecar(
+                photo.id,
+                photo.encryptedFile.parentFile ?: return OcrExtractionResult.Failed,
+                fullText,
+                perPage
+            )
+            Log.i(TAG, "OCR sidecar written via render+ML Kit: ${photo.id} ($pageCount pages, ${fullText.length} chars)")
+            return OcrExtractionResult.Success(
+                pageCount = pageCount,
+                charCount = fullText.length,
+                viaOcr = true
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "extractOcrForPdf failed for ${photo.id}: ${e.message}", e)
+            return OcrExtractionResult.Failed
+        } finally {
+            try { tempPdf.delete() } catch (_: Exception) {}
+        }
+    }
 
     /**
      * One-shot pass over the entire vault directory: for every `<id>.meta.enc`

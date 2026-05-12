@@ -531,11 +531,19 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
                                             }
                                         }
                                         val fullText = perPage.joinToString("\n\n").trim()
-                                        if (fullText.isNotEmpty()) {
+                                        // Skip the sidecar entirely if the OCR
+                                        // output isn't coherent Latin text — ML
+                                        // Kit v2 doesn't ship an Arabic model,
+                                        // so Arabic scans come back as garbage.
+                                        // Writing that sidecar would point the
+                                        // Assistant at noise.
+                                        if (fullText.isNotEmpty() && vault.looksLikeReadableLatinOcr(fullText)) {
                                             // sidecar id is the encFile basename minus `.pdf.enc`
                                             // (== the filename we passed to saveFile, including `.pdf`).
                                             val sidecarId = savedFile.name.removeSuffix(".pdf.enc")
                                             vault.saveOcrSidecar(sidecarId, savedFile.parentFile!!, fullText, perPage)
+                                        } else if (fullText.isNotEmpty()) {
+                                            Log.i("ScannerScreen", "Skipped OCR sidecar — output doesn't look like Latin text (${fullText.length} chars). Likely a non-Latin script ML Kit can't read.")
                                         }
                                     } catch (e: Exception) {
                                         Log.w("ScannerScreen", "OCR sidecar pass failed: ${e.message}")

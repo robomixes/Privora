@@ -859,15 +859,34 @@ fun VaultScreen(
             onDismissRequest = { extractedTextDialog = null },
             title = { Text(stringResource(R.string.assistant_view_extracted_text)) },
             text = {
-                androidx.compose.foundation.lazy.LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp)
-                ) {
-                    item {
-                        Text(
-                            if (ocrText.isBlank()) stringResource(R.string.assistant_view_extracted_text_empty) else ocrText,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                        )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Size header — total chars + how much actually reaches the
+                    // model. The doc budget here mirrors what's used in
+                    // runAssistantTurn so the user sees the same truth.
+                    val totalChars = ocrText.length
+                    val docBudget = 5120
+                    val sentToAi = totalChars.coerceAtMost(docBudget)
+                    val statusLine = if (totalChars > docBudget) {
+                        stringResource(R.string.assistant_view_extracted_text_size_truncated, totalChars, sentToAi)
+                    } else {
+                        stringResource(R.string.assistant_view_extracted_text_size_full, totalChars)
+                    }
+                    Text(
+                        statusLine,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp)
+                    ) {
+                        item {
+                            Text(
+                                if (ocrText.isBlank()) stringResource(R.string.assistant_view_extracted_text_empty) else ocrText,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            )
+                        }
                     }
                 }
             },
@@ -3374,21 +3393,30 @@ fun VaultScreen(
         VaultPage.PDF_VIEWER -> {
             val file = pdfTempFile
             if (file != null) {
-                // AI actions are surfaced only when the doc has an OCR sidecar
-                // (i.e. it was scanned through Privora's scanner — we have text
-                // for Gemma to read). Imported PDFs without OCR see only Share.
+                // AI actions are surfaced only when the doc has an OCR sidecar.
+                // For freshly-scanned docs the sidecar is written at save-time.
+                // For imported PDFs (Wi-Fi transfer, share-to-vault, anything
+                // pre-existing) the user can trigger one-shot extraction from
+                // the overflow menu — hybrid PdfBox (native text layer) +
+                // ML Kit OCR (image fallback). Refresh the trigger when the
+                // sidecar state changes so the menu items rotate.
                 val viewerDoc = viewerPhoto
-                val docHasOcr = viewerDoc != null && vault.hasOcr(viewerDoc)
+                var ocrRefresh by remember { mutableStateOf(0) }
+                val docHasOcr = remember(viewerDoc?.id, ocrRefresh) {
+                    viewerDoc != null && vault.hasOcr(viewerDoc)
+                }
+                var extractionProgress by remember(viewerDoc?.id) {
+                    mutableStateOf<Pair<Int, Int>?>(null)
+                }
                 val seedAsk = if (docHasOcr && onNavigate != null) {
                     {
-                        // The doc binds to the assistant session via docId
-                        // separately; the seed prompt embeds the doc *name*
-                        // (post-rename, this is the readable label) so the
-                        // user's first chat bubble shows what they're asking
-                        // about. Strip the .pdf hint for readability.
+                        // The doc name now lives in the attached-doc chip at
+                        // the top of the chat (always visible), so the seed
+                        // prompts are clean complete questions — sending them
+                        // as-is gives a sensible default instead of "scan_X"
+                        // being mistakenly parsed as a literal search query.
                         val id = viewerDoc!!.id
-                        val displayName = id.removeSuffix(".pdf").removeSuffix(".PDF")
-                        val seed = context.getString(R.string.assistant_seed_ask, displayName)
+                        val seed = context.getString(R.string.assistant_seed_ask)
                         onNavigate(
                             "assistant?seed=${android.net.Uri.encode(seed)}" +
                                 "&docId=${android.net.Uri.encode(id)}"
@@ -3398,8 +3426,7 @@ fun VaultScreen(
                 val seedSummarize = if (docHasOcr && onNavigate != null) {
                     {
                         val id = viewerDoc!!.id
-                        val displayName = id.removeSuffix(".pdf").removeSuffix(".PDF")
-                        val seed = context.getString(R.string.assistant_seed_summarize, displayName)
+                        val seed = context.getString(R.string.assistant_seed_summarize)
                         onNavigate(
                             "assistant?seed=${android.net.Uri.encode(seed)}" +
                                 "&docId=${android.net.Uri.encode(id)}"
@@ -3443,7 +3470,39 @@ fun VaultScreen(
                     onAskAssistant = seedAsk,
                     onSummarize = seedSummarize,
                     onViewExtractedText = viewOcr,
-                    onRename = rename
+                    onRename = rename,
+                    // Only offer the extraction action when no sidecar exists
+                    // (i.e. the doc came from outside the scanner). After
+                    // success the rerun increments ocrRefresh which flips
+                    // docHasOcr to true and the menu rotates to Summarize /
+                    // Ask the Assistant.
+                    onExtractText = if (!docHasOcr && viewerDoc != null) {
+                        {
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    vault.extractOcrForPdf(viewerDoc) { current, total ->
+                                        extractionProgress = current to total
+                                    }
+                                }
+                                extractionProgress = null
+                                when (result) {
+                                    is com.privateai.camera.security.VaultRepository.OcrExtractionResult.Success -> {
+                                        ocrRefresh++
+                                        val msg = if (result.viaOcr)
+                                            context.getString(R.string.assistant_extract_ok_ocr, result.pageCount)
+                                        else
+                                            context.getString(R.string.assistant_extract_ok_text, result.charCount)
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
+                                    com.privateai.camera.security.VaultRepository.OcrExtractionResult.NoTextFound ->
+                                        Toast.makeText(context, context.getString(R.string.assistant_extract_empty), Toast.LENGTH_LONG).show()
+                                    com.privateai.camera.security.VaultRepository.OcrExtractionResult.Failed ->
+                                        Toast.makeText(context, context.getString(R.string.assistant_extract_failed), Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    } else null,
+                    extractionProgress = extractionProgress
                 )
             } else {
                 page = VaultPage.GALLERY
