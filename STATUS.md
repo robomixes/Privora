@@ -376,7 +376,9 @@ Substantial WIP committed on `private/dev-v3-calibrate`. Not yet released; not y
 
 ## What's Next
 
-### ML Kit removal — phased toward F-Droid main eligibility (PLANNED)
+Two named workstreams sit between now and v2.1.0 — Track A (ML Kit removal, F-Droid eligibility) and Track B (Voice I/O for the AI Assistant). They don't block each other and can land in either order. Combined view in [`~/.claude/plans/starry-orbiting-galaxy.md`](~/.claude/plans/starry-orbiting-galaxy.md).
+
+### Track A — ML Kit removal, phased toward F-Droid main eligibility (PLANNED)
 
 Approved plan in [`~/.claude/plans/starry-orbiting-galaxy.md`](~/.claude/plans/starry-orbiting-galaxy.md). The app already has `playstore` / `fdroid` build flavors at [`app/build.gradle.kts`](app/build.gradle.kts); the route is a clean `fdroid` flavor while keeping `playstore` unchanged for now.
 
@@ -390,6 +392,27 @@ Approved plan in [`~/.claude/plans/starry-orbiting-galaxy.md`](~/.claude/plans/s
 
 **Total Phase 1 + 2**: ~3-4 weeks, no UX regression, drops 4 of 5 ML Kit deps from both flavors. **Plus Phase 3 (Option A)**: ~1-2 more days for full F-Droid eligibility. Open question for F-Droid submission: whether Gemma's "Gemma Terms of Use" license passes their free-software bar — three outcomes documented in the plan.
 
+### Track B — Voice input + voice output for the AI Assistant (PLANNED, ~2-3 days)
+
+Mic icon in the Assistant chat input row → tap → speak → text fills the input → review + send. When the voice-output toggle is on, assistant replies are spoken aloud as they stream. Both opt-in via Settings toggles.
+
+Cheap because ~80% of the infrastructure already exists:
+- `RECORD_AUDIO` permission flow shipped with v2.0.7 voice notes ([`NoteEditorScreen.kt`](app/src/main/java/com/privateai/camera/ui/notes/NoteEditorScreen.kt)) — permission launcher is drop-in.
+- `TextToSpeech` already wired in [`TranslateScreen.kt`](app/src/main/java/com/privateai/camera/ui/translate/TranslateScreen.kt) (lines 130-243) — reusable verbatim.
+- Streaming `onChunk` hook in [`AssistantScreen.kt`](app/src/main/java/com/privateai/camera/ui/assistant/AssistantScreen.kt) at line 190-206 is the natural place to plumb TTS.
+- Feature toggle scaffolding + the precedent `clean_voice_notes` toggle ([`SettingsScreen.kt:730`](app/src/main/java/com/privateai/camera/ui/settings/SettingsScreen.kt#L730)).
+
+Uses AOSP `SpeechRecognizer` (with `EXTRA_PREFER_OFFLINE = true`) + `TextToSpeech` — **no new dependencies**, fully F-Droid-compatible, doesn't interact with Track A.
+
+**Graceful fallback**: on fully de-Googled / GrapheneOS devices where `SpeechRecognizer.isRecognitionAvailable()` returns false, the mic shows a toast and doesn't crash. Bundled Whisper/Vosk is deferred until F-Droid users actually report the gap.
+
+### Sequencing options
+
+- **Sequential**: ship Track A (3-5 weeks), then Track B (2-3 days), then cut v2.1.0.
+- **Parallel-first**: ship Track B (2-3 days, immediate user-facing win), then Track A.
+
+Track B never blocks Track A and vice versa.
+
 ### Not Started
 
 | Feature | Priority | Effort |
@@ -399,13 +422,16 @@ Approved plan in [`~/.claude/plans/starry-orbiting-galaxy.md`](~/.claude/plans/s
 | **Phase 1.3 — OCR → Tesseract** | High | ~1 week — also fixes Arabic / Hebrew / CJK OCR limitation |
 | **Phase 2 — Document scanner → CameraX/OpenCV** | Medium | ~1 week |
 | **Phase 3 — Translation flavor-gating (Option A: Gemma-only on fdroid)** | High | ~1-2 days. After this, zero ML Kit in fdroid flavor. |
+| **Track B — Voice input for the AI Assistant** (`SpeechRecognizer`, mic IconButton, partial-results into the input field) | High | ~1 day |
+| **Track B — Voice output for the AI Assistant** (`TextToSpeech`, sentence-buffered streaming, top-bar pause toggle, per-bubble replay) | High | ~½ day |
+| **Track B — Settings toggles + 5-locale strings for Voice I/O** | High | ~½ day |
 | Upload v2.0.7 AAB to Play Console | High | 5 min — paste trimmed changelog, attach AAB, roll out |
 | IzzyOnDroid submission (interim while F-Droid main work proceeds) | High | ~30 min — same yaml format, submit at `gitlab.com/IzzyOnDroid/repo` |
 | Close F-Droid main MR with polite reply to linsui | Low | 1 min — could now say "rework in progress, will resubmit clean" instead of pivoting away |
 | Multi-locale Fastlane metadata (fr / es / zh / ar) | Medium | 1-2 hours; en-US already done |
 | Lawyer review of `CLA.md` | Recommended | Before accepting first non-trivial external PR |
 | `.github/FUNDING.yml` | Low | Pending sponsor / OpenCollective accounts |
-| Audio transcription in notes (Vosk or Android on-device) | Medium | Deferred — privacy approach pending |
+| Audio transcription in notes (Vosk or Android on-device) | Medium | Deferred — privacy approach pending. Track B's `SpeechRecognizer` work could be reused directly here once it lands. |
 | Gemma vision (photo Q&A) | Blocked | Tested 0.10.2 + 0.11.0-rc1 — both hard-fault. Filed upstream; revisit on next release. |
 | Cross-device sync (E2E encrypted, AGPL server) | High | 2-3 weeks (Phase 3 of monetization plan) |
 | Iterate AI action prompts based on real usage | Medium | Ongoing |
