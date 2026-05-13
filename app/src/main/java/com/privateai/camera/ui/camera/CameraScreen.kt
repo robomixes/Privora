@@ -21,6 +21,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -165,6 +167,18 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
         aiDescription = ""
     }
 
+    // Whole-scene AI description (Gemma vision over the entire frozen frame).
+    // Cleared when the user unfreezes or picks a specific detection — the
+    // detection then has its own per-detection description path above.
+    var sceneDescription by remember { mutableStateOf("") }
+    var sceneDescLoading by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(isFrozen, selectedDetection) {
+        if (!isFrozen || selectedDetection != null) {
+            sceneDescription = ""
+            sceneDescLoading = false
+        }
+    }
+
     // Initialize detector
     val detector = remember { OnnxDetector(context) }
     var isDisposing by remember { mutableStateOf(false) }
@@ -229,20 +243,34 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
             }
         )
 
-        // Frozen frame with blur + clear selected region
+        // Frozen frame with blur + clear selected region.
+        // Whole-scene describe (D3b) freezes without a selection — we still
+        // need to cover the live CameraPreview, so the frozen Image is drawn
+        // whenever `isFrozen` is true. The blurred / cropped selection visuals
+        // only apply when a detection has been chosen.
         val frozen = frozenBitmap
         val det = selectedDetection
-        if (isFrozen && frozen != null && det != null) {
+        if (isFrozen && frozen != null) {
 
-            // Blurred frozen frame covers the live preview
+            // Frozen frame covers the live preview. Blurred when a detection
+            // is selected (to highlight the crop); sharp when no selection
+            // (scene-describe shows the user the same frame Gemma is seeing).
             Image(
                 bitmap = frozen.asImageBitmap(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(20.dp)
+                modifier = if (det != null) {
+                    Modifier.fillMaxSize().blur(20.dp)
+                } else {
+                    Modifier.fillMaxSize()
+                }
             )
+        }
+
+        // Selected-detection focus visuals (blur dim + clear cropped image)
+        // only when we actually have a selection.
+        if (isFrozen && frozen != null && det != null) {
+
             // Dark overlay on top of blur
             Box(
                 modifier = Modifier
@@ -288,9 +316,13 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
             }
         }
 
-        // Detection overlay — only show selected detection when frozen
+        // Detection overlay — when frozen, only show the selected detection
+        // (if any). With scene-describe the user freezes the frame without
+        // any selection — in that case we want NO boxes at all so the
+        // analyzer's continuing detection updates don't render over the
+        // frozen image.
         DetectionOverlay(
-            detections = if (isFrozen && selectedDetection != null) {
+            detections = if (isFrozen) {
                 listOfNotNull(selectedDetection)
             } else {
                 detections
@@ -613,13 +645,127 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
             }
         }
 
-        // Bottom chips (only when no detection is selected)
-        if (detections.isNotEmpty() && selectedDetection == null) {
+        // Floating "Describe scene" button at BottomStart (mirrors capture
+        // FAB on the right). Only shown when live (not frozen) and Gemma is
+        // available. Tap → freezes the current frame, runs Gemma vision over
+        // the whole image, surfaces the result in a card at BottomCenter.
+        if (!isFrozen && com.privateai.camera.bridge.GemmaRunner.isAvailable(context)) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(bottom = 32.dp, start = 16.dp)
+                    .size(56.dp)
+                    .semantics {
+                        contentDescription = context.getString(R.string.detect_describe_scene)
+                        role = Role.Button
+                    }
+                    .background(Color.Black.copy(alpha = 0.7f), CircleShape)
+                    .border(3.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+                    .clickable(enabled = !sceneDescLoading) {
+                        val frame = latestFrameBitmap?.copy(Bitmap.Config.ARGB_8888, false) ?: return@clickable
+                        // Freeze the live preview so the user sees what's being described.
+                        frozenBitmap?.recycle()
+                        frozenBitmap = frame.copy(Bitmap.Config.ARGB_8888, false)
+                        isFrozen = true
+                        sceneDescLoading = true
+                        sceneDescription = ""
+                        captureScope.launch {
+                            try {
+                                val tempFile = java.io.File(context.cacheDir, "scene_${System.currentTimeMillis()}.jpg")
+                                withContext(Dispatchers.IO) {
+                                    java.io.FileOutputStream(tempFile).use { out ->
+                                        frame.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                                    }
+                                }
+                                frame.recycle()
+                                val desc = com.privateai.camera.bridge.GemmaRunner.describeImage(
+                                    context, tempFile.absolutePath,
+                                    com.privateai.camera.bridge.GemmaPrompts.describePhoto()
+                                )
+                                tempFile.delete()
+                                sceneDescription = desc?.trim().orEmpty()
+                            } catch (e: Exception) {
+                                android.util.Log.e("DetectAI", "Scene describe failed: ${e.message}", e)
+                            }
+                            sceneDescLoading = false
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                if (sceneDescLoading) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+        }
+
+        // Scene description result card — shown when Gemma returned a
+        // whole-frame description and there's no selected detection (the
+        // per-detection card takes over in that case).
+        if (sceneDescription.isNotEmpty() && selectedDetection == null) {
+            Card(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 100.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        stringResource(R.string.detect_describe_scene),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        sceneDescription,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
+            }
+        }
+
+        // Scene-describe spinner overlay while Gemma is working with no
+        // result yet — centered for visibility while the frozen frame is up.
+        if (sceneDescLoading && selectedDetection == null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                    .size(72.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(36.dp),
+                    strokeWidth = 3.dp,
+                    color = Color.White
+                )
+            }
+        }
+
+        // Bottom chips (only when no detection is selected and live preview).
+        // Hidden when frozen so they don't compete with the scene-describe
+        // result card. Centered so they don't run under the FABs at the
+        // bottom-left (Describe scene) and bottom-right (capture).
+        if (!isFrozen && detections.isNotEmpty() && selectedDetection == null) {
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(bottom = 32.dp, start = 16.dp, end = 16.dp),
+                    .padding(bottom = 32.dp, start = 88.dp, end = 88.dp)
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 detections.take(3).forEach { detection ->

@@ -224,6 +224,7 @@
     <string name="vault_ask_load_failed">Could not load this image.</string>
     <string name="vault_ask_submit">Ask</string>
     <string name="detect_describe_with_ai">Describe with AI</string>
+    <string name="detect_describe_scene">Describe scene</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">Device</string>

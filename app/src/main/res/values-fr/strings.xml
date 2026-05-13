@@ -987,4 +987,5 @@
     <string name="vault_ask_load_failed">Impossible de charger cette image.</string>
     <string name="vault_ask_submit">Demander</string>
     <string name="detect_describe_with_ai">Décrire avec l\'IA</string>
+    <string name="detect_describe_scene">Décrire la scène</string>
 </resources>

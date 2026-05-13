@@ -217,6 +217,7 @@
     <string name="vault_ask_load_failed">无法加载此图片。</string>
     <string name="vault_ask_submit">询问</string>
     <string name="detect_describe_with_ai">用 AI 描述</string>
+    <string name="detect_describe_scene">描述场景</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">设备</string>

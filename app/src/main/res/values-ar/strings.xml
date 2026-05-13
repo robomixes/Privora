@@ -217,6 +217,7 @@
     <string name="vault_ask_load_failed">تعذر تحميل هذه الصورة.</string>
     <string name="vault_ask_submit">اسأل</string>
     <string name="detect_describe_with_ai">وصف بالذكاء الاصطناعي</string>
+    <string name="detect_describe_scene">وصف المشهد</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">الجهاز</string>
