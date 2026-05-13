@@ -1,6 +1,6 @@
 # Privora — Project Status
 
-Last updated: 2026-05-10
+Last updated: 2026-05-13
 
 ---
 
@@ -102,7 +102,11 @@ Reason for the split: AGPL is fine to develop in private — AGPL only triggers 
 | LiteRT-LM engine (GPU-first, CPU fallback) | DONE | `bridge/GemmaRunner.kt` |
 | Model download service (2.7GB) | DONE | `service/GemmaDownloadService.kt` |
 | Notes AI (summarize, rewrite, extract, continue, grammar) | DONE | `bridge/GemmaPrompts.kt`, `ui/notes/NoteEditorScreen.kt` |
-| Vault photo description (text-only, vision disabled) | DONE | Vision blocked by LiteRT-LM 0.10.0 bug |
+| Vault photo description + image Q&A + AI tags (Gemma vision) | DONE | Photo viewer 3-dot menu: Describe / Ask about this image / Generate AI tags. Results cached in `PhotoIndex.description` + `labels`, searchable via existing label search. Unblocked 2026-05-13 by adding `visionBackend = Backend.GPU()` to `EngineConfig` — was a missing API parameter, not a runtime/model bug. See `docs/vision-crash-0.11.0.md`. |
+| Settings: "Show AI labels on photos" (toggle, default ON) | DONE | `ui/settings/SettingsScreen.kt` — `app_settings/show_ai_labels`. Controls description text + label chips overlay on photo only; AI menu actions stay available regardless. |
+| Spinner + Toast feedback for AI actions | DONE | 3-dot button replaced by `CircularProgressIndicator` while AI is working; Toast pops with the description / tag list when call completes (visible regardless of "Show AI labels" toggle). |
+| `PhotoIndex.mergeAiTags()` + `ensureRow()` helpers | DONE | `security/PhotoIndex.kt` — Gemma tags merged at score=1.0, dedup case-insensitive, capped at 12. `ensureRow()` makes both this and `setDescription()` safe for never-indexed photos (was a silent no-op on `db.update` with no row). |
+| `vision_crashed` flag try/finally | DONE | `bridge/GemmaRunner.kt` — try/finally now always clears the flag (with `commit()`), so interrupted calls don't strand it forever. Prior bug: an `adb install -r` killing the JVM mid-call left vision permanently disabled. |
 | Daily AI tips on home landing | DONE | `ui/home/HomeLandingData.kt` |
 
 ### Insights Redesign (v1.3 — DONE)
@@ -368,7 +372,7 @@ Substantial WIP committed on `private/dev-v3-calibrate`. Not yet released; not y
 
 | Issue | Impact | Status |
 |-------|--------|--------|
-| Gemma 4 vision still crashes (tested 0.10.2 + 0.11.0-rc1) | Photo Q&A disabled | Native SIGSEGV in liblitertlm_jni.so on Pixel 9a / e2b model. Crash-flag guard in place. |
+| ~~Gemma 4 vision still crashes~~ | RESOLVED 2026-05-13 | Root cause: missing `visionBackend` parameter in `EngineConfig`. Fix: one parameter in `GemmaRunner.load()`. Verified on Pixel 9a / Tensor G4 / Android 16 with LiteRT-LM 0.11.0 + April-2026 gemma-4-E2B-it model. |
 | Intruder capture device-dependent | Camera2 headless may fail on some devices | Plain JPEG fallback |
 | Wi-Fi transfer key derivation is custom mixing | Not PBKDF2, uses 10K-round iterative mix | Acceptable for ephemeral transfers |
 
@@ -425,6 +429,7 @@ Track B never blocks Track A and vice versa.
 | **Track B — Voice input for the AI Assistant** (`SpeechRecognizer`, mic IconButton, partial-results into the input field) | High | ~1 day |
 | **Track B — Voice output for the AI Assistant** (`TextToSpeech`, sentence-buffered streaming, top-bar pause toggle, per-bubble replay) | High | ~½ day |
 | **Track B — Settings toggles + 5-locale strings for Voice I/O** | High | ~½ day |
+| **Track C — Background AI tagging & descriptions** (new `service/GemmaIndexingManager.kt`, opt-in toggle + manual bulk button in Settings → AI Detection, capture hook in `CaptureScreen.kt:262`, scanner hook in `ScannerScreen.kt`) | High | ~2-3 days. Approved 2026-05-13. ~10 sec/photo on warm Gemma engine; toggle defaults OFF (opt-in); manual bulk button shows count + ETA before processing. |
 | Upload v2.0.7 AAB to Play Console | High | 5 min — paste trimmed changelog, attach AAB, roll out |
 | IzzyOnDroid submission (interim while F-Droid main work proceeds) | High | ~30 min — same yaml format, submit at `gitlab.com/IzzyOnDroid/repo` |
 | Close F-Droid main MR with polite reply to linsui | Low | 1 min — could now say "rework in progress, will resubmit clean" instead of pivoting away |
@@ -432,11 +437,26 @@ Track B never blocks Track A and vice versa.
 | Lawyer review of `CLA.md` | Recommended | Before accepting first non-trivial external PR |
 | `.github/FUNDING.yml` | Low | Pending sponsor / OpenCollective accounts |
 | Audio transcription in notes (Vosk or Android on-device) | Medium | Deferred — privacy approach pending. Track B's `SpeechRecognizer` work could be reused directly here once it lands. |
-| Gemma vision (photo Q&A) | Blocked | Tested 0.10.2 + 0.11.0-rc1 — both hard-fault. Filed upstream; revisit on next release. |
+| ~~Gemma vision (photo Q&A)~~ | DONE 2026-05-13 | Unblocked by `visionBackend = Backend.GPU()` in `EngineConfig`. Was a missing API parameter all along. |
 | Cross-device sync (E2E encrypted, AGPL server) | High | 2-3 weeks (Phase 3 of monetization plan) |
 | Iterate AI action prompts based on real usage | Medium | Ongoing |
 | Replace "Anas" → full legal name in LICENSE / CLA / SPDX | Low | One find/replace when entity / name decision settles |
 | Publish Play signing-key SHA-256 fingerprint in README | Low | Helps reproducible-build verifiers |
+
+### Vision-driven feature backlog (post-v2.1.0, not committed)
+
+Track 0 unblocked Gemma 4 vision (2026-05-13). The same `describeImage()` path is reusable across several product surfaces. Listed in rough impact-vs-cost order; each can ship incrementally and none block each other. Detailed in the plan file's "Vision-driven feature backlog" section.
+
+| Idea | Effort | Notes |
+|------|--------|-------|
+| **D1 — Smart document scanner** | ~3-5 days | After a scan in `ScannerScreen.kt`, one-shot Gemma classifies doc type (receipt / business card / ID / invoice / recipe), suggests filename + folder + extracts key fields. Highest impact-to-cost — Privora already does the camera + edge detection + OCR; vision adds the understanding layer. |
+| **D2 — AI Assistant image attach** | ~1-2 days | Image-attach button in `AssistantScreen.kt` input row (next to Track B's mic). Free-form Q&A about any photo. Engine path already validated; mostly UI. |
+| **D3 — Camera Detect: semantic descriptions** | ~2-3 days | Augment YOLOv8n boxes with an optional "Describe scene" button on the live-detect surface. One-shot (vision is too slow for live). |
+| **D4 — Business card → contact** | ~2-3 days | Camera or shared image → Gemma vision OCR + structured extraction → pre-filled new `Contact` form (name / phone / email / company / title). |
+| **D5 — Photo translation overlay** | ~3-4 days | Photo of foreign text → vision reads + translates in one pass → render as a card under the photo in `TranslateScreen.kt`. Positional alignment to source text deferred. |
+| **D6 — Food / receipt structured logging** | Deferred | Big scope — needs new food log + expense log modules. Mention only; revisit if a finance or nutrition feature ever lands. |
+
+**Cross-cutting constraint**: every Gemma vision call is ~5-10 sec + ~1 GB RAM. All D-track features must be **tap-to-trigger**, never live / always-on. Same pattern as the "Generate AI tags" chip already shipped.
 
 ### Play Store Readiness
 
@@ -514,7 +534,7 @@ Privora (Kotlin + Jetpack Compose + Material 3)
 │   └── CrashHandler (local logging)
 └── Dependencies
     ├── CameraX 1.4.2
-    ├── LiteRT-LM 0.10.0 (Gemma 4)
+    ├── LiteRT-LM 0.11.0 (Gemma 4, vision enabled via visionBackend)
     ├── ONNX Runtime 1.21.0 (YOLOv8n)
     ├── NanoHTTPD 2.3.1 (Wi-Fi transfer)
     ├── ML Kit (scanner, OCR, barcode, translate, face detection)
