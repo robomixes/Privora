@@ -988,4 +988,9 @@
     <string name="vault_ask_submit">Demander</string>
     <string name="detect_describe_with_ai">Décrire avec l\'IA</string>
     <string name="detect_describe_scene">Décrire la scène</string>
+    <string name="settings_detect_tts">Lire les descriptions IA à voix haute</string>
+    <string name="settings_detect_tts_desc">Lit les descriptions de Détection à voix haute une fois générées. Vous pouvez aussi appuyer sur l\'icône haut-parleur à côté d\'une description pour la réécouter.</string>
+    <string name="detect_replay_speech">Lire à voix haute</string>
+    <string name="detect_stop_speech">Arrêter la lecture</string>
+    <string name="detect_tts_unavailable">Aucun moteur de synthèse vocale disponible — installez-en un pour utiliser la lecture à voix haute.</string>
 </resources>

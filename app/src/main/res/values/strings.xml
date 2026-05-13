@@ -225,6 +225,11 @@
     <string name="vault_ask_submit">Ask</string>
     <string name="detect_describe_with_ai">Describe with AI</string>
     <string name="detect_describe_scene">Describe scene</string>
+    <string name="settings_detect_tts">Read AI descriptions aloud</string>
+    <string name="settings_detect_tts_desc">Speaks Detect descriptions out loud after they\'re generated. You can also tap the speaker icon next to any description to replay it.</string>
+    <string name="detect_replay_speech">Read aloud</string>
+    <string name="detect_stop_speech">Stop reading</string>
+    <string name="detect_tts_unavailable">No text-to-speech engine available — install one to use read-aloud.</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">Device</string>

@@ -20,9 +20,13 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import java.util.Locale
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -178,6 +182,66 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
             sceneDescLoading = false
         }
     }
+
+    // TTS engine for "read AI descriptions aloud" (D10). Inline DisposableEffect
+    // mirrors TranslateScreen.kt:130-243; if Vault/Notes ever adopt TTS we'll
+    // extract this to util/TtsManager.kt then. F-Droid posture: pure AOSP
+    // TextToSpeech, no Play Services / proprietary deps.
+    val ttsEngine = remember { mutableStateOf<TextToSpeech?>(null) }
+    var ttsUnavailableNoticeShown by remember { mutableStateOf(false) }
+    var ttsSpeaking by remember { mutableStateOf(false) }
+    DisposableEffect(Unit) {
+        var engine: TextToSpeech? = null
+        engine = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val locale = Locale.getDefault()
+                val langStatus = try { engine?.setLanguage(locale) ?: TextToSpeech.LANG_MISSING_DATA } catch (_: Exception) { TextToSpeech.LANG_MISSING_DATA }
+                if (langStatus >= TextToSpeech.LANG_AVAILABLE) {
+                    ttsEngine.value = engine
+                    // Track speaking state so the UI can show a stop control
+                    // while audio is playing. Listener fires on a TTS-engine
+                    // thread; hop to main for Compose state mutation.
+                    val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+                    engine?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                        override fun onStart(utteranceId: String?) { mainHandler.post { ttsSpeaking = true } }
+                        override fun onDone(utteranceId: String?) { mainHandler.post { ttsSpeaking = false } }
+                        @Deprecated("Deprecated in Java")
+                        override fun onError(utteranceId: String?) { mainHandler.post { ttsSpeaking = false } }
+                        override fun onError(utteranceId: String?, errorCode: Int) { mainHandler.post { ttsSpeaking = false } }
+                    })
+                }
+                // If language isn't available we leave ttsEngine null —
+                // speakText becomes a no-op; the one-time Toast surfaces on
+                // first attempted read so the user knows to install a voice.
+            }
+        }
+        onDispose { engine?.shutdown() }
+    }
+
+    fun speakAiText(text: String) {
+        if (text.isBlank()) return
+        val engine = ttsEngine.value
+        if (engine == null) {
+            if (!ttsUnavailableNoticeShown) {
+                ttsUnavailableNoticeShown = true
+                android.widget.Toast.makeText(
+                    context,
+                    context.getString(R.string.detect_tts_unavailable),
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+            return
+        }
+        engine.language = Locale.getDefault()
+        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "detect-ai")
+    }
+
+    fun stopSpeaking() {
+        ttsEngine.value?.stop()
+        ttsSpeaking = false
+    }
+
+    val ttsAutoEnabled = com.privateai.camera.ui.settings.isDetectTtsEnabled(context)
 
     // Initialize detector
     val detector = remember { OnnxDetector(context) }
@@ -401,6 +465,9 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                                             )
                                             tempFile.delete()
                                             aiDescription = desc?.trim().orEmpty()
+                                            if (ttsAutoEnabled && aiDescription.isNotEmpty()) {
+                                                speakAiText(aiDescription)
+                                            }
                                         } catch (e: Exception) {
                                             android.util.Log.e("DetectAI", "Describe failed: ${e.message}", e)
                                         }
@@ -564,11 +631,13 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                         // a button buried in this bottom card.
                     }
 
-                    // AI description result (under the action buttons)
+                    // AI description result (under the action buttons) with
+                    // a manual replay speaker icon (D10). Speaker shown
+                    // regardless of the auto-TTS Settings toggle so users can
+                    // always re-hear; tap is silent no-op if TTS isn't
+                    // available on the device (Toast surfaces the reason once).
                     if (aiDescription.isNotEmpty()) {
-                        Text(
-                            text = aiDescription,
-                            style = MaterialTheme.typography.bodyMedium,
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 8.dp)
@@ -576,8 +645,31 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                                     MaterialTheme.colorScheme.surfaceVariant,
                                     androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                                 )
-                                .padding(12.dp)
-                        )
+                                .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = aiDescription,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = {
+                                    if (ttsSpeaking) stopSpeaking() else speakAiText(aiDescription)
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    if (ttsSpeaking) Icons.AutoMirrored.Filled.VolumeOff
+                                    else Icons.AutoMirrored.Filled.VolumeUp,
+                                    contentDescription = stringResource(
+                                        if (ttsSpeaking) R.string.detect_stop_speech
+                                        else R.string.detect_replay_speech
+                                    ),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -684,6 +776,9 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                                 )
                                 tempFile.delete()
                                 sceneDescription = desc?.trim().orEmpty()
+                                if (ttsAutoEnabled && sceneDescription.isNotEmpty()) {
+                                    speakAiText(sceneDescription)
+                                }
                             } catch (e: Exception) {
                                 android.util.Log.e("DetectAI", "Scene describe failed: ${e.message}", e)
                             }
@@ -723,11 +818,31 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        stringResource(R.string.detect_describe_scene),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(R.string.detect_describe_scene),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        // Manual replay / stop speaker (D10)
+                        IconButton(
+                            onClick = {
+                                if (ttsSpeaking) stopSpeaking() else speakAiText(sceneDescription)
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                if (ttsSpeaking) Icons.AutoMirrored.Filled.VolumeOff
+                                else Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = stringResource(
+                                    if (ttsSpeaking) R.string.detect_stop_speech
+                                    else R.string.detect_replay_speech
+                                ),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Text(
                         sceneDescription,
                         style = MaterialTheme.typography.bodyMedium,

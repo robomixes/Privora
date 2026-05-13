@@ -218,6 +218,11 @@
     <string name="vault_ask_submit">Preguntar</string>
     <string name="detect_describe_with_ai">Describir con IA</string>
     <string name="detect_describe_scene">Describir escena</string>
+    <string name="settings_detect_tts">Leer descripciones de IA en voz alta</string>
+    <string name="settings_detect_tts_desc">Lee las descripciones de Detección en voz alta cuando se generan. También puedes tocar el icono de altavoz junto a cualquier descripción para volver a oírla.</string>
+    <string name="detect_replay_speech">Leer en voz alta</string>
+    <string name="detect_stop_speech">Detener lectura</string>
+    <string name="detect_tts_unavailable">No hay motor de texto a voz disponible — instala uno para usar la lectura en voz alta.</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">Dispositivo</string>

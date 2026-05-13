@@ -218,6 +218,11 @@
     <string name="vault_ask_submit">اسأل</string>
     <string name="detect_describe_with_ai">وصف بالذكاء الاصطناعي</string>
     <string name="detect_describe_scene">وصف المشهد</string>
+    <string name="settings_detect_tts">قراءة أوصاف الذكاء الاصطناعي بصوت عالٍ</string>
+    <string name="settings_detect_tts_desc">يقرأ أوصاف الكشف بصوت عالٍ فور إنشائها. يمكنك أيضًا الضغط على أيقونة السماعة بجوار أي وصف لإعادة سماعه.</string>
+    <string name="detect_replay_speech">قراءة بصوت عالٍ</string>
+    <string name="detect_stop_speech">إيقاف القراءة</string>
+    <string name="detect_tts_unavailable">لا يوجد محرك تحويل النص إلى كلام — قم بتثبيت محرك لاستخدام القراءة بصوت عالٍ.</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">الجهاز</string>

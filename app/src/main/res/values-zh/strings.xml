@@ -218,6 +218,11 @@
     <string name="vault_ask_submit">询问</string>
     <string name="detect_describe_with_ai">用 AI 描述</string>
     <string name="detect_describe_scene">描述场景</string>
+    <string name="settings_detect_tts">朗读 AI 描述</string>
+    <string name="settings_detect_tts_desc">生成检测描述后自动朗读。你也可以点击描述旁的扬声器图标重新播放。</string>
+    <string name="detect_replay_speech">朗读</string>
+    <string name="detect_stop_speech">停止朗读</string>
+    <string name="detect_tts_unavailable">无可用的文字转语音引擎 — 请安装一个以使用朗读功能。</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">设备</string>

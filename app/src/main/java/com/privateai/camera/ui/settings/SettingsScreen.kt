@@ -291,6 +291,14 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 defaultValue = true
             )
 
+            AppSettingToggle(
+                context = context,
+                key = "detect_tts",
+                title = stringResource(R.string.settings_detect_tts),
+                subtitle = stringResource(R.string.settings_detect_tts_desc),
+                defaultValue = false
+            )
+
             var showCategoriesDialog by remember { mutableStateOf(false) }
             var categoryCount by remember { mutableStateOf(getSelectedCategories(context).size) }
             var confidencePercent by remember { mutableStateOf(getConfidencePercent(context)) }
@@ -1729,6 +1737,11 @@ private fun AppSettingToggle(
 fun isShowAiLabelsEnabled(context: android.content.Context): Boolean {
     return context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
         .getBoolean("show_ai_labels", true)
+}
+
+fun isDetectTtsEnabled(context: android.content.Context): Boolean {
+    return context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+        .getBoolean("detect_tts", false)
 }
 
 @Composable
