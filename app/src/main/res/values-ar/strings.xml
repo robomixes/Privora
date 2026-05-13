@@ -204,6 +204,19 @@
     <string name="settings_detection_categories">فئات الكشف</string>
     <string name="settings_detection_categories_desc">%1$d من 80 فئة مختارة</string>
     <string name="settings_ai_detection_hint">تنطبق هذه الإعدادات على ميزة الكشف وزر الالتقاط.</string>
+    <string name="settings_show_ai_labels">إظهار تسميات الذكاء الاصطناعي على الصور</string>
+    <string name="settings_show_ai_labels_desc">يعرض تسميات الكائنات وإجراءات الذكاء الاصطناعي عند عرض الصور في الخزنة.</string>
+    <string name="vault_generate_ai_tags">إنشاء تسميات بالذكاء الاصطناعي</string>
+    <string name="vault_generating_ai_tags">جارٍ إنشاء التسميات…</string>
+    <string name="vault_describe">وصف</string>
+    <string name="vault_ask_about_image">اطرح سؤالاً عن هذه الصورة</string>
+    <string name="vault_ask_question_label">سؤالك</string>
+    <string name="vault_ask_question_placeholder">ما لون السيارة؟</string>
+    <string name="vault_ask_analyzing">جارٍ التحليل…</string>
+    <string name="vault_ask_failed">تعذر تحليل هذه الصورة.</string>
+    <string name="vault_ask_load_failed">تعذر تحميل هذه الصورة.</string>
+    <string name="vault_ask_submit">اسأل</string>
+    <string name="detect_describe_with_ai">وصف بالذكاء الاصطناعي</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">الجهاز</string>
@@ -224,7 +237,7 @@
     <string name="settings_reindex">إعادة فهرسة جميع الصور</string>
     <string name="settings_reindex_desc">مسح التصنيفات وإعادة تحليل جميع صور الخزنة</string>
     <string name="settings_reindex_running">جاري إعادة الفهرسة\u2026</string>
-    <string name="settings_reindex_confirm">سيتم مسح جميع التصنيفات ومجموعات الوجوه. سيتم إعادة بنائها عند فتح الخزنة. متابعة؟</string>
+    <string name="settings_reindex_confirm">سيتم مسح جميع تسميات الذكاء الاصطناعي ومجموعات الوجوه وعلامات الصور — بما في ذلك الأوصاف والتسميات التي أنشأتها رؤية Gemma. سيتم إعادة بناء التسميات الأساسية ومجموعات الوجوه عند فتح الخزنة؛ لاستعادة أوصاف Gemma وتسمياته، شغّل بعد ذلك «معالجة كل الصور بالذكاء الاصطناعي». متابعة؟</string>
     <string name="settings_reindex_done">تم مسح الفهرس. افتح الخزنة لإعادة الفهرسة.</string>
     <string name="settings_reindex_action">مسح وإعادة فهرسة</string>
     <string name="settings_section_security">الأمان</string>

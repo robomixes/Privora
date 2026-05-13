@@ -60,6 +60,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.QuestionAnswer
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ContentCopy
@@ -908,8 +911,10 @@ fun VaultScreen(
     var showOverflowMenu by remember { mutableStateOf(false) }
     var starredOnly by remember { mutableStateOf(false) }
     // AI detection / description label visibility in the photo viewer.
-    // Hidden by default; toggled from the gallery overflow menu.
-    var showAiLabels by remember { mutableStateOf(false) }
+    // Default: shown. User can change in Settings → AI Detection → Show AI labels.
+    // Re-reads on every fresh entry into VaultScreen, which is enough — users
+    // navigate out to Settings to flip it.
+    val showAiLabels = com.privateai.camera.ui.settings.isShowAiLabelsEnabled(context)
     // Reset the Starred-only filter whenever the user returns to the
     // categories list — it's a per-folder browsing state, not global.
     LaunchedEffect(page) {
@@ -2651,25 +2656,6 @@ fun VaultScreen(
                                                 starredOnly = !starredOnly
                                             }
                                         )
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(stringResource(
-                                                    if (showAiLabels) R.string.ai_labels_hide
-                                                    else R.string.ai_labels_show
-                                                ))
-                                            },
-                                            leadingIcon = {
-                                                Icon(
-                                                    if (showAiLabels) Icons.Default.Label
-                                                    else Icons.Outlined.LabelOff,
-                                                    null
-                                                )
-                                            },
-                                            onClick = {
-                                                showOverflowMenu = false
-                                                showAiLabels = !showAiLabels
-                                            }
-                                        )
                                     }
                                 }
                             }
@@ -3032,17 +3018,146 @@ fun VaultScreen(
                     }
                 }
 
-                // Top-right overflow menu — Info / Find similar / Share with
-                // face blur. Mirrors the gallery's 3-dot pattern and keeps
-                // the bottom action bar uncluttered (Share / Edit / Delete only).
+                // ── AI per-photo state ─────────────────────────────────────────────
+                // Hoisted out of viewerPhoto.let so the overflow menu items below
+                // (Describe / Ask / Generate AI tags) can call into them. Keyed on
+                // photo id so they refresh when the user navigates between photos.
+                // The Settings toggle "Show AI labels" only gates the on-image
+                // chips + description text rendered farther down; the menu items
+                // themselves are always available when the AI Assistant is active.
+                val viewerVpId = viewerPhoto?.id
+                var aiDescription by remember(viewerVpId) {
+                    mutableStateOf(viewerPhoto?.let { photoIndex?.getDescription(it.id) } ?: "")
+                }
+                var aiDescLoading by remember(viewerVpId) { mutableStateOf(false) }
+                var showAskDialog by remember { mutableStateOf(false) }
+                var askQuestion by remember { mutableStateOf("") }
+                var askAnswer by remember { mutableStateOf<String?>(null) }
+                var askLoading by remember { mutableStateOf(false) }
+                var aiLabels by remember(viewerVpId) {
+                    mutableStateOf(viewerPhoto?.let {
+                        (photoIndex?.getLabelsWithScores(it.id) ?: emptyList()).sortedByDescending { p -> p.second }
+                    } ?: emptyList())
+                }
+                var aiTagsLoading by remember(viewerVpId) { mutableStateOf(false) }
+
+                LaunchedEffect(viewerVpId) {
+                    val id = viewerVpId ?: return@LaunchedEffect
+                    aiDescription = withContext(Dispatchers.IO) { photoIndex?.getDescription(id) ?: "" }
+                    aiLabels = withContext(Dispatchers.IO) {
+                        (photoIndex?.getLabelsWithScores(id) ?: emptyList()).sortedByDescending { it.second }
+                    }
+                }
+
+                /** Ask Gemma vision for short semantic tags and merge into the photo index. */
+                fun generateAiTags() {
+                    val vp = viewerPhoto ?: return
+                    if (aiTagsLoading) return
+                    aiTagsLoading = true
+                    scope.launch {
+                        try {
+                            val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(vp) }
+                            if (bmp != null) {
+                                val tempFile = java.io.File(context.cacheDir, "tags_${vp.id}.jpg")
+                                withContext(Dispatchers.IO) {
+                                    java.io.FileOutputStream(tempFile).use { out ->
+                                        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+                                    }
+                                }
+                                val reply = com.privateai.camera.bridge.GemmaRunner.describeImage(
+                                    context, tempFile.absolutePath,
+                                    com.privateai.camera.bridge.GemmaPrompts.generateTags()
+                                )
+                                tempFile.delete()
+                                if (!reply.isNullOrBlank()) {
+                                    val cleaned = reply
+                                        .replace('\n', ',')
+                                        .replace(Regex("""[•\-*]+"""), "")
+                                        .replace(Regex("""\d+\.\s*"""), "")
+                                    val newTags = cleaned.split(',')
+                                        .map { it.trim().lowercase() }
+                                        .filter { it.length in 2..30 }
+                                        .distinct()
+                                        .take(12)
+                                    if (newTags.isNotEmpty()) {
+                                        withContext(Dispatchers.IO) {
+                                            photoIndex?.mergeAiTags(vp.id, newTags)
+                                        }
+                                        aiLabels = withContext(Dispatchers.IO) {
+                                            (photoIndex?.getLabelsWithScores(vp.id) ?: emptyList()).sortedByDescending { it.second }
+                                        }
+                                        withContext(Dispatchers.Main) {
+                                            Toast.makeText(context, newTags.joinToString(", "), Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("VaultAI", "Generate tags failed: ${e.message}", e)
+                        }
+                        aiTagsLoading = false
+                    }
+                }
+
+                /** Generate a one-sentence Gemma vision description and cache it. */
+                fun generateDescription() {
+                    val vp = viewerPhoto ?: return
+                    if (aiDescLoading) return
+                    aiDescLoading = true
+                    scope.launch {
+                        try {
+                            val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(vp) }
+                            if (bmp != null) {
+                                val tempFile = java.io.File(context.cacheDir, "describe_${vp.id}.jpg")
+                                withContext(Dispatchers.IO) {
+                                    java.io.FileOutputStream(tempFile).use { out ->
+                                        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+                                    }
+                                }
+                                val desc = com.privateai.camera.bridge.GemmaRunner.describeImage(
+                                    context, tempFile.absolutePath,
+                                    com.privateai.camera.bridge.GemmaPrompts.describePhoto()
+                                )
+                                tempFile.delete()
+                                if (!desc.isNullOrBlank()) {
+                                    aiDescription = desc.trim()
+                                    withContext(Dispatchers.IO) {
+                                        photoIndex?.setDescription(vp.id, aiDescription)
+                                    }
+                                    withContext(Dispatchers.Main) {
+                                        Toast.makeText(context, aiDescription, Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("VaultAI", "Describe failed: ${e.message}", e)
+                        }
+                        aiDescLoading = false
+                    }
+                }
+
+                val aiActionsAvailable = com.privateai.camera.bridge.GemmaRunner.isAvailable(context)
+
+                // Top-right overflow menu — Info / Find similar / AI actions /
+                // Share with face blur. Mirrors the gallery's 3-dot pattern and
+                // keeps the bottom action bar uncluttered (Share / Edit / Delete only).
                 Box(
                     Modifier.align(Alignment.TopEnd).padding(top = 48.dp, end = 16.dp)
                 ) {
+                    val aiWorking = aiDescLoading || aiTagsLoading || askLoading
                     IconButton(
                         onClick = { showOverflowMenu = true },
                         modifier = Modifier.size(40.dp).background(Color.White.copy(alpha = 0.9f), CircleShape)
                     ) {
-                        Icon(Icons.Default.MoreVert, stringResource(R.string.action_more), tint = Color(0xFF333333))
+                        if (aiWorking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFF333333)
+                            )
+                        } else {
+                            Icon(Icons.Default.MoreVert, stringResource(R.string.action_more), tint = Color(0xFF333333))
+                        }
                     }
                     DropdownMenu(
                         expanded = showOverflowMenu,
@@ -3083,6 +3198,48 @@ fun VaultScreen(
                                 }
                             )
                         }
+                        // AI actions — gated by AI Assistant availability, not by
+                        // the Settings "Show AI labels" toggle (which only controls
+                        // the on-image overlay).
+                        if (aiActionsAvailable) {
+                            if (aiDescription.isEmpty() && !aiDescLoading) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.vault_describe)) },
+                                    leadingIcon = { Icon(Icons.Default.AutoAwesome, null) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        generateDescription()
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.vault_ask_about_image)) },
+                                leadingIcon = { Icon(Icons.Default.QuestionAnswer, null) },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    showAskDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Text(stringResource(
+                                        if (aiTagsLoading) R.string.vault_generating_ai_tags
+                                        else R.string.vault_generate_ai_tags
+                                    ))
+                                },
+                                leadingIcon = { Icon(Icons.Default.Sell, null) },
+                                enabled = !aiTagsLoading,
+                                onClick = {
+                                    showOverflowMenu = false
+                                    generateAiTags()
+                                }
+                            )
+                        }
+                        // Divider between AI-driven actions above (Find similar /
+                        // Describe / Ask / Generate AI tags) and utility actions
+                        // below (face-blur share / Details).
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+
                         // Share with face blur (or share without blur if blur
                         // is the default). Same logic as the old face-toggle
                         // button — moved into the overflow because it's a
@@ -3185,60 +3342,14 @@ fun VaultScreen(
 
                 // AI labels (above action bar, pass-through touches)
                 viewerPhoto?.let { vp ->
-                    // Vision disabled. Tested on Pixel 9a / Android 16 against both
-                    // LiteRT-LM 0.10.2 and 0.11.0-rc1 with the April-2026 HuggingFace
-                    // gemma-4-E2B-it model that ships VisionExecutorSettings — both
-                    // hard-fault with a native SIGSEGV (null-ptr deref) inside
-                    // liblitertlm_jni.so on the engine thread mid-inference. Filed
-                    // upstream; until a fix ships we keep the controls hidden.
-                    // GemmaRunner.describeImage() retains its vision_crashed flag
-                    // safety net so manual testing won't put the app in a crash loop.
-                    val aiAvailable = false
-                    var aiDescription by remember(vp.id) { mutableStateOf(photoIndex?.getDescription(vp.id) ?: "") }
-                    var aiDescLoading by remember(vp.id) { mutableStateOf(false) }
-                    var showAskDialog by remember { mutableStateOf(false) }
-                    var askQuestion by remember { mutableStateOf("") }
-                    var askAnswer by remember { mutableStateOf<String?>(null) }
-                    var askLoading by remember { mutableStateOf(false) }
-
-                    // Load cached description (no auto-generation — user triggers via "Describe" button)
-                    LaunchedEffect(vp.id) {
-                        val cached = withContext(Dispatchers.IO) { photoIndex?.getDescription(vp.id) ?: "" }
-                        aiDescription = cached
-                    }
-
-                    // Function to generate description on demand using Gemma vision
-                    fun generateDescription() {
-                        if (aiDescLoading) return
-                        aiDescLoading = true
-                        scope.launch {
-                            try {
-                                val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(vp) }
-                                if (bmp != null) {
-                                    val tempFile = java.io.File(context.cacheDir, "describe_${vp.id}.jpg")
-                                    withContext(Dispatchers.IO) {
-                                        java.io.FileOutputStream(tempFile).use { out ->
-                                            bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
-                                        }
-                                    }
-                                    val desc = com.privateai.camera.bridge.GemmaRunner.describeImage(
-                                        context, tempFile.absolutePath,
-                                        com.privateai.camera.bridge.GemmaPrompts.describePhoto()
-                                    )
-                                    tempFile.delete()
-                                    if (!desc.isNullOrBlank()) {
-                                        aiDescription = desc.trim()
-                                        withContext(Dispatchers.IO) {
-                                            photoIndex?.setDescription(vp.id, aiDescription)
-                                        }
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                android.util.Log.e("VaultAI", "Describe failed: ${e.message}", e)
-                            }
-                            aiDescLoading = false
-                        }
-                    }
+                    // Vision enabled (2026-05-13). Unblocked by adding
+                    // visionBackend = Backend.GPU() to EngineConfig in GemmaRunner —
+                    // see comment there. The prior SIGSEGV was a missing API parameter,
+                    // not a runtime or model issue. Tested on Pixel 9a / Tensor G4 with
+                    // LiteRT-LM 0.11.0 final + April-2026 gemma-4-E2B-it model.
+                    // AI state + functions are hoisted above the overflow menu
+                    // (see lines ~3019-3120). Only the on-image overlay rendering
+                    // lives here, gated by the Settings "Show AI labels" toggle.
 
                     Column(
                         Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp, start = 16.dp, end = 16.dp),
@@ -3267,49 +3378,35 @@ fun VaultScreen(
                                 )
                             }
 
-                            // AI action chips
-                            if (aiAvailable) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    if (aiDescription.isEmpty() && !aiDescLoading) {
-                                        SuggestionChip(
-                                            onClick = { generateDescription() },
-                                            label = { Text("Describe", style = MaterialTheme.typography.labelSmall) }
-                                        )
-                                    }
-                                    SuggestionChip(
-                                        onClick = { showAskDialog = true },
-                                        label = { Text("Ask about this image", style = MaterialTheme.typography.labelSmall) }
-                                    )
-                                }
-                            }
+                            // AI action chips moved to the photo viewer's 3-dot
+                            // overflow menu so the photo isn't covered by chips.
 
-                            // Label chips
-                            photoIndex?.getLabelsWithScores(vp.id)?.let { labelsWithScores ->
-                                if (labelsWithScores.isNotEmpty()) {
-                                    Row(
-                                        Modifier.horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        labelsWithScores.forEach { (label, score) ->
-                                            val pct = (score * 100).toInt()
-                                            SuggestionChip(onClick = {
-                                                searchQuery = label
-                                                searchFromViewer = true
-                                                scope.launch {
-                                                    val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
-                                                    val labelMatches = photoIndex?.searchByLabel(label)?.toSet() ?: emptySet()
-                                                    searchResults = allItems.filter { it.id in labelMatches }
-                                                    isSearching = true
-                                                    smartMode = null
-                                                    page = VaultPage.CATEGORIES
-                                                    val thumbMap = mutableMapOf<String, Bitmap>()
-                                                    withContext(Dispatchers.IO) {
-                                                        searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
-                                                    }
-                                                    searchThumbnails = thumbMap
+                            // Label chips (fed from hoisted state so they refresh after
+                            // a Gemma tag generation without re-entering the screen).
+                            if (aiLabels.isNotEmpty()) {
+                                Row(
+                                    Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    aiLabels.forEach { (label, score) ->
+                                        val pct = (score * 100).toInt()
+                                        SuggestionChip(onClick = {
+                                            searchQuery = label
+                                            searchFromViewer = true
+                                            scope.launch {
+                                                val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
+                                                val labelMatches = photoIndex?.searchByLabel(label)?.toSet() ?: emptySet()
+                                                searchResults = allItems.filter { it.id in labelMatches }
+                                                isSearching = true
+                                                smartMode = null
+                                                page = VaultPage.CATEGORIES
+                                                val thumbMap = mutableMapOf<String, Bitmap>()
+                                                withContext(Dispatchers.IO) {
+                                                    searchResults.forEach { p -> vault.loadThumbnail(p)?.let { thumbMap[p.id] = it } }
                                                 }
-                                            }, label = { Text("$label $pct%", style = MaterialTheme.typography.labelSmall) })
-                                        }
+                                                searchThumbnails = thumbMap
+                                            }
+                                        }, label = { Text("$label $pct%", style = MaterialTheme.typography.labelSmall) })
                                     }
                                 }
                             }
@@ -3320,14 +3417,14 @@ fun VaultScreen(
                     if (showAskDialog) {
                         androidx.compose.material3.AlertDialog(
                             onDismissRequest = { showAskDialog = false; askQuestion = ""; askAnswer = null },
-                            title = { Text("Ask about this image") },
+                            title = { Text(stringResource(R.string.vault_ask_about_image)) },
                             text = {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     androidx.compose.material3.OutlinedTextField(
                                         value = askQuestion,
                                         onValueChange = { askQuestion = it },
-                                        label = { Text("Your question") },
-                                        placeholder = { Text("What color is the car?") },
+                                        label = { Text(stringResource(R.string.vault_ask_question_label)) },
+                                        placeholder = { Text(stringResource(R.string.vault_ask_question_placeholder)) },
                                         modifier = Modifier.fillMaxWidth(),
                                         singleLine = true,
                                         enabled = !askLoading
@@ -3335,10 +3432,12 @@ fun VaultScreen(
                                     if (askLoading) {
                                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                                            Text("Analyzing…", style = MaterialTheme.typography.bodySmall)
+                                            Text(stringResource(R.string.vault_ask_analyzing), style = MaterialTheme.typography.bodySmall)
                                         }
                                     }
                                     if (askAnswer != null) {
+                                        // Capped + scrollable so a long Gemma answer
+                                        // doesn't push the dialog buttons off-screen.
                                         Text(
                                             askAnswer!!,
                                             style = MaterialTheme.typography.bodyMedium,
@@ -3346,6 +3445,8 @@ fun VaultScreen(
                                                 .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
                                                 .padding(12.dp)
                                                 .fillMaxWidth()
+                                                .heightIn(max = 260.dp)
+                                                .verticalScroll(rememberScrollState())
                                         )
                                     }
                                 }
@@ -3364,24 +3465,25 @@ fun VaultScreen(
                                                             bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
                                                         }
                                                     }
+                                                    val prompt = com.privateai.camera.bridge.GemmaPrompts.askAboutImage(askQuestion)
                                                     val answer = com.privateai.camera.bridge.GemmaRunner.describeImage(
-                                                        context, tempFile.absolutePath, askQuestion
+                                                        context, tempFile.absolutePath, prompt
                                                     )
                                                     tempFile.delete()
-                                                    askAnswer = answer ?: "Could not analyze this image."
+                                                    askAnswer = answer ?: context.getString(R.string.vault_ask_failed)
                                                 } else {
-                                                    askAnswer = "Could not load this image."
+                                                    askAnswer = context.getString(R.string.vault_ask_load_failed)
                                                 }
                                                 askLoading = false
                                             }
                                         }
                                     },
                                     enabled = askQuestion.isNotBlank() && !askLoading
-                                ) { Text("Ask") }
+                                ) { Text(stringResource(R.string.vault_ask_submit)) }
                             },
                             dismissButton = {
                                 TextButton(onClick = { showAskDialog = false; askQuestion = ""; askAnswer = null }) {
-                                    Text("Close")
+                                    Text(stringResource(R.string.action_close))
                                 }
                             }
                         )

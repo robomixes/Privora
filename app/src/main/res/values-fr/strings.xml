@@ -224,7 +224,7 @@
     <string name="settings_reindex">R\u00e9indexer toutes les photos</string>
     <string name="settings_reindex_desc">Effacer les tags AI et r\u00e9analyser toutes les photos</string>
     <string name="settings_reindex_running">R\u00e9indexation en cours\u2026</string>
-    <string name="settings_reindex_confirm">Toutes les \u00e9tiquettes et groupes de visages seront effac\u00e9s. Ils seront reconstruits \u00e0 l\'ouverture du coffre. Continuer ?</string>
+    <string name="settings_reindex_confirm">Toutes les \u00e9tiquettes IA, groupes de visages et tags photo seront effac\u00e9s \u2014 y compris les descriptions IA et tags IA g\u00e9n\u00e9r\u00e9s par Gemma vision. Les \u00e9tiquettes de base et groupes de visages seront reconstruits \u00e0 l\'ouverture du coffre ; pour restaurer les descriptions et tags Gemma, lancez ensuite \u00ab Traiter toutes les photos avec l\'IA \u00bb. Continuer ?</string>
     <string name="settings_reindex_done">Index effac\u00e9. Ouvrez le coffre pour r\u00e9indexer.</string>
     <string name="settings_reindex_action">Effacer et r\u00e9indexer</string>
     <string name="settings_section_security">Sécurité</string>
@@ -973,4 +973,18 @@
     <string name="cycle_disclaimer_body">Privora n\'est pas un dispositif médical. Le suivi du cycle sert uniquement à votre usage personnel.</string>
     <string name="cycle_disclaimer_caveat">Les estimations sont des moyennes simples — pas un avis médical, ni un guide de contraception, ni un suivi de fertilité.</string>
     <string name="cycle_disclaimer_ok">J\'ai compris</string>
+
+    <string name="settings_show_ai_labels">Afficher les étiquettes IA sur les photos</string>
+    <string name="settings_show_ai_labels_desc">Affiche les étiquettes d\'objets et les actions IA lors de la consultation des photos du coffre.</string>
+    <string name="vault_generate_ai_tags">Générer des étiquettes IA</string>
+    <string name="vault_generating_ai_tags">Génération des étiquettes…</string>
+    <string name="vault_describe">Décrire</string>
+    <string name="vault_ask_about_image">Poser une question sur cette image</string>
+    <string name="vault_ask_question_label">Votre question</string>
+    <string name="vault_ask_question_placeholder">De quelle couleur est la voiture ?</string>
+    <string name="vault_ask_analyzing">Analyse en cours…</string>
+    <string name="vault_ask_failed">Impossible d\'analyser cette image.</string>
+    <string name="vault_ask_load_failed">Impossible de charger cette image.</string>
+    <string name="vault_ask_submit">Demander</string>
+    <string name="detect_describe_with_ai">Décrire avec l\'IA</string>
 </resources>

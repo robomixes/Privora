@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
@@ -127,20 +128,10 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
                 }
             },
-            actions = {
-                // Re-run calibration wizard — same destination as the row inside
-                // Advanced. Surfaced here so users don't have to scroll into the
-                // auth-gated Advanced section just to recalibrate.
-                if (onRerunWizardClick != null) {
-                    IconButton(onClick = { onRerunWizardClick.invoke() }) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = stringResource(R.string.settings_rerun_wizard),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
+            // Re-run calibration wizard top-bar action removed 2026-05-13 —
+            // the wizard still lives in Settings → Advanced for users who want
+            // to repeat it. Top-bar surfaced it too prominently for a rarely-
+            // used flow.
         )
     }) { padding ->
         var searchQuery by remember { mutableStateOf("") }
@@ -288,9 +279,17 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             } // end showFeatures
 
             // AI Detection section
-            val showAiDetection = matchesSearch("AI Detection", "Confidence", "Detection Categories", "categories")
+            val showAiDetection = matchesSearch("AI Detection", "Confidence", "Detection Categories", "categories", "AI labels", "Show AI labels", "tags")
             if (showAiDetection) {
             SectionHeader(stringResource(R.string.settings_section_ai_detection))
+
+            AppSettingToggle(
+                context = context,
+                key = "show_ai_labels",
+                title = stringResource(R.string.settings_show_ai_labels),
+                subtitle = stringResource(R.string.settings_show_ai_labels_desc),
+                defaultValue = true
+            )
 
             var showCategoriesDialog by remember { mutableStateOf(false) }
             var categoryCount by remember { mutableStateOf(getSelectedCategories(context).size) }
@@ -1694,6 +1693,42 @@ private fun PrivacyToggle(
 fun isFaceBlurEnabled(context: android.content.Context): Boolean {
     return context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE)
         .getBoolean("face_blur_on_share", false)
+}
+
+@Composable
+private fun AppSettingToggle(
+    context: android.content.Context,
+    key: String,
+    title: String,
+    subtitle: String,
+    defaultValue: Boolean = false
+) {
+    val prefs = remember { context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE) }
+    var enabled by remember { mutableStateOf(prefs.getBoolean(key, defaultValue)) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { enabled = !enabled; prefs.edit().putBoolean(key, enabled).apply() }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(Icons.Default.Visibility, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = enabled, onCheckedChange = {
+            enabled = it
+            prefs.edit().putBoolean(key, it).apply()
+        })
+    }
+}
+
+fun isShowAiLabelsEnabled(context: android.content.Context): Boolean {
+    return context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+        .getBoolean("show_ai_labels", true)
 }
 
 @Composable

@@ -204,6 +204,19 @@
     <string name="settings_detection_categories">检测类别</string>
     <string name="settings_detection_categories_desc">已选择 %1$d / 80 个类别</string>
     <string name="settings_ai_detection_hint">这些设置适用于检测功能和拍摄按钮。</string>
+    <string name="settings_show_ai_labels">在照片上显示 AI 标签</string>
+    <string name="settings_show_ai_labels_desc">在保险库中查看照片时显示对象标签和 AI 操作。</string>
+    <string name="vault_generate_ai_tags">生成 AI 标签</string>
+    <string name="vault_generating_ai_tags">正在生成标签…</string>
+    <string name="vault_describe">描述</string>
+    <string name="vault_ask_about_image">询问关于此图片</string>
+    <string name="vault_ask_question_label">你的问题</string>
+    <string name="vault_ask_question_placeholder">这辆车是什么颜色？</string>
+    <string name="vault_ask_analyzing">正在分析…</string>
+    <string name="vault_ask_failed">无法分析此图片。</string>
+    <string name="vault_ask_load_failed">无法加载此图片。</string>
+    <string name="vault_ask_submit">询问</string>
+    <string name="detect_describe_with_ai">用 AI 描述</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">设备</string>
@@ -226,7 +239,7 @@
     <string name="settings_reindex">重新索引所有照片</string>
     <string name="settings_reindex_desc">清除AI标签并重新分析所有照片</string>
     <string name="settings_reindex_running">正在重新索引\u2026</string>
-    <string name="settings_reindex_confirm">将清除所有AI标签和人脸分组。打开保险库时将重新构建。继续？</string>
+    <string name="settings_reindex_confirm">将清除所有 AI 标签、人脸分组和照片标签 — 包括由 Gemma 视觉生成的 AI 描述和 AI 标签。打开保险库时将重新构建基础标签和人脸分组；要恢复 Gemma 描述和标签，请之后运行"使用 AI 处理所有照片"。继续？</string>
     <string name="settings_reindex_done">索引已清除。打开保险库重新索引。</string>
     <string name="settings_reindex_action">清除并重新索引</string>
     <string name="settings_section_security">安全</string>

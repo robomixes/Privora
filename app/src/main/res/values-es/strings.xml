@@ -204,6 +204,19 @@
     <string name="settings_detection_categories">Categorías de detección</string>
     <string name="settings_detection_categories_desc">%1$d de 80 categorías seleccionadas</string>
     <string name="settings_ai_detection_hint">Estos ajustes se aplican a la función Detectar y al botón de captura.</string>
+    <string name="settings_show_ai_labels">Mostrar etiquetas IA en las fotos</string>
+    <string name="settings_show_ai_labels_desc">Muestra etiquetas de objetos y acciones de IA al ver fotos en la bóveda.</string>
+    <string name="vault_generate_ai_tags">Generar etiquetas IA</string>
+    <string name="vault_generating_ai_tags">Generando etiquetas…</string>
+    <string name="vault_describe">Describir</string>
+    <string name="vault_ask_about_image">Preguntar sobre esta imagen</string>
+    <string name="vault_ask_question_label">Tu pregunta</string>
+    <string name="vault_ask_question_placeholder">¿De qué color es el coche?</string>
+    <string name="vault_ask_analyzing">Analizando…</string>
+    <string name="vault_ask_failed">No se pudo analizar esta imagen.</string>
+    <string name="vault_ask_load_failed">No se pudo cargar esta imagen.</string>
+    <string name="vault_ask_submit">Preguntar</string>
+    <string name="detect_describe_with_ai">Describir con IA</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">Dispositivo</string>
@@ -224,7 +237,7 @@
     <string name="settings_reindex">Reindexar todas las fotos</string>
     <string name="settings_reindex_desc">Borrar etiquetas AI y reanalizar todas las fotos</string>
     <string name="settings_reindex_running">Reindexando\u2026</string>
-    <string name="settings_reindex_confirm">Se borrar\u00e1n todas las etiquetas y grupos de caras. Se reconstruir\u00e1n al abrir la b\u00f3veda. \u00bfContinuar?</string>
+    <string name="settings_reindex_confirm">Se borrar\u00e1n todas las etiquetas IA, grupos de caras y tags de fotos \u2014 incluidas las descripciones y etiquetas IA generadas por Gemma vision. Las etiquetas b\u00e1sicas y grupos de caras se reconstruir\u00e1n al abrir la b\u00f3veda; para restaurar las descripciones y etiquetas de Gemma, ejecute despu\u00e9s \u00abProcesar todas las fotos con IA\u00bb. \u00bfContinuar?</string>
     <string name="settings_reindex_done">\u00cdndice borrado. Abre la B\u00f3veda para reindexar.</string>
     <string name="settings_reindex_action">Borrar y reindexar</string>
     <string name="settings_section_security">Seguridad</string>

@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -155,6 +156,14 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
 
     // Retain latest frame for image search cropping
     var latestFrameBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    // Per-detection AI description (Gemma vision). Cleared when the user
+    // selects a different detection so the card doesn't show stale text.
+    var aiDescription by remember { mutableStateOf("") }
+    var aiDescLoading by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(selectedDetection) {
+        aiDescription = ""
+    }
 
     // Initialize detector
     val detector = remember { OnnxDetector(context) }
@@ -317,6 +326,81 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
             modifier = Modifier.fillMaxSize()
         )
 
+        // Floating "Describe with AI" button anchored to the top-right corner
+        // of the selected box. Rendered AFTER DetectionOverlay so it sits on
+        // top of it in z-order — otherwise the overlay's tap-detection would
+        // intercept the click and treat it as a background tap (which clears
+        // the selection and unfreezes).
+        if (isFrozen) {
+            selectedDetection?.let { det ->
+                if (com.privateai.camera.bridge.GemmaRunner.isAvailable(context)) {
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        val sw = maxWidth
+                        val sh = maxHeight
+                        val padX = (det.x2 - det.x1) * 0.15f
+                        val padY = (det.y2 - det.y1) * 0.15f
+                        val ex2 = (det.x2 + padX).coerceAtMost(1f)
+                        val ey1 = (det.y1 - padY).coerceAtLeast(0f)
+                        val btnSize = 40.dp
+                        Box(
+                            modifier = Modifier
+                                .offset(
+                                    x = sw * ex2 - btnSize - 4.dp,
+                                    y = sh * ey1 + 4.dp
+                                )
+                                .size(btnSize)
+                                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                .clickable(enabled = !aiDescLoading) {
+                                    val frame = latestFrameBitmap ?: return@clickable
+                                    aiDescLoading = true
+                                    captureScope.launch {
+                                        try {
+                                            val crop = cropDetectionRegion(frame, det)
+                                            val tempFile = java.io.File(context.cacheDir, "detect_${det.classId}_${System.currentTimeMillis()}.jpg")
+                                            withContext(Dispatchers.IO) {
+                                                java.io.FileOutputStream(tempFile).use { out ->
+                                                    crop.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                                                }
+                                            }
+                                            crop.recycle()
+                                            val prompt = com.privateai.camera.bridge.GemmaPrompts.describeDetection(det.className)
+                                            val desc = com.privateai.camera.bridge.GemmaRunner.describeImage(
+                                                context, tempFile.absolutePath, prompt
+                                            )
+                                            tempFile.delete()
+                                            aiDescription = desc?.trim().orEmpty()
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("DetectAI", "Describe failed: ${e.message}", e)
+                                        }
+                                        aiDescLoading = false
+                                    }
+                                }
+                                .semantics {
+                                    contentDescription = context.getString(R.string.detect_describe_with_ai)
+                                    role = Role.Button
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (aiDescLoading) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color.White
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Focus ring animation
         focusPoint?.let { point ->
             FocusRingIndicator(
@@ -441,6 +525,27 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
                             Icon(Icons.Default.ImageSearch, contentDescription = null, modifier = Modifier.size(18.dp))
                             Text(stringResource(R.string.search_by_image), modifier = Modifier.padding(start = 4.dp))
                         }
+
+                        // Describe-with-AI lives as a floating icon on the
+                        // selected box itself (anchored to its top-right corner)
+                        // — closer to where the user's finger already is than
+                        // a button buried in this bottom card.
+                    }
+
+                    // AI description result (under the action buttons)
+                    if (aiDescription.isNotEmpty()) {
+                        Text(
+                            text = aiDescription,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                )
+                                .padding(12.dp)
+                        )
                     }
                 }
             }

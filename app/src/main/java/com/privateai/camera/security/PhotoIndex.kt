@@ -139,9 +139,18 @@ class PhotoIndex(private val database: PrivoraDatabase) {
             classifier.classifyWithEmbedding(bitmap)
         } else emptyList<Pair<String, Float>>() to FloatArray(0)
 
-        // 3. Merge: detector labels first, then classifier
+        // 3a. Preserve any Gemma-generated tags (score >= 0.99) from a previous
+        //     run so re-indexing doesn't silently strip them. mergeAiTags writes
+        //     these at score 1.0; ONNX classifier scores top out around 0.85.
+        val existingGemmaTags = getLabelsWithScores(photoId).filter { it.second >= 0.99f }
+
+        // 3b. Merge: existing Gemma tags first, then YOLO detections, then
+        //     ImageNet classifier. Case-insensitive dedup throughout.
         val merged = mutableListOf<Pair<String, Float>>()
         val seen = mutableSetOf<String>()
+        for ((label, score) in existingGemmaTags) {
+            if (label.lowercase() !in seen) { seen.add(label.lowercase()); merged.add(label to score) }
+        }
         for (det in detections.distinctBy { it.className }) {
             val label = det.className.replaceFirstChar { it.uppercase() }
             if (label.lowercase() !in seen) { seen.add(label.lowercase()); merged.add(label to det.confidence) }
@@ -149,8 +158,9 @@ class PhotoIndex(private val database: PrivoraDatabase) {
         for ((label, score) in classifications) {
             if (label.lowercase() !in seen) { seen.add(label.lowercase()); merged.add(label to score) }
         }
-        val labels = merged.take(8).map { it.first }
-        val scores = merged.take(8).map { it.second }
+        // Cap a touch higher than the old 8 to leave room for both Gemma + ONNX.
+        val labels = merged.take(12).map { it.first }
+        val scores = merged.take(12).map { it.second }
 
         // 4. Blur score
         val blurScore = if (!bitmap.isRecycled) blurDetector.getBlurScore(bitmap) else -1.0
@@ -187,18 +197,23 @@ class PhotoIndex(private val database: PrivoraDatabase) {
             }
         }
 
-        // 6. Store in database
+        // 6. Store in database.
+        //    Use ensureRow + UPDATE instead of INSERT OR REPLACE so the
+        //    `description` column (set by Gemma describePhoto) is preserved
+        //    across re-indexing. CONFLICT_REPLACE would delete the existing
+        //    row and the new ContentValues doesn't carry `description`, so
+        //    every re-index would silently wipe Gemma descriptions.
         db.beginTransaction()
         try {
+            ensureRow(photoId)
             val cv = ContentValues().apply {
-                put("photo_id", photoId)
                 put("labels", JSONArray(labels).toString())
                 put("scores", JSONArray(scores.map { it.toDouble() }).toString())
                 put("feature_vector", featureVector?.toBlob())
                 put("blur_score", blurScore)
                 put("indexed_at", System.currentTimeMillis())
             }
-            db.insertWithOnConflict("photo_index", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+            db.update("photo_index", cv, "photo_id = ?", arrayOf(photoId))
 
             // Delete old face entries for this photo then insert new ones
             db.delete("face_entries", "photo_id = ?", arrayOf(photoId))
@@ -546,8 +561,60 @@ class PhotoIndex(private val database: PrivoraDatabase) {
         return ""
     }
 
+    /**
+     * Ensure a photo_index row exists for [photoId] so subsequent UPDATEs land.
+     * Without this, photos that were never auto-indexed (older imports, vault
+     * items added before indexing ran) silently swallow writes from
+     * [setDescription] and [mergeAiTags].
+     */
+    private fun ensureRow(photoId: String) {
+        db.execSQL(
+            "INSERT OR IGNORE INTO photo_index (photo_id, labels, scores, indexed_at) VALUES (?, ?, ?, ?)",
+            arrayOf<Any>(photoId, "[]", "[]", System.currentTimeMillis())
+        )
+    }
+
+    /**
+     * Merge AI-generated tags into the existing labels for a photo.
+     *
+     * Tags coming from Gemma vision are scored 1.0 (max) so they sort above the
+     * ONNX classifier labels, which typically land in the 0.60-0.85 band. New
+     * tags that case-insensitively match an existing label are dropped — we never
+     * downgrade an existing high-confidence label, and we don't duplicate.
+     *
+     * The merged list is capped at 12 entries to keep the chip row from blowing
+     * up on busy photos.
+     */
+    fun mergeAiTags(photoId: String, newTags: List<String>) {
+        if (newTags.isEmpty()) {
+            Log.d(TAG, "mergeAiTags: newTags empty, skipping")
+            return
+        }
+        ensureRow(photoId)
+        val existing = getLabelsWithScores(photoId).toMutableList()
+        val seenLower = existing.map { it.first.lowercase() }.toMutableSet()
+        for (raw in newTags) {
+            val tag = raw.trim().trim(',', '.', ';', ':')
+            if (tag.isBlank()) continue
+            val lower = tag.lowercase()
+            if (lower in seenLower) continue
+            existing.add(tag to 1.0f)
+            seenLower.add(lower)
+        }
+        val capped = existing.take(12)
+        val labelsJson = JSONArray(capped.map { it.first }).toString()
+        val scoresJson = JSONArray(capped.map { it.second.toDouble() }).toString()
+        val cv = ContentValues().apply {
+            put("labels", labelsJson)
+            put("scores", scoresJson)
+        }
+        val rows = db.update("photo_index", cv, "photo_id = ?", arrayOf(photoId))
+        Log.d(TAG, "mergeAiTags: photo=$photoId newTagCount=${newTags.size} stored=${capped.size} rowsUpdated=$rows labels=$labelsJson")
+    }
+
     /** Set/update the AI-generated description for a photo. */
     fun setDescription(photoId: String, description: String) {
+        ensureRow(photoId)
         val cv = android.content.ContentValues().apply {
             put("description", description)
         }

@@ -160,13 +160,22 @@ object GemmaRunner {
                 // Mark as "loading" — if app crashes during this, we know on next launch
                 prefs.edit().putBoolean("load_crashed", true).commit()
 
-                // Try GPU first (faster, bypasses CPU vision crash in 0.10.0)
-                // Fall back to CPU if GPU/OpenCL not available
+                // Try GPU first (faster), fall back to CPU if GPU/OpenCL not available.
+                // visionBackend is required for Content.ImageFile / ImageBytes — without
+                // it the runtime logs "VisionExecutorSettings: Not set" at init and
+                // null-derefs the (never-allocated) vision executor on the first vision
+                // sendMessage(). Confirmed against LiteRT-LM 0.10.2 / 0.11.0-rc1 / 0.11.0
+                // on Pixel 9a, all SIGSEGV with identical PC offsets in liblitertlm_jni.so
+                // before this parameter was added.
                 var eng: Engine? = null
                 var usedBackend = "unknown"
                 try {
-                    Log.i(TAG, "Attempting GPU backend...")
-                    val gpuConfig = EngineConfig(modelPath = modelFile.absolutePath, backend = Backend.GPU())
+                    Log.i(TAG, "Attempting GPU backend (with vision)...")
+                    val gpuConfig = EngineConfig(
+                        modelPath = modelFile.absolutePath,
+                        backend = Backend.GPU(),
+                        visionBackend = Backend.GPU(),
+                    )
                     eng = Engine(gpuConfig)
                     eng.initialize()
                     usedBackend = "GPU"
@@ -178,7 +187,11 @@ object GemmaRunner {
                     modelFile.parentFile?.listFiles()?.forEach { f ->
                         if (f.name.contains("mldrift")) { f.delete() }
                     }
-                    val cpuConfig = EngineConfig(modelPath = modelFile.absolutePath, backend = Backend.CPU())
+                    val cpuConfig = EngineConfig(
+                        modelPath = modelFile.absolutePath,
+                        backend = Backend.CPU(),
+                        visionBackend = Backend.CPU(),
+                    )
                     eng = Engine(cpuConfig)
                     eng.initialize()
                     usedBackend = "CPU"
@@ -393,8 +406,10 @@ object GemmaRunner {
         return mutex.withLock {
             withContext(Dispatchers.IO) {
                 // Arm the crash flag with a synchronous commit so it persists if
-                // the JVM dies during sendMessage. Cleared on success or caught
-                // exception below.
+                // the JVM dies (SIGSEGV) during sendMessage. The `finally` below
+                // guarantees we disarm it for every NON-JVM-death exit path —
+                // success, caught exception, coroutine cancellation, even an
+                // adb force-stop after we leave the native call.
                 prefs.edit().putBoolean("vision_crashed", true).commit()
                 try {
                     closeActiveConversation()
@@ -410,16 +425,15 @@ object GemmaRunner {
                         )
                     )
                     Log.d(TAG, "Vision response: ${response.toString().take(100)}")
-                    closeActiveConversation()
-                    // Survived — disarm.
-                    prefs.edit().putBoolean("vision_crashed", false).apply()
                     extractText(response)
                 } catch (e: Exception) {
-                    closeActiveConversation()
                     Log.e(TAG, "Vision inference failed: ${e.message}", e)
-                    // Caught exception is recoverable — don't keep the user locked out.
-                    prefs.edit().putBoolean("vision_crashed", false).apply()
                     null
+                } finally {
+                    closeActiveConversation()
+                    // Use commit() (sync) so the cleared flag hits disk before
+                    // any subsequent process death can strand it.
+                    prefs.edit().putBoolean("vision_crashed", false).commit()
                 }
             }
         }
