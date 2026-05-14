@@ -223,6 +223,19 @@
     <string name="detect_replay_speech">قراءة بصوت عالٍ</string>
     <string name="detect_stop_speech">إيقاف القراءة</string>
     <string name="detect_tts_unavailable">لا يوجد محرك تحويل النص إلى كلام — قم بتثبيت محرك لاستخدام القراءة بصوت عالٍ.</string>
+    <string name="settings_auto_ai_tag">وضع علامات تلقائية على الصور الجديدة بالذكاء الاصطناعي</string>
+    <string name="settings_auto_ai_tag_desc">يولد أوصاف وعلامات الذكاء الاصطناعي في الخلفية بعد حفظ كل صورة جديدة. يستهلك البطارية — نحو 10 ثوانٍ لكل صورة على محرك رؤية Gemma.</string>
+    <string name="settings_process_all_ai">معالجة كل الصور بالذكاء الاصطناعي…</string>
+    <string name="settings_process_all_ai_progress">جارٍ المعالجة بالذكاء الاصطناعي… (%1$d / %2$d)</string>
+    <string name="settings_process_all_ai_desc">يولد أوصاف وعلامات الذكاء الاصطناعي لكل صورة في الخزنة لا تحتوي عليها بعد. اضغط أثناء التشغيل للإلغاء.</string>
+    <string name="settings_process_all_ai_pick_mode">اختر ما تريد إنشاءه:</string>
+    <string name="settings_process_mode_description">الأوصاف فقط</string>
+    <string name="settings_process_mode_tags">العلامات فقط</string>
+    <string name="settings_process_mode_both">الأوصاف والعلامات</string>
+    <string name="settings_process_mode_count">‏%1$d صورة في الانتظار</string>
+    <string name="settings_process_mode_none_pending">جميع الصور تحتوي على ذلك بالفعل</string>
+    <string name="settings_process_all_ai_eta">الوقت المتوقع: نحو %1$d دقيقة على محرك الذكاء الاصطناعي.</string>
+    <string name="action_process">معالجة</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">الجهاز</string>

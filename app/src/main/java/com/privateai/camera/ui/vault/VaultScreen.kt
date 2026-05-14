@@ -409,14 +409,25 @@ fun VaultScreen(
             var importedVideos = 0
             var skippedLarge = 0
             VaultLockManager.markUnlocked()
+            // Capture destination folder ONCE before the long-running IO loop.
+            // Previously `folderDir` was re-evaluated inside each iteration by
+            // reading the `page` and `currentFolder` Compose state vars from
+            // inside withContext(Dispatchers.IO) — a 2000-photo import takes
+            // minutes, and any recomposition that flipped `page` mid-stream
+            // would cause the rest of the batch to fall through to the
+            // default CAMERA category. Capture the snapshot at the start so
+            // every photo in this batch lands in the same place.
+            val capturedPage = page
+            val capturedFolder = currentFolder
+            val capturedFolderDir = if (capturedPage == VaultPage.FOLDER_VIEW) {
+                capturedFolder?.let { folderManager.getFolderDir(it.id) }
+            } else null
             withContext(Dispatchers.IO) {
                 uris.forEachIndexed { idx, uri ->
                     VaultLockManager.markUnlocked()
                     try {
                         val mimeType = context.contentResolver.getType(uri)
-                        val folderDir = if (page == VaultPage.FOLDER_VIEW) {
-                            currentFolder?.let { folderManager.getFolderDir(it.id) }
-                        } else null
+                        val folderDir = capturedFolderDir
 
                         if (mimeType?.startsWith("video/") == true) {
                             val size = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
@@ -3351,13 +3362,17 @@ fun VaultScreen(
                     // (see lines ~3019-3120). Only the on-image overlay rendering
                     // lives here, gated by the Settings "Show AI labels" toggle.
 
-                    Column(
-                        Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp, start = 16.dp, end = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (showAiLabels) {
-                            // AI description text
+                    // AI description text — anchored ABOVE the image (just below
+                    // the top overflow menu / status bar) instead of at the
+                    // bottom over the tags. Gives the description its own
+                    // room to breathe and stops it competing with the chip
+                    // row for screen real estate.
+                    if (showAiLabels && (aiDescription.isNotEmpty() || aiDescLoading)) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 96.dp, start = 64.dp, end = 64.dp)
+                        ) {
                             if (aiDescription.isNotEmpty()) {
                                 Text(
                                     aiDescription,
@@ -3367,7 +3382,7 @@ fun VaultScreen(
                                         .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
                                         .padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
-                            } else if (aiDescLoading) {
+                            } else {
                                 Text(
                                     "Describing image…",
                                     style = MaterialTheme.typography.bodySmall,
@@ -3377,6 +3392,16 @@ fun VaultScreen(
                                         .padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
                             }
+                        }
+                    }
+
+                    Column(
+                        Modifier.align(Alignment.BottomCenter).padding(bottom = 110.dp, start = 16.dp, end = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (showAiLabels) {
+                            // Description moved to the TopCenter overlay above.
 
                             // AI action chips moved to the photo viewer's 3-dot
                             // overflow menu so the photo isn't covered by chips.

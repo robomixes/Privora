@@ -125,6 +125,7 @@ object GemmaPrompts {
             "es" -> "Spanish"
             "zh" -> "Chinese"
             "ar" -> "Arabic"
+            "tr" -> "Turkish"
             "en" -> "English"
             else -> java.util.Locale.getDefault().getDisplayLanguage(java.util.Locale.ENGLISH)
         }

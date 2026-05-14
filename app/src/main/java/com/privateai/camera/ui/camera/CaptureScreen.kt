@@ -214,12 +214,18 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
         }
     }
 
-    // Clean up on dispose
+    // Clean up on dispose. Also pauses Gemma background indexing while
+    // the camera UI is on screen — Gemma's ~1 GB RAM + GPU usage makes the
+    // live preview lag if it runs during a capture session. Photo IDs
+    // enqueued while paused are buffered in GemmaIndexingManager and
+    // drained when the camera leaves composition.
     DisposableEffect(Unit) {
+        com.privateai.camera.service.GemmaIndexingManager.pause()
         onDispose {
             activeRecording?.stop()
             latestFrame?.recycle()
             lastThumbnail?.recycle()
+            com.privateai.camera.service.GemmaIndexingManager.resume(context)
         }
     }
 
@@ -262,6 +268,12 @@ fun CaptureScreen(onBack: () -> Unit, onPhotoTap: ((String) -> Unit)? = null) {
                     lastCapturedItem = saved
                     bitmap.recycle()
                     mediaCount++
+                    // Background Gemma describe + tag (Track C). Opt-in via
+                    // Settings → "Auto-tag new photos with AI" (default OFF).
+                    if (com.privateai.camera.ui.settings.isAutoAiTagEnabled(context)
+                        && com.privateai.camera.bridge.GemmaRunner.isAvailable(context)) {
+                        com.privateai.camera.service.GemmaIndexingManager.enqueue(context, saved.id)
+                    }
                 } catch (e: Exception) {
                     bitmap.recycle()
                     withContext(Dispatchers.Main) {

@@ -993,4 +993,17 @@
     <string name="detect_replay_speech">Lire à voix haute</string>
     <string name="detect_stop_speech">Arrêter la lecture</string>
     <string name="detect_tts_unavailable">Aucun moteur de synthèse vocale disponible — installez-en un pour utiliser la lecture à voix haute.</string>
+    <string name="settings_auto_ai_tag">Étiqueter automatiquement les nouvelles photos avec l\'IA</string>
+    <string name="settings_auto_ai_tag_desc">Génère descriptions et étiquettes IA en arrière-plan après chaque nouvelle photo. Gourmand en batterie — environ 10 s par photo sur le moteur de vision Gemma.</string>
+    <string name="settings_process_all_ai">Traiter toutes les photos avec l\'IA…</string>
+    <string name="settings_process_all_ai_progress">Traitement IA… (%1$d / %2$d)</string>
+    <string name="settings_process_all_ai_desc">Génère descriptions et étiquettes IA pour chaque photo du coffre qui n\'en a pas encore. Appuyez pendant l\'exécution pour annuler.</string>
+    <string name="settings_process_all_ai_pick_mode">Choisissez quoi générer :</string>
+    <string name="settings_process_mode_description">Descriptions uniquement</string>
+    <string name="settings_process_mode_tags">Étiquettes uniquement</string>
+    <string name="settings_process_mode_both">Descriptions et étiquettes</string>
+    <string name="settings_process_mode_count">%1$d photo(s) en attente</string>
+    <string name="settings_process_mode_none_pending">Toutes les photos en ont déjà</string>
+    <string name="settings_process_all_ai_eta">Temps estimé : environ %1$d minute(s) sur le moteur IA.</string>
+    <string name="action_process">Traiter</string>
 </resources>

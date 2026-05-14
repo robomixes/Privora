@@ -223,6 +223,19 @@
     <string name="detect_replay_speech">朗读</string>
     <string name="detect_stop_speech">停止朗读</string>
     <string name="detect_tts_unavailable">无可用的文字转语音引擎 — 请安装一个以使用朗读功能。</string>
+    <string name="settings_auto_ai_tag">用 AI 自动标记新照片</string>
+    <string name="settings_auto_ai_tag_desc">每张新照片保存后在后台生成 AI 描述和标签。耗电较多 — 每张照片在 Gemma 视觉引擎上约 10 秒。</string>
+    <string name="settings_process_all_ai">用 AI 处理所有照片…</string>
+    <string name="settings_process_all_ai_progress">正在用 AI 处理… (%1$d / %2$d)</string>
+    <string name="settings_process_all_ai_desc">为保险库中尚无描述的每张照片生成 AI 描述和标签。运行时点击可取消。</string>
+    <string name="settings_process_all_ai_pick_mode">选择要生成的内容：</string>
+    <string name="settings_process_mode_description">仅描述</string>
+    <string name="settings_process_mode_tags">仅标签</string>
+    <string name="settings_process_mode_both">描述和标签</string>
+    <string name="settings_process_mode_count">%1$d 张照片待处理</string>
+    <string name="settings_process_mode_none_pending">所有照片均已具备</string>
+    <string name="settings_process_all_ai_eta">预计时间：在 AI 引擎上约 %1$d 分钟。</string>
+    <string name="action_process">处理</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">设备</string>

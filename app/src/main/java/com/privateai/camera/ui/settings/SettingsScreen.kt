@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Refresh
@@ -299,6 +300,119 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 defaultValue = false
             )
 
+            // Track C: opt-in auto Gemma tagging for newly saved photos +
+            // explicit bulk button to process the existing backlog.
+            // Both gated on AI availability — hidden if Gemma isn't ready.
+            if (com.privateai.camera.bridge.GemmaRunner.isAvailable(context)) {
+                AppSettingToggle(
+                    context = context,
+                    key = "auto_ai_tag_new_photos",
+                    title = stringResource(R.string.settings_auto_ai_tag),
+                    subtitle = stringResource(R.string.settings_auto_ai_tag_desc),
+                    defaultValue = false
+                )
+
+                var showProcessAllDialog by remember { mutableStateOf(false) }
+                var pendingCounts by remember {
+                    mutableStateOf(com.privateai.camera.service.GemmaIndexingManager.PendingCounts(0, 0, 0))
+                }
+                var selectedMode by remember {
+                    mutableStateOf(com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH)
+                }
+                val gemmaRunning by com.privateai.camera.service.GemmaIndexingManager.isRunning.collectAsState()
+                val gemmaProgress by com.privateai.camera.service.GemmaIndexingManager.progress.collectAsState()
+
+                SettingsItem(
+                    icon = Icons.Default.AutoAwesome,
+                    title = if (gemmaRunning) {
+                        stringResource(
+                            R.string.settings_process_all_ai_progress,
+                            gemmaProgress.first, gemmaProgress.second
+                        )
+                    } else {
+                        stringResource(R.string.settings_process_all_ai)
+                    },
+                    subtitle = stringResource(R.string.settings_process_all_ai_desc),
+                    onClick = {
+                        if (gemmaRunning) {
+                            // Tap while running cancels.
+                            com.privateai.camera.service.GemmaIndexingManager.stop()
+                        } else {
+                            scope.launch {
+                                pendingCounts = withContext(Dispatchers.IO) {
+                                    com.privateai.camera.service.GemmaIndexingManager.countPending(context)
+                                }
+                                selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH
+                                showProcessAllDialog = true
+                            }
+                        }
+                    }
+                )
+
+                if (showProcessAllDialog) {
+                    val selectedCount = when (selectedMode) {
+                        com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY -> pendingCounts.description
+                        com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY -> pendingCounts.tags
+                        com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH -> pendingCounts.both
+                    }
+                    // Per-photo cost: BOTH = ~10s (two Gemma calls);
+                    // DESC_ONLY / TAGS_ONLY = ~5s (one call).
+                    val perPhotoSec = if (selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH) 10 else 5
+                    val etaMin = (selectedCount * perPhotoSec + 59) / 60
+                    AlertDialog(
+                        onDismissRequest = { showProcessAllDialog = false },
+                        title = { Text(stringResource(R.string.settings_process_all_ai)) },
+                        text = {
+                            Column {
+                                Text(
+                                    stringResource(R.string.settings_process_all_ai_pick_mode),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                                ModeRow(
+                                    label = stringResource(R.string.settings_process_mode_description),
+                                    count = pendingCounts.description,
+                                    selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY,
+                                    onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY }
+                                )
+                                ModeRow(
+                                    label = stringResource(R.string.settings_process_mode_tags),
+                                    count = pendingCounts.tags,
+                                    selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY,
+                                    onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY }
+                                )
+                                ModeRow(
+                                    label = stringResource(R.string.settings_process_mode_both),
+                                    count = pendingCounts.both,
+                                    selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH,
+                                    onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH }
+                                )
+                                Text(
+                                    stringResource(R.string.settings_process_all_ai_eta, etaMin),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showProcessAllDialog = false
+                                    com.privateai.camera.service.GemmaIndexingManager.processAll(context, selectedMode)
+                                },
+                                enabled = selectedCount > 0
+                            ) { Text(stringResource(R.string.action_process)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showProcessAllDialog = false }) {
+                                Text(stringResource(R.string.action_cancel))
+                            }
+                        }
+                    )
+                }
+            }
+
             var showCategoriesDialog by remember { mutableStateOf(false) }
             var categoryCount by remember { mutableStateOf(getSelectedCategories(context).size) }
             var confidencePercent by remember { mutableStateOf(getConfidencePercent(context)) }
@@ -441,6 +555,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 "ar" to "\u0627\u0644\u0639\u0631\u0628\u064A\u0629",
                 "es" to "Espa\u00F1ol",
                 "fr" to "Fran\u00E7ais",
+                "tr" to "T\u00FCrk\u00E7e",
                 "zh" to "中文"
             )
 
@@ -1742,6 +1857,47 @@ fun isShowAiLabelsEnabled(context: android.content.Context): Boolean {
 fun isDetectTtsEnabled(context: android.content.Context): Boolean {
     return context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
         .getBoolean("detect_tts", false)
+}
+
+fun isAutoAiTagEnabled(context: android.content.Context): Boolean {
+    return context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+        .getBoolean("auto_ai_tag_new_photos", false)
+}
+
+@Composable
+private fun ModeRow(
+    label: String,
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = count > 0, onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        androidx.compose.material3.RadioButton(
+            selected = selected,
+            onClick = onClick,
+            enabled = count > 0
+        )
+        Column(modifier = Modifier.padding(start = 4.dp)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (count == 0) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                if (count == 0) stringResource(R.string.settings_process_mode_none_pending)
+                else stringResource(R.string.settings_process_mode_count, count),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }
 
 @Composable

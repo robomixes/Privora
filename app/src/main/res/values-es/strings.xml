@@ -223,6 +223,19 @@
     <string name="detect_replay_speech">Leer en voz alta</string>
     <string name="detect_stop_speech">Detener lectura</string>
     <string name="detect_tts_unavailable">No hay motor de texto a voz disponible — instala uno para usar la lectura en voz alta.</string>
+    <string name="settings_auto_ai_tag">Etiquetar fotos nuevas con IA automáticamente</string>
+    <string name="settings_auto_ai_tag_desc">Genera descripciones y etiquetas de IA en segundo plano después de cada nueva foto. Consume batería — unos 10 s por foto en el motor de visión Gemma.</string>
+    <string name="settings_process_all_ai">Procesar todas las fotos con IA…</string>
+    <string name="settings_process_all_ai_progress">Procesando con IA… (%1$d / %2$d)</string>
+    <string name="settings_process_all_ai_desc">Genera descripciones y etiquetas de IA para cada foto de la bóveda que aún no las tenga. Toca durante la ejecución para cancelar.</string>
+    <string name="settings_process_all_ai_pick_mode">Elige qué generar:</string>
+    <string name="settings_process_mode_description">Solo descripciones</string>
+    <string name="settings_process_mode_tags">Solo etiquetas</string>
+    <string name="settings_process_mode_both">Descripciones y etiquetas</string>
+    <string name="settings_process_mode_count">%1$d foto(s) pendiente(s)</string>
+    <string name="settings_process_mode_none_pending">Todas las fotos ya lo tienen</string>
+    <string name="settings_process_all_ai_eta">Tiempo estimado: aproximadamente %1$d minuto(s) en el motor de IA.</string>
+    <string name="action_process">Procesar</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">Dispositivo</string>

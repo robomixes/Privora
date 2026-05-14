@@ -230,6 +230,19 @@
     <string name="detect_replay_speech">Read aloud</string>
     <string name="detect_stop_speech">Stop reading</string>
     <string name="detect_tts_unavailable">No text-to-speech engine available — install one to use read-aloud.</string>
+    <string name="settings_auto_ai_tag">Auto-tag new photos with AI</string>
+    <string name="settings_auto_ai_tag_desc">Generates AI descriptions and tags in the background after each new photo is saved. Battery-intensive — ~10 sec per photo on the Gemma vision engine.</string>
+    <string name="settings_process_all_ai">Process all photos with AI…</string>
+    <string name="settings_process_all_ai_progress">Processing with AI… (%1$d / %2$d)</string>
+    <string name="settings_process_all_ai_desc">Generates AI descriptions and tags for every vault photo that doesn\'t have them yet. Tap while running to cancel.</string>
+    <string name="settings_process_all_ai_pick_mode">Choose what to generate:</string>
+    <string name="settings_process_mode_description">Descriptions only</string>
+    <string name="settings_process_mode_tags">Tags only</string>
+    <string name="settings_process_mode_both">Both descriptions and tags</string>
+    <string name="settings_process_mode_count">%1$d photo(s) pending</string>
+    <string name="settings_process_mode_none_pending">All photos already have this</string>
+    <string name="settings_process_all_ai_eta">Estimated time: ~%1$d minute(s) on the AI engine.</string>
+    <string name="action_process">Process</string>
 
     <!-- Settings: Device -->
     <string name="settings_section_device">Device</string>
