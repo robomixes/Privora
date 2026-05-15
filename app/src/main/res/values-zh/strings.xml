@@ -235,6 +235,10 @@
     <string name="settings_process_mode_count">%1$d 张照片待处理</string>
     <string name="settings_process_mode_none_pending">所有照片均已具备</string>
     <string name="settings_process_all_ai_eta">预计时间：在 AI 引擎上约 %1$d 分钟。</string>
+    <string name="settings_process_all_ai_eta_capped">本次将处理 %1$d 张照片（约 %2$d 分钟）。</string>
+    <string name="settings_process_all_ai_pick_limit">本次处理数量：</string>
+    <string name="settings_process_limit_all">全部</string>
+    <string name="settings_process_all_ai_pending">%1$d 张照片待处理 — 点击以处理</string>
     <string name="action_process">处理</string>
 
     <!-- Settings: Device -->

@@ -235,6 +235,10 @@
     <string name="settings_process_mode_count">%1$d foto(s) pendiente(s)</string>
     <string name="settings_process_mode_none_pending">Todas las fotos ya lo tienen</string>
     <string name="settings_process_all_ai_eta">Tiempo estimado: aproximadamente %1$d minuto(s) en el motor de IA.</string>
+    <string name="settings_process_all_ai_eta_capped">Procesará %1$d foto(s) esta vez (~%2$d minuto(s)).</string>
+    <string name="settings_process_all_ai_pick_limit">Cuántas procesar:</string>
+    <string name="settings_process_limit_all">Todas</string>
+    <string name="settings_process_all_ai_pending">%1$d foto(s) pendiente(s) — toca para procesar</string>
     <string name="action_process">Procesar</string>
 
     <!-- Settings: Device -->

@@ -242,6 +242,10 @@
     <string name="settings_process_mode_count">%1$d photo(s) pending</string>
     <string name="settings_process_mode_none_pending">All photos already have this</string>
     <string name="settings_process_all_ai_eta">Estimated time: ~%1$d minute(s) on the AI engine.</string>
+    <string name="settings_process_all_ai_eta_capped">Will process %1$d photo(s) this run (~%2$d minute(s)).</string>
+    <string name="settings_process_all_ai_pick_limit">How many to process:</string>
+    <string name="settings_process_limit_all">All</string>
+    <string name="settings_process_all_ai_pending">%1$d photo(s) pending — tap to process</string>
     <string name="action_process">Process</string>
 
     <!-- Settings: Device -->

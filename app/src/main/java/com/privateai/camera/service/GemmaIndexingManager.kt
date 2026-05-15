@@ -47,6 +47,10 @@ object GemmaIndexingManager {
 
     private const val TAG = "GemmaIndexingManager"
     private const val PER_PHOTO_GAP_MS = 2_000L
+    private const val PREFS_NAME = "gemma_settings"
+    private const val KEY_PENDING_QUEUE = "gemma_pending_queue"
+
+    @Volatile private var hydrated = false
 
     /**
      * What Gemma data to generate during a bulk pass. Per-photo single-shot
@@ -79,6 +83,42 @@ object GemmaIndexingManager {
 
     private fun shouldYield(context: Context): Boolean =
         paused || IndexingManager.isRunning.value || !GemmaRunner.isAvailable(context)
+
+    /**
+     * Restore the pending queue from disk. Called by every public entry point
+     * so a process death between sessions doesn't lose queued work. Idempotent
+     * — only reads once per process (the in-memory queue is authoritative
+     * after that).
+     */
+    private fun hydrateIfNeeded(context: Context) {
+        if (hydrated) return
+        synchronized(pendingLock) {
+            if (hydrated) return
+            val csv = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_PENDING_QUEUE, null)
+            if (!csv.isNullOrBlank()) {
+                csv.split(",").forEach { token ->
+                    val parts = token.split(":")
+                    if (parts.size == 2 && parts[0].isNotBlank()) {
+                        val mode = try { ProcessMode.valueOf(parts[1]) } catch (_: Exception) { ProcessMode.BOTH }
+                        if (pendingQueue.none { it.photoId == parts[0] }) {
+                            pendingQueue.add(QueueEntry(parts[0], mode))
+                        }
+                    }
+                }
+                Log.i(TAG, "hydrated ${pendingQueue.size} pending photo IDs from prefs")
+            }
+            hydrated = true
+        }
+    }
+
+    private fun persistQueue(context: Context) {
+        synchronized(pendingLock) {
+            val csv = pendingQueue.joinToString(",") { "${it.photoId}:${it.mode.name}" }
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(KEY_PENDING_QUEUE, csv).apply()
+        }
+    }
 
     /**
      * Mark the manager as "paused" while a UI surface that conflicts with
@@ -116,13 +156,18 @@ object GemmaIndexingManager {
      */
     fun tryDrain(context: Context) {
         if (job?.isActive == true) return
+        hydrateIfNeeded(context)
         if (shouldYield(context)) return
         val drained: List<QueueEntry>
         synchronized(pendingLock) {
             drained = pendingQueue.toList()
             pendingQueue.clear()
         }
-        if (drained.isEmpty()) return
+        if (drained.isEmpty()) {
+            persistQueue(context)
+            return
+        }
+        persistQueue(context)
         val pending = ArrayDeque(drained)
         job = scope.launch {
             _isRunning.value = true
@@ -158,6 +203,7 @@ object GemmaIndexingManager {
                         }
                     }
                 }
+                persistQueue(context)
                 _isRunning.value = false
             }
         }
@@ -173,6 +219,7 @@ object GemmaIndexingManager {
      */
     fun enqueue(context: Context, photoId: String) {
         if (!GemmaRunner.isAvailable(context)) return
+        hydrateIfNeeded(context)
         // Always go through the queue so a bulk-pass-in-flight, an active
         // camera UI, or a running ONNX indexer can't drop fresh captures
         // on the floor. tryDrain() will pick them up the moment we're free.
@@ -181,6 +228,7 @@ object GemmaIndexingManager {
                 pendingQueue.add(QueueEntry(photoId, ProcessMode.BOTH))
             }
         }
+        persistQueue(context)
         if (shouldYield(context) || job?.isActive == true) {
             Log.d(TAG, "enqueue($photoId) queued (yielding to camera/ONNX/active job)")
             return
@@ -195,8 +243,15 @@ object GemmaIndexingManager {
      * TAGS_ONLY, or BOTH; the per-photo step skips the half it's not
      * asked for.
      */
-    fun processAll(context: Context, mode: ProcessMode = ProcessMode.BOTH) {
+    /**
+     * Bulk pass. [limit] caps how many photos to process this run — useful
+     * for big libraries where the user wants to chip away in chunks instead
+     * of committing to "all 5000 photos = 8 hours." Default Int.MAX_VALUE
+     * = process everything pending for [mode].
+     */
+    fun processAll(context: Context, mode: ProcessMode = ProcessMode.BOTH, limit: Int = Int.MAX_VALUE) {
         if (!GemmaRunner.isAvailable(context)) return
+        hydrateIfNeeded(context)
         if (job?.isActive == true) {
             Log.d(TAG, "processAll skipped — already running")
             return
@@ -212,13 +267,13 @@ object GemmaIndexingManager {
                 val db = PrivoraDatabase.getInstance(context, crypto)
                 val pi = PhotoIndex(db)
 
-                targets = collectPending(vault, folderManager, pi, mode)
+                targets = collectPending(vault, folderManager, pi, mode).take(limit)
                 if (targets.isEmpty()) {
-                    Log.d(TAG, "processAll($mode): nothing to do")
+                    Log.d(TAG, "processAll($mode, limit=$limit): nothing to do")
                     return@launch
                 }
                 _progress.value = 0 to targets.size
-                Log.i(TAG, "processAll($mode): ${targets.size} photos to process")
+                Log.i(TAG, "processAll($mode, limit=$limit): ${targets.size} photos to process")
 
                 for (i in targets.indices) {
                     startIndex = i
@@ -246,6 +301,7 @@ object GemmaIndexingManager {
                             if (p.id !in existing) pendingQueue.add(QueueEntry(p.id, mode))
                         }
                     }
+                    persistQueue(context)
                     Log.i(TAG, "processAll: pushed ${remainder.size} remaining photos to queue (mode=$mode)")
                 }
                 _isRunning.value = false
@@ -260,6 +316,7 @@ object GemmaIndexingManager {
      */
     fun countPending(context: Context): PendingCounts {
         return try {
+            hydrateIfNeeded(context)
             val crypto = CryptoManager(context).also { it.initialize() }
             val vault = VaultRepository(context, crypto)
             val folderManager = FolderManager(context, crypto)

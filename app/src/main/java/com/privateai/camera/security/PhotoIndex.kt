@@ -592,14 +592,29 @@ class PhotoIndex(private val database: PrivoraDatabase) {
         }
         ensureRow(photoId)
         val existing = getLabelsWithScores(photoId).toMutableList()
-        val seenLower = existing.map { it.first.lowercase() }.toMutableSet()
+        // Build a lookup so we can BUMP existing entries (not just skip) when
+        // Gemma's reply overlaps with ONNX classifier labels. Previously we
+        // dropped overlapping tags silently — which meant a photo whose tags
+        // Gemma already agreed with (e.g. ONNX "Person" + Gemma "person") was
+        // never marked as Gemma-processed (no score >= 0.99 entry was added),
+        // so countPending kept reporting it as "missing Gemma tags" and the
+        // bulk pass kept re-selecting the same photos. Bumping to 1.0
+        // guarantees a Gemma marker exists even when the set fully overlaps.
+        val byLower = HashMap<String, Int>()
+        existing.forEachIndexed { idx, pair -> byLower[pair.first.lowercase()] = idx }
         for (raw in newTags) {
             val tag = raw.trim().trim(',', '.', ';', ':')
             if (tag.isBlank()) continue
             val lower = tag.lowercase()
-            if (lower in seenLower) continue
-            existing.add(tag to 1.0f)
-            seenLower.add(lower)
+            val existingIdx = byLower[lower]
+            if (existingIdx != null) {
+                if (existing[existingIdx].second < 1.0f) {
+                    existing[existingIdx] = existing[existingIdx].first to 1.0f
+                }
+            } else {
+                existing.add(tag to 1.0f)
+                byLower[lower] = existing.size - 1
+            }
         }
         val capped = existing.take(12)
         val labelsJson = JSONArray(capped.map { it.first }).toString()

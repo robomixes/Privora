@@ -242,6 +242,10 @@
     <string name="settings_process_mode_count">%1$d fotoğraf bekliyor</string>
     <string name="settings_process_mode_none_pending">Tüm fotoğraflarda bu zaten var</string>
     <string name="settings_process_all_ai_eta">Tahmini süre: YZ motorunda ~%1$d dakika.</string>
+    <string name="settings_process_all_ai_eta_capped">Bu turda %1$d fotoğraf işlenecek (~%2$d dakika).</string>
+    <string name="settings_process_all_ai_pick_limit">Kaç tane işlensin:</string>
+    <string name="settings_process_limit_all">Hepsi</string>
+    <string name="settings_process_all_ai_pending">%1$d fotoğraf bekliyor — işlemek için dokunun</string>
     <string name="action_process">İşle</string>
 
     <!-- Settings: Device -->

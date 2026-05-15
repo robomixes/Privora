@@ -1005,5 +1005,9 @@
     <string name="settings_process_mode_count">%1$d photo(s) en attente</string>
     <string name="settings_process_mode_none_pending">Toutes les photos en ont déjà</string>
     <string name="settings_process_all_ai_eta">Temps estimé : environ %1$d minute(s) sur le moteur IA.</string>
+    <string name="settings_process_all_ai_eta_capped">Traitera %1$d photo(s) cette fois-ci (~%2$d minute(s)).</string>
+    <string name="settings_process_all_ai_pick_limit">Combien traiter :</string>
+    <string name="settings_process_limit_all">Tout</string>
+    <string name="settings_process_all_ai_pending">%1$d photo(s) en attente — appuyez pour traiter</string>
     <string name="action_process">Traiter</string>
 </resources>

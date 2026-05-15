@@ -227,6 +227,33 @@ object GemmaRunner {
             .edit().putBoolean("vision_crashed", false).apply()
     }
 
+    /**
+     * Auto-clear sticky crash flags when the app's versionCode changes.
+     * Reasoning: a crash flag persists across launches to break in-process
+     * retry loops, but a fresh install / upgrade ships fixes that may have
+     * resolved the underlying crash. Without this, a user who hit
+     * `vision_crashed=true` on an old build stays locked out of AI vision
+     * forever — even after the bug is fixed in the next release. Called once
+     * from MainActivity.onCreate.
+     */
+    fun clearStaleCrashFlagsOnUpgrade(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val storedVersion = prefs.getInt("last_seen_version_code", -1)
+        val currentVersion = try {
+            context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
+        } catch (_: Exception) { return }
+        if (storedVersion != currentVersion) {
+            prefs.edit()
+                .putBoolean("vision_crashed", false)
+                .putBoolean("load_crashed", false)
+                .putInt("last_seen_version_code", currentVersion)
+                .apply()
+            if (storedVersion != -1) {
+                Log.i(TAG, "Cleared stale crash flags after upgrade $storedVersion → $currentVersion")
+            }
+        }
+    }
+
     /** Close any active conversation (LiteRT-LM only allows one at a time). */
     private fun closeActiveConversation() {
         try { activeConversation?.close() } catch (_: Exception) {}

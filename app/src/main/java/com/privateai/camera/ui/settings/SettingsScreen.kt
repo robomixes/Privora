@@ -59,6 +59,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,6 +69,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -319,8 +321,23 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 var selectedMode by remember {
                     mutableStateOf(com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH)
                 }
+                // Bulk-pass photo limit. Int.MAX_VALUE = "All". Other presets let
+                // the user chip away at a big library in chunks (e.g. start
+                // with 25 to feel the speed before committing to "all 5000").
+                var selectedLimit by remember { mutableStateOf(Int.MAX_VALUE) }
                 val gemmaRunning by com.privateai.camera.service.GemmaIndexingManager.isRunning.collectAsState()
                 val gemmaProgress by com.privateai.camera.service.GemmaIndexingManager.progress.collectAsState()
+
+                // Refresh pending counts when the manager flips running → idle
+                // so the dialog (and row subtitle) reflect the new state of
+                // photo_index without forcing the user to re-tap the row.
+                LaunchedEffect(gemmaRunning) {
+                    if (!gemmaRunning) {
+                        pendingCounts = withContext(Dispatchers.IO) {
+                            com.privateai.camera.service.GemmaIndexingManager.countPending(context)
+                        }
+                    }
+                }
 
                 SettingsItem(
                     icon = Icons.Default.AutoAwesome,
@@ -332,7 +349,11 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     } else {
                         stringResource(R.string.settings_process_all_ai)
                     },
-                    subtitle = stringResource(R.string.settings_process_all_ai_desc),
+                    subtitle = if (!gemmaRunning && pendingCounts.both > 0) {
+                        stringResource(R.string.settings_process_all_ai_pending, pendingCounts.both)
+                    } else {
+                        stringResource(R.string.settings_process_all_ai_desc)
+                    },
                     onClick = {
                         if (gemmaRunning) {
                             // Tap while running cancels.
@@ -350,11 +371,12 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 )
 
                 if (showProcessAllDialog) {
-                    val selectedCount = when (selectedMode) {
+                    val modeAvailableCount = when (selectedMode) {
                         com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY -> pendingCounts.description
                         com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY -> pendingCounts.tags
                         com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH -> pendingCounts.both
                     }
+                    val selectedCount = minOf(modeAvailableCount, selectedLimit)
                     // Per-photo cost: BOTH = ~10s (two Gemma calls);
                     // DESC_ONLY / TAGS_ONLY = ~5s (one call).
                     val perPhotoSec = if (selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH) 10 else 5
@@ -387,8 +409,36 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                     selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH,
                                     onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH }
                                 )
+
+                                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
                                 Text(
-                                    stringResource(R.string.settings_process_all_ai_eta, etaMin),
+                                    stringResource(R.string.settings_process_all_ai_pick_limit),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                val limitOptions = listOf(25, 100, 500, Int.MAX_VALUE)
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    limitOptions.forEach { lim ->
+                                        val label = if (lim == Int.MAX_VALUE)
+                                            stringResource(R.string.settings_process_limit_all)
+                                        else lim.toString()
+                                        FilterChip(
+                                            selected = selectedLimit == lim,
+                                            onClick = { selectedLimit = lim },
+                                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    if (selectedLimit == Int.MAX_VALUE)
+                                        stringResource(R.string.settings_process_all_ai_eta, etaMin)
+                                    else
+                                        stringResource(R.string.settings_process_all_ai_eta_capped, selectedCount, etaMin),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(top = 8.dp)
@@ -399,7 +449,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                             TextButton(
                                 onClick = {
                                     showProcessAllDialog = false
-                                    com.privateai.camera.service.GemmaIndexingManager.processAll(context, selectedMode)
+                                    com.privateai.camera.service.GemmaIndexingManager.processAll(context, selectedMode, selectedLimit)
                                 },
                                 enabled = selectedCount > 0
                             ) { Text(stringResource(R.string.action_process)) }

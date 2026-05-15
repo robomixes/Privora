@@ -464,7 +464,12 @@ fun VaultScreen(
                                 importedImages++
                             } else if (mimeType == "application/pdf") {
                                 if (folderDir != null) {
-                                    vault.saveFile(bytes, "import_${System.currentTimeMillis()}.pdf", VaultCategory.FILES)
+                                    // Was previously writing the PDF twice — once into
+                                    // `vault/files/` via saveFile() AND directly into the
+                                    // folder via crypto.encryptToFile(). One PDF appeared
+                                    // in both the FILES category and the folder. Now we
+                                    // write to the folder only, matching how photos use
+                                    // savePhotoToFolder().
                                     val pdfFile = File(folderDir, "import_${System.currentTimeMillis()}.pdf.enc")
                                     crypto.encryptToFile(bytes, pdfFile)
                                 } else {

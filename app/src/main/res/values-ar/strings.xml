@@ -235,6 +235,10 @@
     <string name="settings_process_mode_count">‏%1$d صورة في الانتظار</string>
     <string name="settings_process_mode_none_pending">جميع الصور تحتوي على ذلك بالفعل</string>
     <string name="settings_process_all_ai_eta">الوقت المتوقع: نحو %1$d دقيقة على محرك الذكاء الاصطناعي.</string>
+    <string name="settings_process_all_ai_eta_capped">سيعالج %1$d صورة في هذه الجولة (~%2$d دقيقة).</string>
+    <string name="settings_process_all_ai_pick_limit">عدد الصور المراد معالجتها:</string>
+    <string name="settings_process_limit_all">الكل</string>
+    <string name="settings_process_all_ai_pending">‏%1$d صورة في الانتظار — اضغط للمعالجة</string>
     <string name="action_process">معالجة</string>
 
     <!-- Settings: Device -->
