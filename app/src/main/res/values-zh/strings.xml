@@ -223,6 +223,11 @@
     <string name="detect_replay_speech">朗读</string>
     <string name="detect_stop_speech">停止朗读</string>
     <string name="detect_tts_unavailable">无可用的文字转语音引擎 — 请安装一个以使用朗读功能。</string>
+    <string name="settings_section_essentials">常用</string>
+    <string name="settings_backup_migration">备份与迁移</string>
+    <string name="settings_backup_migration_desc">导出加密备份或迁移到新设备。</string>
+    <string name="settings_change_pin">设置 / 修改 PIN</string>
+    <string name="settings_change_pin_desc">更新解锁 PIN 或生物识别。</string>
     <string name="settings_auto_ai_tag">用 AI 自动标记新照片</string>
     <string name="settings_auto_ai_tag_desc">每张新照片保存后在后台生成 AI 描述和标签。耗电较多 — 每张照片在 Gemma 视觉引擎上约 10 秒。</string>
     <string name="settings_process_all_ai">用 AI 处理所有照片…</string>
@@ -270,6 +275,7 @@
     <string name="settings_encryption_desc">AES-256-GCM \u2022 每次安装独立密钥 \u2022 硬件支持</string>
     <string name="settings_screenshot_protection">截屏保护</string>
     <string name="settings_screenshot_protection_desc">已启用 \u2014 截屏和屏幕录制已被阻止</string>
+    <string name="settings_screenshot_protection_disabled">已禁用 — 允许截屏和屏幕录制</string>
     <string name="settings_emergency_pin">紧急 PIN</string>
     <string name="settings_emergency_pin_active">已激活</string>
     <string name="settings_set_emergency_pin">设置紧急 PIN</string>

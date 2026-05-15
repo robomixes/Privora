@@ -223,6 +223,11 @@
     <string name="detect_replay_speech">Leer en voz alta</string>
     <string name="detect_stop_speech">Detener lectura</string>
     <string name="detect_tts_unavailable">No hay motor de texto a voz disponible — instala uno para usar la lectura en voz alta.</string>
+    <string name="settings_section_essentials">Esenciales</string>
+    <string name="settings_backup_migration">Copia de seguridad y migración</string>
+    <string name="settings_backup_migration_desc">Exporta una copia de seguridad cifrada o pasa a un nuevo dispositivo.</string>
+    <string name="settings_change_pin">Establecer / Cambiar PIN</string>
+    <string name="settings_change_pin_desc">Actualiza tu PIN de desbloqueo o la biometría.</string>
     <string name="settings_auto_ai_tag">Etiquetar fotos nuevas con IA automáticamente</string>
     <string name="settings_auto_ai_tag_desc">Genera descripciones y etiquetas de IA en segundo plano después de cada nueva foto. Consume batería — unos 10 s por foto en el motor de visión Gemma.</string>
     <string name="settings_process_all_ai">Procesar todas las fotos con IA…</string>
@@ -268,6 +273,7 @@
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Clave por instalación \u2022 Respaldada por hardware</string>
     <string name="settings_screenshot_protection">Protección de capturas de pantalla</string>
     <string name="settings_screenshot_protection_desc">Activada \u2014 capturas de pantalla y grabación de pantalla bloqueadas</string>
+    <string name="settings_screenshot_protection_disabled">Desactivada — capturas de pantalla y grabación de pantalla permitidas</string>
     <string name="settings_emergency_pin">PIN de emergencia</string>
     <string name="settings_emergency_pin_active">Activo</string>
     <string name="settings_set_emergency_pin">Configurar PIN de emergencia</string>

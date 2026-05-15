@@ -230,6 +230,11 @@
     <string name="detect_replay_speech">Read aloud</string>
     <string name="detect_stop_speech">Stop reading</string>
     <string name="detect_tts_unavailable">No text-to-speech engine available — install one to use read-aloud.</string>
+    <string name="settings_section_essentials">Essentials</string>
+    <string name="settings_backup_migration">Backup &amp; Migration</string>
+    <string name="settings_backup_migration_desc">Export an encrypted backup or move to a new device.</string>
+    <string name="settings_change_pin">Set / Change PIN</string>
+    <string name="settings_change_pin_desc">Update your unlock PIN or biometric.</string>
     <string name="settings_auto_ai_tag">Auto-tag new photos with AI</string>
     <string name="settings_auto_ai_tag_desc">Generates AI descriptions and tags in the background after each new photo is saved. Battery-intensive — ~10 sec per photo on the Gemma vision engine.</string>
     <string name="settings_process_all_ai">Process all photos with AI…</string>
@@ -282,6 +287,7 @@
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Per-install key \u2022 Hardware-backed</string>
     <string name="settings_screenshot_protection">Screenshot Protection</string>
     <string name="settings_screenshot_protection_desc">Enabled \u2014 screenshots and screen recording blocked</string>
+    <string name="settings_screenshot_protection_disabled">Disabled \u2014 screenshots and screen recording allowed</string>
     <string name="settings_emergency_pin">Emergency PIN</string>
     <string name="settings_emergency_pin_active">Active</string>
     <string name="settings_set_emergency_pin">Set Emergency PIN</string>

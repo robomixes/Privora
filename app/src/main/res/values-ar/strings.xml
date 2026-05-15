@@ -223,6 +223,11 @@
     <string name="detect_replay_speech">قراءة بصوت عالٍ</string>
     <string name="detect_stop_speech">إيقاف القراءة</string>
     <string name="detect_tts_unavailable">لا يوجد محرك تحويل النص إلى كلام — قم بتثبيت محرك لاستخدام القراءة بصوت عالٍ.</string>
+    <string name="settings_section_essentials">الأساسيات</string>
+    <string name="settings_backup_migration">النسخ الاحتياطي والترحيل</string>
+    <string name="settings_backup_migration_desc">صدّر نسخة احتياطية مشفّرة أو انتقل إلى جهاز جديد.</string>
+    <string name="settings_change_pin">تعيين / تغيير رمز PIN</string>
+    <string name="settings_change_pin_desc">حدّث رمز فتح القفل أو السمات الحيوية.</string>
     <string name="settings_auto_ai_tag">وضع علامات تلقائية على الصور الجديدة بالذكاء الاصطناعي</string>
     <string name="settings_auto_ai_tag_desc">يولد أوصاف وعلامات الذكاء الاصطناعي في الخلفية بعد حفظ كل صورة جديدة. يستهلك البطارية — نحو 10 ثوانٍ لكل صورة على محرك رؤية Gemma.</string>
     <string name="settings_process_all_ai">معالجة كل الصور بالذكاء الاصطناعي…</string>
@@ -268,6 +273,7 @@
     <string name="settings_encryption_desc">AES-256-GCM \u2022 مفتاح فريد لكل تثبيت \u2022 مدعوم بالعتاد</string>
     <string name="settings_screenshot_protection">حماية لقطات الشاشة</string>
     <string name="settings_screenshot_protection_desc">مفعّلة \u2014 لقطات الشاشة وتسجيل الشاشة محظوران</string>
+    <string name="settings_screenshot_protection_disabled">معطّلة — لقطات الشاشة وتسجيل الشاشة مسموحان</string>
     <string name="settings_emergency_pin">PIN الطوارئ</string>
     <string name="settings_emergency_pin_active">مفعّل</string>
     <string name="settings_set_emergency_pin">تعيين PIN الطوارئ</string>

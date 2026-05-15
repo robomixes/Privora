@@ -144,6 +144,116 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             return texts.any { it.contains(searchQuery, ignoreCase = true) }
         }
 
+        // Hoisted theme + language state so both the Essentials section
+        // (pinned at the top) and the Device section can trigger the same
+        // dialog without duplicating it.
+        var showThemeDialog by remember { mutableStateOf(false) }
+        var currentThemeMode by remember { mutableStateOf(com.privateai.camera.ui.theme.ThemePreference.mode) }
+        val themeNames = mapOf(
+            com.privateai.camera.ui.theme.ThemeMode.SYSTEM to stringResource(R.string.settings_theme_system),
+            com.privateai.camera.ui.theme.ThemeMode.LIGHT to stringResource(R.string.settings_theme_light),
+            com.privateai.camera.ui.theme.ThemeMode.DARK to stringResource(R.string.settings_theme_dark)
+        )
+
+        var showLanguageDialog by remember { mutableStateOf(false) }
+        var currentLang by remember {
+            mutableStateOf(
+                context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                    .getString("language", "system") ?: "system"
+            )
+        }
+        val langNames = mapOf(
+            "system" to stringResource(R.string.settings_language_system),
+            "en" to "English",
+            "ar" to "العربية",
+            "es" to "Español",
+            "fr" to "Français",
+            "tr" to "Türkçe",
+            "zh" to "中文"
+        )
+
+        if (showThemeDialog) {
+            AlertDialog(
+                onDismissRequest = { showThemeDialog = false },
+                title = { Text(stringResource(R.string.settings_theme)) },
+                text = {
+                    Column {
+                        themeNames.forEach { (mode, name) ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        currentThemeMode = mode
+                                        com.privateai.camera.ui.theme.ThemePreference.set(context, mode)
+                                        showThemeDialog = false
+                                    }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                androidx.compose.material3.RadioButton(
+                                    selected = currentThemeMode == mode,
+                                    onClick = {
+                                        currentThemeMode = mode
+                                        com.privateai.camera.ui.theme.ThemePreference.set(context, mode)
+                                        showThemeDialog = false
+                                    }
+                                )
+                                Text(name, modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+
+        if (showLanguageDialog) {
+            AlertDialog(
+                onDismissRequest = { showLanguageDialog = false },
+                title = { Text(stringResource(R.string.settings_language)) },
+                text = {
+                    Column {
+                        langNames.forEach { (code, name) ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        currentLang = code
+                                        context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                                            .edit().putString("language", code).apply()
+                                        if (code == "system") {
+                                            AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+                                        } else {
+                                            AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(code))
+                                        }
+                                        showLanguageDialog = false
+                                    }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                androidx.compose.material3.RadioButton(
+                                    selected = currentLang == code,
+                                    onClick = {
+                                        currentLang = code
+                                        context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                                            .edit().putString("language", code).apply()
+                                        if (code == "system") {
+                                            AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
+                                        } else {
+                                            AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(code))
+                                        }
+                                        showLanguageDialog = false
+                                    }
+                                )
+                                Text(name, modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+
         Column(
             Modifier
                 .fillMaxSize()
@@ -166,47 +276,108 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     .verticalScroll(rememberScrollState())
             ) {
 
+            // ─── Essentials section (always visible, no collapse toggle) ──────
+            //
+            // Pinned at the top of Settings so the most common controls are
+            // one tap away. Same prefs / dialogs as the deeper sections —
+            // these are just shortcuts. Hidden when a search query filters
+            // them out so the search results stay focused on matches.
+            val showEssentials = matchesSearch("Essentials", "Theme", "Dark", "Light", "Language", "AI", "Auto-tag", "AI labels", "Layout", "Grid", "Tabs", "Performance", "tier", "Device", "Screen lock", "Auto-lock", "Screenshot", "Recording")
+            if (showEssentials && !VaultLockManager.isDuressActive) {
+                SectionHeader(stringResource(R.string.settings_section_essentials))
+
+                // Layout selector (Grid vs Tabs) — first item: most users want
+                // to choose Grid or Tabs on day one and never touch it again.
+                var currentLayout by remember { mutableStateOf(FeatureToggleManager.getHomeLayout(context)) }
+                Text(
+                    stringResource(R.string.settings_layout_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    LayoutOption(
+                        selected = currentLayout == HomeLayout.GRID,
+                        title = stringResource(R.string.settings_layout_grid),
+                        description = stringResource(R.string.settings_layout_grid_desc),
+                        preview = "⊞",
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            FeatureToggleManager.setHomeLayout(context, HomeLayout.GRID)
+                            currentLayout = HomeLayout.GRID
+                        }
+                    )
+                    LayoutOption(
+                        selected = currentLayout == HomeLayout.TABS,
+                        title = stringResource(R.string.settings_layout_tabs),
+                        description = stringResource(R.string.settings_layout_tabs_desc),
+                        preview = "≡",
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            FeatureToggleManager.setHomeLayout(context, HomeLayout.TABS)
+                            currentLayout = HomeLayout.TABS
+                        }
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+
+                SettingsItem(
+                    icon = Icons.Default.Info,
+                    title = stringResource(R.string.settings_performance_tier, deviceProfile.tier),
+                    subtitle = DeviceProfiler.getTierDescription(deviceProfile.tier)
+                )
+
+                SettingsItem(
+                    icon = Icons.Default.DarkMode,
+                    title = stringResource(R.string.settings_theme),
+                    subtitle = themeNames[currentThemeMode] ?: stringResource(R.string.settings_theme_system),
+                    onClick = { showThemeDialog = true }
+                )
+
+                SettingsItem(
+                    icon = Icons.Default.Language,
+                    title = stringResource(R.string.settings_language),
+                    subtitle = langNames[currentLang] ?: stringResource(R.string.settings_language_system),
+                    onClick = { showLanguageDialog = true }
+                )
+
+                AppSettingToggle(
+                    context = context,
+                    key = "show_ai_labels",
+                    title = stringResource(R.string.settings_show_ai_labels),
+                    subtitle = stringResource(R.string.settings_show_ai_labels_desc),
+                    defaultValue = true
+                )
+
+                AppSettingToggle(
+                    context = context,
+                    key = "auto_ai_tag_new_photos",
+                    title = stringResource(R.string.settings_auto_ai_tag),
+                    subtitle = stringResource(R.string.settings_auto_ai_tag_desc),
+                    defaultValue = false
+                )
+
+                // Screen lock + screenshot protection — both also appear in the
+                // Security section (same prefs). Surfacing them here saves a
+                // collapse-tap for the most-used security controls.
+                ScreenshotProtectionSetting(context)
+                GracePeriodSetting(context)
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            }
+
             // Features section
             val showFeatures = matchesSearch("Home Screen Features", "Camera", "Detect", "Scan", "QR Scan", "Translate", "Vault", "Notes", "Insights", "Tools", "reorder")
             if (showFeatures) {
-            SectionHeader(stringResource(R.string.settings_section_home_features))
-
-            // Layout selector: Grid vs Tabs
-            var currentLayout by remember { mutableStateOf(FeatureToggleManager.getHomeLayout(context)) }
-            Text(
-                stringResource(R.string.settings_layout_title),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                LayoutOption(
-                    selected = currentLayout == HomeLayout.GRID,
-                    title = stringResource(R.string.settings_layout_grid),
-                    description = stringResource(R.string.settings_layout_grid_desc),
-                    preview = "\u229E",
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        FeatureToggleManager.setHomeLayout(context, HomeLayout.GRID)
-                        currentLayout = HomeLayout.GRID
-                    }
-                )
-                LayoutOption(
-                    selected = currentLayout == HomeLayout.TABS,
-                    title = stringResource(R.string.settings_layout_tabs),
-                    description = stringResource(R.string.settings_layout_tabs_desc),
-                    preview = "\u2261",
-                    modifier = Modifier.weight(1f),
-                    onClick = {
-                        FeatureToggleManager.setHomeLayout(context, HomeLayout.TABS)
-                        currentLayout = HomeLayout.TABS
-                    }
-                )
+            val expandedFeatures = rememberSectionExpansion(context, "features")
+            val effExpandedFeatures = expandedFeatures.value || searchQuery.isNotBlank()
+            CollapsibleSectionHeader(stringResource(R.string.settings_section_home_features), effExpandedFeatures) {
+                expandedFeatures.value = !expandedFeatures.value
             }
-            Spacer(Modifier.height(8.dp))
+            if (effExpandedFeatures) {
 
             val featureInfo = mapOf(
                 "camera" to Triple(stringResource(R.string.feature_camera), stringResource(R.string.feature_camera_desc), Icons.Default.CameraAlt),
@@ -279,12 +450,18 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end effExpandedFeatures
             } // end showFeatures
 
             // AI Detection section
             val showAiDetection = matchesSearch("AI Detection", "Confidence", "Detection Categories", "categories", "AI labels", "Show AI labels", "tags")
             if (showAiDetection) {
-            SectionHeader(stringResource(R.string.settings_section_ai_detection))
+            val expandedAi = rememberSectionExpansion(context, "ai_detection")
+            val effExpandedAi = expandedAi.value || searchQuery.isNotBlank()
+            CollapsibleSectionHeader(stringResource(R.string.settings_section_ai_detection), effExpandedAi) {
+                expandedAi.value = !expandedAi.value
+            }
+            if (effExpandedAi) {
 
             AppSettingToggle(
                 context = context,
@@ -314,153 +491,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     defaultValue = false
                 )
 
-                var showProcessAllDialog by remember { mutableStateOf(false) }
-                var pendingCounts by remember {
-                    mutableStateOf(com.privateai.camera.service.GemmaIndexingManager.PendingCounts(0, 0, 0))
-                }
-                var selectedMode by remember {
-                    mutableStateOf(com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH)
-                }
-                // Bulk-pass photo limit. Int.MAX_VALUE = "All". Other presets let
-                // the user chip away at a big library in chunks (e.g. start
-                // with 25 to feel the speed before committing to "all 5000").
-                var selectedLimit by remember { mutableStateOf(Int.MAX_VALUE) }
-                val gemmaRunning by com.privateai.camera.service.GemmaIndexingManager.isRunning.collectAsState()
-                val gemmaProgress by com.privateai.camera.service.GemmaIndexingManager.progress.collectAsState()
-
-                // Refresh pending counts when the manager flips running → idle
-                // so the dialog (and row subtitle) reflect the new state of
-                // photo_index without forcing the user to re-tap the row.
-                LaunchedEffect(gemmaRunning) {
-                    if (!gemmaRunning) {
-                        pendingCounts = withContext(Dispatchers.IO) {
-                            com.privateai.camera.service.GemmaIndexingManager.countPending(context)
-                        }
-                    }
-                }
-
-                SettingsItem(
-                    icon = Icons.Default.AutoAwesome,
-                    title = if (gemmaRunning) {
-                        stringResource(
-                            R.string.settings_process_all_ai_progress,
-                            gemmaProgress.first, gemmaProgress.second
-                        )
-                    } else {
-                        stringResource(R.string.settings_process_all_ai)
-                    },
-                    subtitle = if (!gemmaRunning && pendingCounts.both > 0) {
-                        stringResource(R.string.settings_process_all_ai_pending, pendingCounts.both)
-                    } else {
-                        stringResource(R.string.settings_process_all_ai_desc)
-                    },
-                    onClick = {
-                        if (gemmaRunning) {
-                            // Tap while running cancels.
-                            com.privateai.camera.service.GemmaIndexingManager.stop()
-                        } else {
-                            scope.launch {
-                                pendingCounts = withContext(Dispatchers.IO) {
-                                    com.privateai.camera.service.GemmaIndexingManager.countPending(context)
-                                }
-                                selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH
-                                showProcessAllDialog = true
-                            }
-                        }
-                    }
-                )
-
-                if (showProcessAllDialog) {
-                    val modeAvailableCount = when (selectedMode) {
-                        com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY -> pendingCounts.description
-                        com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY -> pendingCounts.tags
-                        com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH -> pendingCounts.both
-                    }
-                    val selectedCount = minOf(modeAvailableCount, selectedLimit)
-                    // Per-photo cost: BOTH = ~10s (two Gemma calls);
-                    // DESC_ONLY / TAGS_ONLY = ~5s (one call).
-                    val perPhotoSec = if (selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH) 10 else 5
-                    val etaMin = (selectedCount * perPhotoSec + 59) / 60
-                    AlertDialog(
-                        onDismissRequest = { showProcessAllDialog = false },
-                        title = { Text(stringResource(R.string.settings_process_all_ai)) },
-                        text = {
-                            Column {
-                                Text(
-                                    stringResource(R.string.settings_process_all_ai_pick_mode),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                )
-                                ModeRow(
-                                    label = stringResource(R.string.settings_process_mode_description),
-                                    count = pendingCounts.description,
-                                    selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY,
-                                    onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY }
-                                )
-                                ModeRow(
-                                    label = stringResource(R.string.settings_process_mode_tags),
-                                    count = pendingCounts.tags,
-                                    selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY,
-                                    onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY }
-                                )
-                                ModeRow(
-                                    label = stringResource(R.string.settings_process_mode_both),
-                                    count = pendingCounts.both,
-                                    selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH,
-                                    onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH }
-                                )
-
-                                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
-                                Text(
-                                    stringResource(R.string.settings_process_all_ai_pick_limit),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                                val limitOptions = listOf(25, 100, 500, Int.MAX_VALUE)
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    limitOptions.forEach { lim ->
-                                        val label = if (lim == Int.MAX_VALUE)
-                                            stringResource(R.string.settings_process_limit_all)
-                                        else lim.toString()
-                                        FilterChip(
-                                            selected = selectedLimit == lim,
-                                            onClick = { selectedLimit = lim },
-                                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
-                                        )
-                                    }
-                                }
-
-                                Text(
-                                    if (selectedLimit == Int.MAX_VALUE)
-                                        stringResource(R.string.settings_process_all_ai_eta, etaMin)
-                                    else
-                                        stringResource(R.string.settings_process_all_ai_eta_capped, selectedCount, etaMin),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 8.dp)
-                                )
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(
-                                onClick = {
-                                    showProcessAllDialog = false
-                                    com.privateai.camera.service.GemmaIndexingManager.processAll(context, selectedMode, selectedLimit)
-                                },
-                                enabled = selectedCount > 0
-                            ) { Text(stringResource(R.string.action_process)) }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showProcessAllDialog = false }) {
-                                Text(stringResource(R.string.action_cancel))
-                            }
-                        }
-                    )
-                }
+                // ("Process all photos with AI…" moved to Advanced section.)
             }
 
             var showCategoriesDialog by remember { mutableStateOf(false) }
@@ -509,12 +540,18 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end effExpandedAi
             } // end showAiDetection
 
             // Device section
             val showDevice = matchesSearch("Device", "Performance Tier", "Device Info", "Re-benchmark", "benchmark", "Language")
             if (showDevice) {
-            SectionHeader(stringResource(R.string.settings_section_device))
+            val expandedDevice = rememberSectionExpansion(context, "device")
+            val effExpandedDevice = expandedDevice.value || searchQuery.isNotBlank()
+            CollapsibleSectionHeader(stringResource(R.string.settings_section_device), effExpandedDevice) {
+                expandedDevice.value = !expandedDevice.value
+            }
+            if (effExpandedDevice) {
 
             SettingsItem(
                 icon = Icons.Default.Info,
@@ -539,74 +576,14 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 }
             )
 
-            // Theme setting (SYSTEM / LIGHT / DARK)
-            var showThemeDialog by remember { mutableStateOf(false) }
-            var currentThemeMode by remember { mutableStateOf(com.privateai.camera.ui.theme.ThemePreference.mode) }
-            val themeNames = mapOf(
-                com.privateai.camera.ui.theme.ThemeMode.SYSTEM to stringResource(R.string.settings_theme_system),
-                com.privateai.camera.ui.theme.ThemeMode.LIGHT to stringResource(R.string.settings_theme_light),
-                com.privateai.camera.ui.theme.ThemeMode.DARK to stringResource(R.string.settings_theme_dark)
-            )
-
+            // Theme + Language: state + dialogs hoisted to SettingsScreen top
+            // so the Essentials section can trigger the same picker without
+            // duplicating it. Only the row entries live here.
             SettingsItem(
                 icon = Icons.Default.DarkMode,
                 title = stringResource(R.string.settings_theme),
                 subtitle = themeNames[currentThemeMode] ?: stringResource(R.string.settings_theme_system),
                 onClick = { showThemeDialog = true }
-            )
-
-            if (showThemeDialog) {
-                AlertDialog(
-                    onDismissRequest = { showThemeDialog = false },
-                    title = { Text(stringResource(R.string.settings_theme)) },
-                    text = {
-                        Column {
-                            themeNames.forEach { (mode, name) ->
-                                Row(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            currentThemeMode = mode
-                                            com.privateai.camera.ui.theme.ThemePreference.set(context, mode)
-                                            showThemeDialog = false
-                                        }
-                                        .padding(vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    androidx.compose.material3.RadioButton(
-                                        selected = currentThemeMode == mode,
-                                        onClick = {
-                                            currentThemeMode = mode
-                                            com.privateai.camera.ui.theme.ThemePreference.set(context, mode)
-                                            showThemeDialog = false
-                                        }
-                                    )
-                                    Text(name, modifier = Modifier.padding(start = 8.dp))
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {}
-                )
-            }
-
-            // Language setting
-            var showLanguageDialog by remember { mutableStateOf(false) }
-            var currentLang by remember {
-                mutableStateOf(
-                    context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-                        .getString("language", "system") ?: "system"
-                )
-            }
-
-            val langNames = mapOf(
-                "system" to stringResource(R.string.settings_language_system),
-                "en" to "English",
-                "ar" to "\u0627\u0644\u0639\u0631\u0628\u064A\u0629",
-                "es" to "Espa\u00F1ol",
-                "fr" to "Fran\u00E7ais",
-                "tr" to "T\u00FCrk\u00E7e",
-                "zh" to "中文"
             )
 
             SettingsItem(
@@ -616,60 +593,19 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 onClick = { showLanguageDialog = true }
             )
 
-            if (showLanguageDialog) {
-                AlertDialog(
-                    onDismissRequest = { showLanguageDialog = false },
-                    title = { Text(stringResource(R.string.settings_language)) },
-                    text = {
-                        Column {
-                            langNames.forEach { (code, name) ->
-                                Row(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            currentLang = code
-                                            context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-                                                .edit().putString("language", code).apply()
-                                            if (code == "system") {
-                                                AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
-                                            } else {
-                                                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(code))
-                                            }
-                                            showLanguageDialog = false
-                                        }
-                                        .padding(vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    androidx.compose.material3.RadioButton(
-                                        selected = currentLang == code,
-                                        onClick = {
-                                            currentLang = code
-                                            context.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-                                                .edit().putString("language", code).apply()
-                                            if (code == "system") {
-                                                AppCompatDelegate.setApplicationLocales(LocaleListCompat.getEmptyLocaleList())
-                                            } else {
-                                                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(code))
-                                            }
-                                            showLanguageDialog = false
-                                        }
-                                    )
-                                    Text(name, modifier = Modifier.padding(start = 8.dp))
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {}
-                )
-            }
-
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end effExpandedDevice
             } // end showDevice
 
             // Camera section
             val showCamera = matchesSearch("Camera", "Countdown", "Timer", "Self-timer", "Delay")
             if (showCamera) {
-                SectionHeader(stringResource(R.string.settings_section_camera))
+                val expandedCamera = rememberSectionExpansion(context, "camera")
+                val effExpandedCamera = expandedCamera.value || searchQuery.isNotBlank()
+                CollapsibleSectionHeader(stringResource(R.string.settings_section_camera), effExpandedCamera) {
+                    expandedCamera.value = !expandedCamera.value
+                }
+                if (effExpandedCamera) {
 
                 val cameraPref = remember { context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE) }
                 var countdownSec by remember { mutableIntStateOf(cameraPref.getInt("countdown_seconds", 5)) }
@@ -772,12 +708,18 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     Text("Fewer groups", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Spacer(Modifier.height(8.dp))
+                } // end effExpandedCamera
             }
 
             // Security section
             val showSecurity = matchesSearch("Security", "Encryption", "Screenshot Protection", "Emergency PIN", "Grace period", "Auto-lock")
             if (showSecurity) {
-            SectionHeader(stringResource(R.string.settings_section_security))
+            val expandedSecurity = rememberSectionExpansion(context, "security")
+            val effExpandedSecurity = expandedSecurity.value || searchQuery.isNotBlank()
+            CollapsibleSectionHeader(stringResource(R.string.settings_section_security), effExpandedSecurity) {
+                expandedSecurity.value = !expandedSecurity.value
+            }
+            if (effExpandedSecurity) {
 
             SettingsItem(
                 icon = Icons.Default.Lock,
@@ -785,53 +727,23 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 subtitle = stringResource(R.string.settings_encryption_desc)
             )
 
-            val screenshotPref = remember { context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE) }
-            var screenshotBlocked by remember { mutableStateOf(screenshotPref.getBoolean("block_screenshots", true)) }
-            Row(
-                Modifier.fillMaxWidth().clickable {
-                    screenshotBlocked = !screenshotBlocked
-                    screenshotPref.edit().putBoolean("block_screenshots", screenshotBlocked).apply()
-                    // Apply immediately
-                    val activity = context as? android.app.Activity
-                    if (screenshotBlocked) {
-                        activity?.window?.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)
-                    } else {
-                        activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
-                    }
-                }.padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Security, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Column(Modifier.weight(1f).padding(start = 16.dp)) {
-                    Text(stringResource(R.string.settings_screenshot_protection), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        if (screenshotBlocked) stringResource(R.string.settings_screenshot_protection_desc)
-                        else "Disabled — screenshots and screen recording allowed",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(checked = screenshotBlocked, onCheckedChange = {
-                    screenshotBlocked = it
-                    screenshotPref.edit().putBoolean("block_screenshots", screenshotBlocked).apply()
-                    val activity = context as? android.app.Activity
-                    if (screenshotBlocked) {
-                        activity?.window?.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)
-                    } else {
-                        activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
-                    }
-                })
-            }
+            ScreenshotProtectionSetting(context)
 
             GracePeriodSetting(context)
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end effExpandedSecurity
             } // end showSecurity
 
             // Storage section
             val showStorage = matchesSearch("Storage", "Vault", "Notes", "Cache", "Device Storage", "Clear Cache")
             if (showStorage) {
-            SectionHeader(stringResource(R.string.settings_section_storage))
+            val expandedStorage = rememberSectionExpansion(context, "storage")
+            val effExpandedStorage = expandedStorage.value || searchQuery.isNotBlank()
+            CollapsibleSectionHeader(stringResource(R.string.settings_section_storage), effExpandedStorage) {
+                expandedStorage.value = !expandedStorage.value
+            }
+            if (effExpandedStorage) {
 
             SettingsItem(
                 icon = Icons.Default.Storage,
@@ -877,12 +789,18 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end effExpandedStorage
             } // end showStorage
 
             // Privacy section
             val showPrivacy = matchesSearch("Privacy", "EXIF", "Face Blur", "Network Policy", "Backup Exclusion", "Voice", "Noise")
             if (showPrivacy) {
-            SectionHeader(stringResource(R.string.settings_section_privacy))
+            val expandedPrivacy = rememberSectionExpansion(context, "privacy")
+            val effExpandedPrivacy = expandedPrivacy.value || searchQuery.isNotBlank()
+            CollapsibleSectionHeader(stringResource(R.string.settings_section_privacy), effExpandedPrivacy) {
+                expandedPrivacy.value = !expandedPrivacy.value
+            }
+            if (effExpandedPrivacy) {
 
             SettingsItem(
                 icon = Icons.Default.Security,
@@ -918,6 +836,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            } // end effExpandedPrivacy
             } // end showPrivacy
 
             // (Backup & Migration moved to Advanced section)
@@ -927,7 +846,12 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             // About section
             val showAbout = matchesSearch("About", "Privora", "Version", "Crash Logs", "Privacy Policy", "Privacy Promise")
             if (showAbout) {
-            SectionHeader(stringResource(R.string.settings_section_about))
+            val expandedAbout = rememberSectionExpansion(context, "about")
+            val effExpandedAbout = expandedAbout.value || searchQuery.isNotBlank()
+            CollapsibleSectionHeader(stringResource(R.string.settings_section_about), effExpandedAbout) {
+                expandedAbout.value = !expandedAbout.value
+            }
+            if (effExpandedAbout) {
 
             SettingsItem(
                 icon = Icons.Default.Info,
@@ -1045,6 +969,7 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     )
                 }
             }
+            } // end effExpandedAbout
             } // end showAbout
 
             // ─── Advanced Section (auth-gated, hidden during duress) ──────────
@@ -1700,6 +1625,151 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                                 }
                             )
                         }
+
+                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+
+                        // ── Process all photos with AI (moved from AI Detection)
+                        // Heavy operation (~5-10 s per photo on the Gemma vision
+                        // engine). Lives under Advanced now so it's not the first
+                        // thing a casual user sees in the AI Detection section.
+                        var showProcessAllDialog by remember { mutableStateOf(false) }
+                        var pendingCounts by remember {
+                            mutableStateOf(com.privateai.camera.service.GemmaIndexingManager.PendingCounts(0, 0, 0))
+                        }
+                        var selectedMode by remember {
+                            mutableStateOf(com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH)
+                        }
+                        var selectedLimit by remember { mutableStateOf(Int.MAX_VALUE) }
+                        val gemmaRunning by com.privateai.camera.service.GemmaIndexingManager.isRunning.collectAsState()
+                        val gemmaProgress by com.privateai.camera.service.GemmaIndexingManager.progress.collectAsState()
+
+                        LaunchedEffect(gemmaRunning) {
+                            if (!gemmaRunning) {
+                                pendingCounts = withContext(Dispatchers.IO) {
+                                    com.privateai.camera.service.GemmaIndexingManager.countPending(context)
+                                }
+                            }
+                        }
+
+                        SettingsItem(
+                            icon = Icons.Default.AutoAwesome,
+                            title = if (gemmaRunning) {
+                                stringResource(
+                                    R.string.settings_process_all_ai_progress,
+                                    gemmaProgress.first, gemmaProgress.second
+                                )
+                            } else {
+                                stringResource(R.string.settings_process_all_ai)
+                            },
+                            subtitle = if (!gemmaRunning && pendingCounts.both > 0) {
+                                stringResource(R.string.settings_process_all_ai_pending, pendingCounts.both)
+                            } else {
+                                stringResource(R.string.settings_process_all_ai_desc)
+                            },
+                            onClick = {
+                                if (gemmaRunning) {
+                                    com.privateai.camera.service.GemmaIndexingManager.stop()
+                                } else {
+                                    scope.launch {
+                                        pendingCounts = withContext(Dispatchers.IO) {
+                                            com.privateai.camera.service.GemmaIndexingManager.countPending(context)
+                                        }
+                                        selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH
+                                        showProcessAllDialog = true
+                                    }
+                                }
+                            }
+                        )
+
+                        if (showProcessAllDialog) {
+                            val modeAvailableCount = when (selectedMode) {
+                                com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY -> pendingCounts.description
+                                com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY -> pendingCounts.tags
+                                com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH -> pendingCounts.both
+                            }
+                            val selectedCount = minOf(modeAvailableCount, selectedLimit)
+                            val perPhotoSec = if (selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH) 10 else 5
+                            val etaMin = (selectedCount * perPhotoSec + 59) / 60
+                            AlertDialog(
+                                onDismissRequest = { showProcessAllDialog = false },
+                                title = { Text(stringResource(R.string.settings_process_all_ai)) },
+                                text = {
+                                    Column {
+                                        Text(
+                                            stringResource(R.string.settings_process_all_ai_pick_mode),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            modifier = Modifier.padding(bottom = 8.dp)
+                                        )
+                                        ModeRow(
+                                            label = stringResource(R.string.settings_process_mode_description),
+                                            count = pendingCounts.description,
+                                            selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY,
+                                            onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY }
+                                        )
+                                        ModeRow(
+                                            label = stringResource(R.string.settings_process_mode_tags),
+                                            count = pendingCounts.tags,
+                                            selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY,
+                                            onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY }
+                                        )
+                                        ModeRow(
+                                            label = stringResource(R.string.settings_process_mode_both),
+                                            count = pendingCounts.both,
+                                            selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH,
+                                            onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH }
+                                        )
+
+                                        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+                                        Text(
+                                            stringResource(R.string.settings_process_all_ai_pick_limit),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            modifier = Modifier.padding(bottom = 4.dp)
+                                        )
+                                        val limitOptions = listOf(25, 100, 500, Int.MAX_VALUE)
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            limitOptions.forEach { lim ->
+                                                val label = if (lim == Int.MAX_VALUE)
+                                                    stringResource(R.string.settings_process_limit_all)
+                                                else lim.toString()
+                                                FilterChip(
+                                                    selected = selectedLimit == lim,
+                                                    onClick = { selectedLimit = lim },
+                                                    label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                                                )
+                                            }
+                                        }
+
+                                        Text(
+                                            if (selectedLimit == Int.MAX_VALUE)
+                                                stringResource(R.string.settings_process_all_ai_eta, etaMin)
+                                            else
+                                                stringResource(R.string.settings_process_all_ai_eta_capped, selectedCount, etaMin),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(top = 8.dp)
+                                        )
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = {
+                                            showProcessAllDialog = false
+                                            com.privateai.camera.service.GemmaIndexingManager.processAll(context, selectedMode, selectedLimit)
+                                        },
+                                        enabled = selectedCount > 0
+                                    ) { Text(stringResource(R.string.action_process)) }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showProcessAllDialog = false }) {
+                                        Text(stringResource(R.string.action_cancel))
+                                    }
+                                }
+                            )
+                        }
                     }
                 } // end showAdvanced
             } // end !isDuressActive
@@ -1718,6 +1788,60 @@ private fun SectionHeader(title: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
     )
+}
+
+/**
+ * Header row for a collapsible section. Whole row is clickable; trailing
+ * chevron rotates to indicate expand/collapse state. Used by every Settings
+ * section so the page opens short and the user expands what they need.
+ */
+@Composable
+private fun CollapsibleSectionHeader(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/**
+ * Per-section expand state persisted to SharedPreferences("settings_ui_state"),
+ * so a section the user has opened stays open across launches. Caller is
+ * responsible for combining the returned state with a search override (force
+ * expand when the search query is non-blank).
+ */
+@Composable
+private fun rememberSectionExpansion(
+    context: Context,
+    sectionKey: String
+): androidx.compose.runtime.MutableState<Boolean> {
+    val prefs = remember { context.getSharedPreferences("settings_ui_state", Context.MODE_PRIVATE) }
+    val state = remember(sectionKey) {
+        mutableStateOf(prefs.getBoolean("expanded_$sectionKey", false))
+    }
+    LaunchedEffect(state.value) {
+        prefs.edit().putBoolean("expanded_$sectionKey", state.value).apply()
+    }
+    return state
 }
 
 @Composable
@@ -1947,6 +2071,57 @@ private fun ModeRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+/**
+ * Block screenshots + screen recording (FLAG_SECURE) toggle. Extracted into a
+ * reusable composable so both the Security section and the Essentials section
+ * can mount it — they share the same `privacy_settings/block_screenshots`
+ * pref so toggling in one updates the other on next recomposition.
+ */
+@Composable
+private fun ScreenshotProtectionSetting(context: android.content.Context) {
+    val prefs = remember { context.getSharedPreferences("privacy_settings", android.content.Context.MODE_PRIVATE) }
+    var blocked by remember { mutableStateOf(prefs.getBoolean("block_screenshots", true)) }
+
+    fun applyFlag(value: Boolean) {
+        prefs.edit().putBoolean("block_screenshots", value).apply()
+        val activity = context as? android.app.Activity
+        if (value) {
+            activity?.window?.setFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                android.view.WindowManager.LayoutParams.FLAG_SECURE
+            )
+        } else {
+            activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable {
+                blocked = !blocked
+                applyFlag(blocked)
+            }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.Security, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f).padding(start = 16.dp)) {
+            Text(stringResource(R.string.settings_screenshot_protection), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                if (blocked) stringResource(R.string.settings_screenshot_protection_desc)
+                else stringResource(R.string.settings_screenshot_protection_disabled),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = blocked, onCheckedChange = {
+            blocked = it
+            applyFlag(it)
+        })
     }
 }
 

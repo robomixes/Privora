@@ -232,6 +232,7 @@
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Clé unique par installation \u2022 Matériel sécurisé</string>
     <string name="settings_screenshot_protection">Protection contre les captures d\'\u00E9cran</string>
     <string name="settings_screenshot_protection_desc">Activée \u2014 captures d\'\u00E9cran et enregistrement d\'\u00E9cran bloqués</string>
+    <string name="settings_screenshot_protection_disabled">Désactivée — captures d\'écran et enregistrement d\'écran autorisés</string>
     <string name="settings_emergency_pin">PIN d\'urgence</string>
     <string name="settings_emergency_pin_active">Actif</string>
     <string name="settings_set_emergency_pin">Définir un PIN d\'urgence</string>
@@ -993,6 +994,11 @@
     <string name="detect_replay_speech">Lire à voix haute</string>
     <string name="detect_stop_speech">Arrêter la lecture</string>
     <string name="detect_tts_unavailable">Aucun moteur de synthèse vocale disponible — installez-en un pour utiliser la lecture à voix haute.</string>
+    <string name="settings_section_essentials">L\'essentiel</string>
+    <string name="settings_backup_migration">Sauvegarde et migration</string>
+    <string name="settings_backup_migration_desc">Exportez une sauvegarde chiffrée ou déplacez-vous vers un nouvel appareil.</string>
+    <string name="settings_change_pin">Définir / Modifier le PIN</string>
+    <string name="settings_change_pin_desc">Mettez à jour votre PIN ou votre biométrie de déverrouillage.</string>
     <string name="settings_auto_ai_tag">Étiqueter automatiquement les nouvelles photos avec l\'IA</string>
     <string name="settings_auto_ai_tag_desc">Génère descriptions et étiquettes IA en arrière-plan après chaque nouvelle photo. Gourmand en batterie — environ 10 s par photo sur le moteur de vision Gemma.</string>
     <string name="settings_process_all_ai">Traiter toutes les photos avec l\'IA…</string>
