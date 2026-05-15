@@ -3,14 +3,20 @@
 
 package com.privateai.camera.bridge
 
+import android.graphics.Bitmap
+import android.util.Base64
+import com.privateai.camera.security.ContactRepository
+import com.privateai.camera.security.FolderManager
 import com.privateai.camera.security.InsightsRepository
 import com.privateai.camera.security.NoteRepository
+import com.privateai.camera.security.PhotoIndex
 import com.privateai.camera.security.SecureNote
 import com.privateai.camera.security.VaultCategory
 import com.privateai.camera.security.VaultMediaType
 import com.privateai.camera.security.VaultRepository
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -56,7 +62,7 @@ sealed class ParsedReply {
                 // error rather than leaking raw JSON to the chat.
                 val knownTools = setOf(
                     "search_notes", "fetch_note", "summarize_expenses",
-                    "summarize_document", "ask_document"
+                    "summarize_document", "ask_document", "search_photos"
                 )
                 val effectiveToolName = when {
                     type == "tool" -> json.optString("name", "")
@@ -373,5 +379,235 @@ object AssistantTools {
             put("truncated", clipped)
             put("originalLength", text.length)
         }.toString()
+    }
+
+    // ───────── Photo search (Track F) ─────────
+    //
+    // Bridges Gemma's free-form "Anas with dogs"-style queries to
+    // [PhotoIndex.searchByPersonAndTags]. Returns up to [MAX_PHOTO_THUMBS]
+    // base64-encoded thumbnails so the host can render them in a chat bubble
+    // without inventing a separate media channel through the string-only
+    // tool-result pipeline.
+
+    private const val MAX_PHOTO_THUMBS = 6
+    /** Hard cap on b64-encoded JPEG size; thumbnails are typically <20 KB. */
+    private const val THUMB_JPEG_QUALITY = 70
+
+    /**
+     * Find vault photos by mixing a person hint and topic words. Returns a JSON
+     * payload the host parses for both the model's textual context (count,
+     * detectedPerson, residualQuery) AND for rendering the inline thumb strip
+     * in the chat bubble.
+     */
+    fun searchPhotos(
+        photoIndex: PhotoIndex,
+        contactRepo: ContactRepository,
+        vault: VaultRepository,
+        folderManager: FolderManager,
+        query: String
+    ): String {
+        if (query.isBlank()) {
+            return """{"error":"search_photos needs a query."}"""
+        }
+
+        // Detect "last saturday" / "yesterday" / "this month"-style phrases
+        // and lift them out of the query before the label/face search. Pure
+        // date-only queries ("show me last saturday photos") fall through to
+        // a date-only filter over the full vault.
+        val dateMatch = parseDateRange(query)
+        val cleanedQuery = (dateMatch?.let { stripDatePhrase(query, it.matchedPhrase) } ?: query).trim()
+
+        // Build the full photo lookup once (categories + folders).
+        val fromCats = vault.listAllPhotos()
+        val fromFolders = folderManager.listAllFolders().flatMap { f ->
+            vault.listFolderItems(folderManager.getFolderDir(f.id))
+        }
+        val allPhotos = (fromCats + fromFolders).distinctBy { it.id }
+        val photoById = allPhotos.associateBy { it.id }
+
+        // Three modes:
+        //  • pure date  → all photos in range, newest first
+        //  • date+rest  → run searchByPersonAndTags on rest, then filter by date
+        //  • no date    → run searchByPersonAndTags directly
+        val detectedPerson: String?
+        val residualQuery: String
+        val rankedPhotos: List<com.privateai.camera.security.VaultPhoto>
+        if (cleanedQuery.isBlank()) {
+            // Pure date-only query
+            detectedPerson = null
+            residualQuery = ""
+            val range = dateMatch?.range
+            rankedPhotos = if (range != null) {
+                allPhotos.filter { it.timestamp in range }
+                    .sortedByDescending { it.timestamp }
+            } else emptyList()
+        } else {
+            val result = photoIndex.searchByPersonAndTags(contactRepo, cleanedQuery, limit = 500)
+            detectedPerson = result.detectedPerson
+            residualQuery = result.residualQuery
+            val matchedIds = result.photoIds
+            val matched = matchedIds.mapNotNull { photoById[it] }
+            rankedPhotos = if (dateMatch != null) {
+                matched.filter { it.timestamp in dateMatch.range }
+            } else matched
+        }
+
+        if (rankedPhotos.isEmpty()) {
+            return JSONObject().apply {
+                put("detectedPerson", detectedPerson ?: JSONObject.NULL)
+                put("residualQuery", residualQuery)
+                put("detectedDate", dateMatch?.matchedPhrase ?: JSONObject.NULL)
+                put("total", 0)
+                put("photos", JSONArray())
+            }.toString()
+        }
+
+        val topPhotos = rankedPhotos.take(MAX_PHOTO_THUMBS)
+
+        val thumbs = JSONArray()
+        for (photo in topPhotos) {
+            val id = photo.id
+            val bmp = vault.loadThumbnail(photo) ?: continue
+            val b64 = bitmapToB64(bmp)
+            bmp.recycle()
+            thumbs.put(JSONObject().apply {
+                put("id", id)
+                put("thumb", b64)
+                put("ts", photo.timestamp)
+            })
+        }
+
+        return JSONObject().apply {
+            put("detectedPerson", detectedPerson ?: JSONObject.NULL)
+            put("residualQuery", residualQuery)
+            put("detectedDate", dateMatch?.matchedPhrase ?: JSONObject.NULL)
+            put("total", rankedPhotos.size)
+            put("photos", thumbs)
+        }.toString()
+    }
+
+    private fun bitmapToB64(bitmap: Bitmap): String {
+        val baos = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, THUMB_JPEG_QUALITY, baos)
+        return Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+    }
+
+    /** Detected date phrase in a query, with the millis range it covers and the phrase that matched. */
+    private data class DateRangeMatch(val range: LongRange, val matchedPhrase: String)
+
+    /**
+     * Parse common date phrases out of a search query. Recognizes:
+     *   • today, yesterday
+     *   • this week / last week, this month / last month, this year / last year
+     *   • last <weekday> (last saturday, last monday, ...)
+     *   • ISO date "YYYY-MM-DD"
+     * Returns null when no phrase is found. The matched phrase is returned so
+     * the caller can strip it from the query before doing tag/face search.
+     */
+    private fun parseDateRange(query: String, nowMillis: Long = System.currentTimeMillis()): DateRangeMatch? {
+        val lc = query.lowercase()
+
+        fun calAt(): Calendar = Calendar.getInstance().apply { timeInMillis = nowMillis }
+        fun startOfDay(c: Calendar) {
+            c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0)
+            c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
+        }
+        fun endOfDay(c: Calendar) {
+            c.set(Calendar.HOUR_OF_DAY, 23); c.set(Calendar.MINUTE, 59)
+            c.set(Calendar.SECOND, 59); c.set(Calendar.MILLISECOND, 999)
+        }
+
+        // ISO date: YYYY-MM-DD
+        Regex("""\b(\d{4})-(\d{2})-(\d{2})\b""").find(lc)?.let { m ->
+            val y = m.groupValues[1].toInt(); val mo = m.groupValues[2].toInt() - 1; val d = m.groupValues[3].toInt()
+            val c = Calendar.getInstance().apply { clear(); set(y, mo, d) }
+            val start = c.timeInMillis
+            endOfDay(c); val end = c.timeInMillis
+            return DateRangeMatch(start..end, m.value)
+        }
+
+        if (lc.contains("yesterday")) {
+            val c = calAt(); c.add(Calendar.DAY_OF_YEAR, -1); startOfDay(c); val start = c.timeInMillis
+            endOfDay(c); return DateRangeMatch(start..c.timeInMillis, "yesterday")
+        }
+        if (lc.contains("today")) {
+            val c = calAt(); startOfDay(c); val start = c.timeInMillis
+            endOfDay(c); return DateRangeMatch(start..c.timeInMillis, "today")
+        }
+
+        if (lc.contains("last week")) {
+            val c = calAt()
+            // Move to Monday of this week, then subtract 7 days → last Monday
+            val dow = c.get(Calendar.DAY_OF_WEEK)
+            val daysSinceMonday = if (dow == Calendar.SUNDAY) 6 else dow - Calendar.MONDAY
+            c.add(Calendar.DAY_OF_YEAR, -daysSinceMonday - 7); startOfDay(c)
+            val start = c.timeInMillis
+            c.add(Calendar.DAY_OF_YEAR, 6); endOfDay(c)
+            return DateRangeMatch(start..c.timeInMillis, "last week")
+        }
+        if (lc.contains("this week")) {
+            val c = calAt()
+            val dow = c.get(Calendar.DAY_OF_WEEK)
+            val daysSinceMonday = if (dow == Calendar.SUNDAY) 6 else dow - Calendar.MONDAY
+            c.add(Calendar.DAY_OF_YEAR, -daysSinceMonday); startOfDay(c)
+            val start = c.timeInMillis
+            val end = calAt().also { endOfDay(it) }.timeInMillis
+            return DateRangeMatch(start..end, "this week")
+        }
+
+        if (lc.contains("last month")) {
+            val c = calAt(); c.add(Calendar.MONTH, -1); c.set(Calendar.DAY_OF_MONTH, 1); startOfDay(c)
+            val start = c.timeInMillis
+            c.set(Calendar.DAY_OF_MONTH, c.getActualMaximum(Calendar.DAY_OF_MONTH)); endOfDay(c)
+            return DateRangeMatch(start..c.timeInMillis, "last month")
+        }
+        if (lc.contains("this month")) {
+            val c = calAt(); c.set(Calendar.DAY_OF_MONTH, 1); startOfDay(c)
+            val start = c.timeInMillis
+            val end = calAt().also { endOfDay(it) }.timeInMillis
+            return DateRangeMatch(start..end, "this month")
+        }
+
+        if (lc.contains("last year")) {
+            val c = calAt(); c.add(Calendar.YEAR, -1)
+            c.set(Calendar.MONTH, 0); c.set(Calendar.DAY_OF_MONTH, 1); startOfDay(c)
+            val start = c.timeInMillis
+            c.set(Calendar.MONTH, 11); c.set(Calendar.DAY_OF_MONTH, 31); endOfDay(c)
+            return DateRangeMatch(start..c.timeInMillis, "last year")
+        }
+        if (lc.contains("this year")) {
+            val c = calAt(); c.set(Calendar.MONTH, 0); c.set(Calendar.DAY_OF_MONTH, 1); startOfDay(c)
+            val start = c.timeInMillis
+            val end = calAt().also { endOfDay(it) }.timeInMillis
+            return DateRangeMatch(start..end, "this year")
+        }
+
+        // "last <weekday>" — finds the most recent occurrence of that weekday
+        // strictly before today. e.g. on Friday, "last saturday" is 6 days ago.
+        val weekdays = mapOf(
+            "monday" to Calendar.MONDAY, "tuesday" to Calendar.TUESDAY,
+            "wednesday" to Calendar.WEDNESDAY, "thursday" to Calendar.THURSDAY,
+            "friday" to Calendar.FRIDAY, "saturday" to Calendar.SATURDAY,
+            "sunday" to Calendar.SUNDAY
+        )
+        for ((name, dow) in weekdays) {
+            val phrase = "last $name"
+            if (lc.contains(phrase)) {
+                val c = calAt()
+                var days = (c.get(Calendar.DAY_OF_WEEK) - dow + 7) % 7
+                if (days == 0) days = 7
+                c.add(Calendar.DAY_OF_YEAR, -days); startOfDay(c)
+                val start = c.timeInMillis
+                endOfDay(c)
+                return DateRangeMatch(start..c.timeInMillis, phrase)
+            }
+        }
+
+        return null
+    }
+
+    /** Remove the matched date phrase from the query, case-insensitive. */
+    private fun stripDatePhrase(query: String, phrase: String): String {
+        return Regex("\\s*${Regex.escape(phrase)}\\s*", RegexOption.IGNORE_CASE).replace(query, " ").trim()
     }
 }

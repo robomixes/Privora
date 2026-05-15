@@ -208,7 +208,7 @@ fun AssistantScreen(
                 // Final pass: replace the streaming bubble with the cleaned
                 // answer + any proposed action (or append a fresh one if nothing
                 // streamed — e.g. the model emitted only an action JSON we held back).
-                val finalMsg = ChatMessage.Assistant(turn.text, turn.refs, turn.action)
+                val finalMsg = ChatMessage.Assistant(turn.text, turn.refs, turn.action, photoThumbs = turn.photoThumbs)
                 if (streamIndex < 0) {
                     messages += finalMsg
                 } else if (streamIndex < messages.size) {
@@ -434,6 +434,12 @@ fun AssistantScreen(
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                             }
+                        },
+                        onPhotoClick = { photoId ->
+                            // search_photos tap → deep-link the Vault to
+                            // auto-open this photo in the viewer (the
+                            // openPhotoId route runs openViewer post-unlock).
+                            onNavigate?.invoke("vault?openPhotoId=$photoId")
                         }
                     )
                 }
@@ -620,11 +626,12 @@ fun AssistantScreen(
     }
 }
 
-/** Result of one assistant turn — final cleaned text + any data refs + an optional proposed action. */
+/** Result of one assistant turn — final cleaned text + any data refs + an optional proposed action + optional photo thumbs. */
 private data class TurnResult(
     val text: String,
     val refs: List<DataRef>,
-    val action: ProposedAction? = null
+    val action: ProposedAction? = null,
+    val photoThumbs: List<PhotoThumb> = emptyList()
 )
 
 /**
@@ -817,13 +824,69 @@ private suspend fun runAssistantTurn(
                     val vaultRepo = com.privateai.camera.security.VaultRepository(context, crypto)
                     AssistantTools.askDocument(vaultRepo, firstReply.query)
                 }
+                "search_photos" -> {
+                    val vaultRepo = com.privateai.camera.security.VaultRepository(context, crypto)
+                    val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+                    val pi = com.privateai.camera.security.PhotoIndex(db)
+                    val contactRepo = com.privateai.camera.security.ContactRepository(
+                        java.io.File(context.filesDir, "vault/contacts"),
+                        crypto,
+                        db
+                    )
+                    val folderMgr = com.privateai.camera.security.FolderManager(context, crypto)
+                    AssistantTools.searchPhotos(pi, contactRepo, vaultRepo, folderMgr, firstReply.query)
+                }
                 else -> "[]"
             }
             Log.d(TAG, "Tool '${firstReply.name}' result: ${toolResult.take(200)}, refs=${toolRefs.size}")
 
-            // 6. Second turn with tool results — also streams
+            // search_photos: decode the base64 thumbnails the tool returned so
+            // the host can paint them in the next assistant bubble. Done here
+            // (not in the tool fn) because PhotoThumb carries a live Bitmap,
+            // not a serializable shape.
+            //
+            // We also build a "lean" tool result with the thumbs stripped out
+            // before passing it to formatToolFollowup — base64 JPEGs at
+            // ~10-30 KB each blow past Gemma 4 E2B's context budget when 3+
+            // are included, which produced a silent blank reply ("I couldn't
+            // generate a response..."). The model only needs the count and
+            // the detected-person summary to write its one-line answer.
+            var leanToolResult = toolResult
+            val turnPhotoThumbs: List<PhotoThumb> = if (firstReply.name == "search_photos") {
+                try {
+                    val obj = org.json.JSONObject(toolResult)
+                    val arr = obj.optJSONArray("photos") ?: org.json.JSONArray()
+                    val out = mutableListOf<PhotoThumb>()
+                    for (i in 0 until arr.length()) {
+                        val item = arr.getJSONObject(i)
+                        val id = item.optString("id", "")
+                        val b64 = item.optString("thumb", "")
+                        if (id.isBlank() || b64.isBlank()) continue
+                        val bytes = android.util.Base64.decode(b64, android.util.Base64.NO_WRAP)
+                        val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: continue
+                        out.add(PhotoThumb(id, bmp))
+                    }
+                    // Rebuild the JSON for the model with `photos` reduced to
+                    // just ids (no thumb bytes). Keeps the model aware of
+                    // which photos got returned without blowing context.
+                    leanToolResult = org.json.JSONObject().apply {
+                        put("detectedPerson", obj.opt("detectedPerson") ?: org.json.JSONObject.NULL)
+                        put("residualQuery", obj.optString("residualQuery", ""))
+                        put("total", obj.optInt("total", 0))
+                        put("photosShown", out.size)
+                    }.toString()
+                    out
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to decode search_photos thumbs: ${e.message}")
+                    emptyList()
+                }
+            } else emptyList()
+
+            // 6. Second turn with tool results — also streams.
+            // Note: for search_photos we pass `leanToolResult` (no base64
+            // thumb bytes) so the second Gemma call doesn't blow context.
             val followUp = AssistantPrompts.formatToolFollowup(
-                snapshotJson, userText, firstReply.name, firstReply.query, toolResult
+                snapshotJson, userText, firstReply.name, firstReply.query, leanToolResult
             )
             val rawSecond = streamAndCollect(context, followUp, temp, onChunk)
             Log.d(TAG, "Second reply (raw): ${rawSecond.take(200)}")
@@ -834,7 +897,7 @@ private suspend fun runAssistantTurn(
                 is ParsedReply.ActionProposal -> secondReply.text to secondReply.action
                 is ParsedReply.ToolCall -> "I found some results but couldn't summarize them. Please try rephrasing." to null
             }
-            TurnResult(answerText, toolRefs.ifEmpty { contextRefs }, secondAction)
+            TurnResult(answerText, toolRefs.ifEmpty { contextRefs }, secondAction, turnPhotoThumbs)
         }
     }
 }

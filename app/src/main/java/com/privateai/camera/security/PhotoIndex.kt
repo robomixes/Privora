@@ -636,6 +636,160 @@ class PhotoIndex(private val database: PrivoraDatabase) {
         db.update("photo_index", cv, "photo_id = ?", arrayOf(photoId))
     }
 
+    /**
+     * Result of a person-aware search: the matched photo IDs plus what the
+     * tokenizer detected so the caller can render UI affordances (e.g. a
+     * removable "Person: Anas ×" chip in the Vault search bar).
+     */
+    data class PersonAwareSearchResult(
+        val photoIds: List<String>,
+        val detectedPerson: String?,  // display name that matched (or null)
+        val residualQuery: String     // remaining tokens after person stripped
+    )
+
+    /**
+     * Compound search that recognizes a person's name embedded in free-text.
+     *
+     * "anas dogs" → finds photos that BOTH contain Anas's face AND match the
+     * "dogs" label/description search. "anas" alone → all photos with Anas.
+     * "dogs" alone → falls back to plain [searchByLabel].
+     *
+     * Person detection is greedy: tries 3-token → 2-token → 1-token spans
+     * looking for a face-identity name (loadFaceIdentitiesList) or a contact
+     * name ([ContactRepository.listContacts]) that matches case-insensitively.
+     * First match wins.
+     *
+     * Cost: face clustering via [getFaceGroups] is O(m²) on total faces;
+     * runs once per call (no cross-call cache yet). On ~5k photos with ~1k
+     * faces this is sub-second on Pixel 9a. searchByLabel is a LIKE scan
+     * over `photo_index.labels` JSON.
+     */
+    fun searchByPersonAndTags(
+        contactRepo: ContactRepository,
+        rawText: String,
+        limit: Int = 100
+    ): PersonAwareSearchResult {
+        val text = rawText.trim()
+        if (text.isEmpty()) return PersonAwareSearchResult(emptyList(), null, "")
+
+        val tokens = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return PersonAwareSearchResult(emptyList(), null, "")
+
+        // Build a (name → identityId) lookup over face-identity names + contact
+        // names. Contact names also map via personId → identity, so renaming a
+        // face group doesn't break "Anas" search if the contact name is intact.
+        val identities = loadFaceIdentitiesList()
+        val contacts = contactRepo.listContacts()
+
+        val nameToIdentity = HashMap<String, String>() // lowercase name → identity.id
+        for (id in identities) {
+            if (id.name.isNotBlank()) nameToIdentity[id.name.lowercase()] = id.id
+        }
+        for (c in contacts) {
+            if (c.name.isBlank()) continue
+            val matchedIdentity = identities.firstOrNull { it.personId == c.id }
+            if (matchedIdentity != null) {
+                nameToIdentity.putIfAbsent(c.name.lowercase(), matchedIdentity.id)
+            }
+        }
+
+        // Greedy span match: try 3-token, then 2-token, then 1-token windows
+        // at every position. First hit wins. Multi-word names like "john
+        // smith" only match if the user typed them in that order.
+        var matchedIdentityId: String? = null
+        var matchedName: String? = null
+        var matchStart = -1
+        var matchEnd = -1
+        outer@ for (span in 3 downTo 1) {
+            for (start in 0..tokens.size - span) {
+                val candidate = tokens.subList(start, start + span).joinToString(" ").lowercase()
+                val id = nameToIdentity[candidate]
+                if (id != null) {
+                    matchedIdentityId = id
+                    matchedName = identities.firstOrNull { it.id == id }?.name?.ifBlank {
+                        contacts.firstOrNull { it.id == identities.first { ii -> ii.id == id }.personId }?.name
+                    } ?: candidate.replaceFirstChar { it.uppercase() }
+                    matchStart = start
+                    matchEnd = start + span
+                    break@outer
+                }
+            }
+        }
+
+        val residualTokens = if (matchedIdentityId != null) {
+            tokens.subList(0, matchStart) + tokens.subList(matchEnd, tokens.size)
+        } else {
+            tokens
+        }
+        val residual = residualTokens.joinToString(" ")
+
+        // Per-token search with a cheap plural→singular fallback so "cars"
+        // matches the same labels as "car" (the ImageNet vocabulary stores
+        // singulars, and the alias-expansion map keys are singular). Only
+        // kicks in when the typed form returns nothing, to avoid polluting
+        // genuinely-distinct plural queries.
+        fun searchForToken(tok: String): List<String> {
+            val primary = searchByLabel(tok)
+            if (primary.isNotEmpty()) return primary
+            if (tok.length > 3 && tok.endsWith("s") && !tok.endsWith("ss")) {
+                return searchByLabel(tok.dropLast(1))
+            }
+            return primary
+        }
+
+        // Photos that match ALL residual tokens (per-token AND).
+        // Single-token residual is just the per-token search.
+        // Multi-token residual ("girl car") intersects per-token results so
+        // we don't return photos that match only one of the words.
+        fun multiTokenAnd(): List<String> {
+            if (residualTokens.isEmpty()) return emptyList()
+            if (residualTokens.size == 1) return searchForToken(residualTokens[0])
+            val perTokenRanked = residualTokens.map { tok -> searchForToken(tok) }
+            // Intersect: keep ranked order of the FIRST token's hits, filter
+            // by remaining token sets. This preserves searchByLabel's scoring
+            // (face-group hits at 2.0, description hits at 1.8, label sum) for
+            // the most-specific token while still requiring every word to hit.
+            val intersection = perTokenRanked.drop(1)
+                .map { it.toSet() }
+                .fold(perTokenRanked[0]) { acc, set -> acc.filter { it in set } }
+            return intersection
+        }
+
+        // No person → AND across residual tokens (or single-token plain search).
+        if (matchedIdentityId == null) {
+            return PersonAwareSearchResult(
+                photoIds = multiTokenAnd().take(limit),
+                detectedPerson = null,
+                residualQuery = text
+            )
+        }
+
+        // Person matched. Collect photo IDs containing that identity.
+        val faceGroups = getFaceGroups()
+        val personPhotoIds = faceGroups[matchedIdentityId]
+            ?.map { it.first }
+            ?.distinct()
+            ?: emptyList()
+
+        if (residual.isBlank()) {
+            return PersonAwareSearchResult(
+                photoIds = personPhotoIds.take(limit),
+                detectedPerson = matchedName,
+                residualQuery = ""
+            )
+        }
+
+        // Compound: per-token AND filtered to the person's photo set.
+        val personSet = personPhotoIds.toSet()
+        val intersected = multiTokenAnd().filter { it in personSet }
+
+        return PersonAwareSearchResult(
+            photoIds = intersected.take(limit),
+            detectedPerson = matchedName,
+            residualQuery = residual
+        )
+    }
+
     /** Search photos by description text (in addition to labels). */
     fun searchByDescription(query: String): List<String> {
         val results = mutableListOf<String>()

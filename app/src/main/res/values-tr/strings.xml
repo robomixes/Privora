@@ -288,6 +288,7 @@
     <string name="settings_screenshot_protection">Ekran görüntüsü koruması</string>
     <string name="settings_screenshot_protection_desc">Etkin — ekran görüntüleri ve ekran kaydı engellendi</string>
     <string name="settings_screenshot_protection_disabled">Devre dışı — ekran görüntüleri ve ekran kaydına izin verildi</string>
+    <string name="search_person_chip">Kişi: %1$s</string>
     <string name="settings_emergency_pin">Acil durum PIN\'i</string>
     <string name="settings_emergency_pin_active">Etkin</string>
     <string name="settings_set_emergency_pin">Acil durum PIN\'i ayarla</string>

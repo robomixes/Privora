@@ -4,7 +4,10 @@
 package com.privateai.camera.ui.assistant
 
 import android.content.Intent
+import android.graphics.Bitmap
 import android.widget.Toast
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +18,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.Icons
@@ -63,6 +71,10 @@ data class DataRef(val kind: RefKind, val id: String, val label: String)
 /** Status of an action card the assistant proposed in a message. */
 enum class ActionStatus { PENDING, ADDED, DISMISSED, FAILED }
 
+/** A thumbnail returned by the search_photos tool — decoded host-side and
+ *  paired with the message bubble that summarized the search results. */
+data class PhotoThumb(val id: String, val bitmap: Bitmap)
+
 /** A single message in the chat — user or assistant. */
 sealed class ChatMessage {
     data class User(val text: String) : ChatMessage()
@@ -73,7 +85,10 @@ sealed class ChatMessage {
         val actionStatus: ActionStatus = ActionStatus.PENDING,
         // Tracks whether the user has saved this reply as a note. Prevents
         // accidentally creating a stack of duplicate notes from re-taps.
-        val savedAsNote: Boolean = false
+        val savedAsNote: Boolean = false,
+        // search_photos result thumbnails — when non-null the bubble renders
+        // a horizontal strip under the text. Tap → open in Vault.
+        val photoThumbs: List<PhotoThumb> = emptyList()
     ) : ChatMessage()
 }
 
@@ -84,7 +99,8 @@ fun ChatBubble(
     onRefClick: ((DataRef) -> Unit)? = null,
     onActionConfirm: ((ProposedAction) -> Unit)? = null,
     onActionDismiss: (() -> Unit)? = null,
-    onSaveAsNote: ((String) -> Unit)? = null
+    onSaveAsNote: ((String) -> Unit)? = null,
+    onPhotoClick: ((String) -> Unit)? = null
 ) {
     val isUser = message is ChatMessage.User
     val text = when (message) {
@@ -178,6 +194,31 @@ fun ChatBubble(
                             onSaveAsNote = onSaveAsNote?.let { cb -> { cb(text) } }
                         )
                     }
+                    // Photo thumbnails from search_photos tool — horizontal
+                    // strip under the message text. Each tap opens that photo
+                    // in the Vault viewer (handled by onPhotoClick wiring).
+                    val photoThumbs = (message as? ChatMessage.Assistant)?.photoThumbs ?: emptyList()
+                    if (photoThumbs.isNotEmpty()) {
+                        LazyRow(
+                            modifier = Modifier.padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(photoThumbs) { thumb ->
+                                Image(
+                                    bitmap = thumb.bitmap.asImageBitmap(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(96.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable(enabled = onPhotoClick != null) {
+                                            onPhotoClick?.invoke(thumb.id)
+                                        }
+                                )
+                            }
+                        }
+                    }
+
                     // Tappable data references (notes, reminders, habits, health)
                     val refs = (message as? ChatMessage.Assistant)?.refs ?: emptyList()
                     if (refs.isNotEmpty() && onRefClick != null) {

@@ -187,6 +187,7 @@ private enum class VaultPage { LOCKED, CATEGORIES, GALLERY, VIEWER, VIDEO_PLAYER
 fun VaultScreen(
     onBack: (() -> Unit)? = null,
     initialSearchQuery: String = "",
+    initialOpenPhotoId: String? = null,
     onNavigate: ((route: String) -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -195,6 +196,21 @@ fun VaultScreen(
 
     val crypto = remember { CryptoManager(context) }
     val vault = remember { VaultRepository(context, crypto) }
+    // Lazy: ContactRepository's constructor opens the encrypted DB, which
+    // requires crypto.initialize() to have run first. That doesn't happen
+    // until the vault unlock screen passes, so we can't eagerly construct
+    // here — that crashed at composition time with "CryptoManager not
+    // initialized". Lazy defers the build to first access (the search
+    // lambda), by which point unlock has happened.
+    val contactRepoLazy = remember {
+        lazy {
+            com.privateai.camera.security.ContactRepository(
+                java.io.File(context.filesDir, "vault/contacts"),
+                crypto,
+                com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+            )
+        }
+    }
 
     // Check if already unlocked within grace period (e.g. from Notes, or returning quickly)
     val startUnlocked = remember {
@@ -242,6 +258,12 @@ fun VaultScreen(
     // Track where the viewer was opened from (for correct back navigation)
     var viewerFromHidden by remember { mutableStateOf(false) }
     var viewerFromFolder by remember { mutableStateOf(false) }
+    // True when the viewer was opened via the `vault?openPhotoId=...` deep
+    // link (e.g. from an Assistant search_photos thumb). Back from the viewer
+    // in this mode pops the entire Vault destination so the user lands back
+    // where the link came from (the Assistant chat), not in a Vault grid
+    // they never visited.
+    var viewerFromDeepLink by remember { mutableStateOf(false) }
 
     // Hidden folder — tap vault title N times to reveal (like Android dev options)
     val hiddenTapThreshold = remember {
@@ -285,6 +307,11 @@ fun VaultScreen(
     var mergeTargetGroup by remember { mutableStateOf<String?>(null) } // second group to confirm merge
     var searchFromViewer by remember { mutableStateOf(false) } // true = back returns to VIEWER
     var searchSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    // Person detected by [PhotoIndex.searchByPersonAndTags] from the query text;
+    // when non-null we render a removable "Person: Anas ×" chip above the grid
+    // so the user sees their query was interpreted as a face filter.
+    var detectedPerson by remember { mutableStateOf<String?>(null) }
+    var detectedResidual by remember { mutableStateOf("") }
     var duplicateGroups by remember { mutableStateOf<List<List<String>>>(emptyList()) }
 
     // Virtual smart views
@@ -1382,6 +1409,7 @@ fun VaultScreen(
             isSearching || smartMode != null -> { isSearching = false; smartMode = null; isSmartLoading = false; searchResults = emptyList() }
             page == VaultPage.VIEWER -> {
                 when {
+                    viewerFromDeepLink -> { viewerFromDeepLink = false; onBack?.invoke() }
                     viewerFromHidden -> { page = VaultPage.CATEGORIES; viewerFromHidden = false }
                     viewerFromFolder -> { page = VaultPage.FOLDER_VIEW; viewerFromFolder = false }
                     else -> page = VaultPage.GALLERY
@@ -1448,6 +1476,29 @@ fun VaultScreen(
     LaunchedEffect(indexingRunning, indexingProgress) {
         isIndexing = indexingRunning
         indexProgress = indexingProgress
+    }
+
+    // Auto-open the photo viewer when navigated in with a target photo id
+    // (e.g., tap on an Assistant search_photos thumbnail). Fires once
+    // post-unlock, finds the photo across categories + folders, and routes
+    // it through openViewer so videos / PDFs / images all behave correctly.
+    LaunchedEffect(initialOpenPhotoId, page) {
+        val targetId = initialOpenPhotoId ?: return@LaunchedEffect
+        if (page == VaultPage.LOCKED) return@LaunchedEffect
+        if (viewerPhoto?.id == targetId) return@LaunchedEffect
+        if (!crypto.isUnlocked()) {
+            try { crypto.initialize() } catch (_: Exception) { return@LaunchedEffect }
+        }
+        val photo = withContext(Dispatchers.IO) {
+            getAllVaultItems().firstOrNull { it.id == targetId }
+        }
+        if (photo != null) {
+            // Flag the viewer as deep-linked BEFORE openViewer so the back
+            // handler below can short-circuit to onBack instead of popping
+            // to a Gallery the user never visited.
+            viewerFromDeepLink = true
+            openViewer(photo)
+        }
     }
 
     // Auto-search when opened with a search query (e.g., from People → Photos)
@@ -1652,17 +1703,28 @@ fun VaultScreen(
                                 scope.launch {
                                     val allItems = withContext(Dispatchers.IO) { getAllVaultItems() }
                                     val dateFmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-                                    searchResults = allItems.filter { item ->
+                                    val plainResults = allItems.filter { item ->
                                         item.id.contains(query, ignoreCase = true) ||
                                         item.mediaType.name.contains(query, ignoreCase = true) ||
                                         item.category.label.contains(query, ignoreCase = true) ||
                                         dateFmt.format(java.util.Date(item.timestamp)).contains(query)
                                     }
-                                    // Also search by AI labels if index is available
-                                    val labelMatches = photoIndex?.searchByLabel(query)?.toSet() ?: emptySet()
-                                    if (labelMatches.isNotEmpty()) {
-                                        val labelPhotos = allItems.filter { it.id in labelMatches }
-                                        searchResults = (searchResults + labelPhotos).distinctBy { it.id }
+                                    // Person-aware index search: recognizes a face-group / contact
+                                    // name embedded in the query and intersects with the rest.
+                                    val personResult = withContext(Dispatchers.IO) {
+                                        photoIndex?.searchByPersonAndTags(contactRepoLazy.value, query, limit = 500)
+                                    }
+                                    detectedPerson = personResult?.detectedPerson
+                                    detectedResidual = personResult?.residualQuery ?: query
+                                    val indexMatches = personResult?.photoIds?.toSet() ?: emptySet()
+                                    val indexPhotos = if (indexMatches.isNotEmpty()) allItems.filter { it.id in indexMatches } else emptyList()
+                                    // When a person is detected, prefer the indexed result alone
+                                    // (the plain text scan would mix in unrelated items containing
+                                    // the person's name in their id or category label).
+                                    searchResults = if (personResult?.detectedPerson != null) {
+                                        indexPhotos
+                                    } else {
+                                        (plainResults + indexPhotos).distinctBy { it.id }
                                     }
                                     // Load thumbnails for search results
                                     val thumbMap = searchThumbnails.toMutableMap()
@@ -1678,6 +1740,8 @@ fun VaultScreen(
                             } else {
                                 isSearching = false
                                 searchResults = emptyList()
+                                detectedPerson = null
+                                detectedResidual = ""
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -1690,6 +1754,8 @@ fun VaultScreen(
                                     isSearching = false
                                     searchResults = emptyList()
                                     smartMode = null
+                                    detectedPerson = null
+                                    detectedResidual = ""
                                 }) {
                                     Icon(Icons.Default.Close, stringResource(R.string.clear))
                                 }
@@ -1702,6 +1768,35 @@ fun VaultScreen(
                             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                         )
                     )
+
+                    // Detected-person chip: shows when the search text contained
+                    // a face-group / contact name. Tapping × strips the person
+                    // token from the query, keeping any remaining label words.
+                    if (detectedPerson != null) {
+                        val personName = detectedPerson!!
+                        androidx.compose.material3.InputChip(
+                            selected = true,
+                            onClick = { },
+                            label = { Text(stringResource(R.string.search_person_chip, personName)) },
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = {
+                                        val newQuery = detectedResidual.trim()
+                                        searchQuery = newQuery
+                                        if (newQuery.length < 2) {
+                                            isSearching = false
+                                            searchResults = emptyList()
+                                        }
+                                        detectedPerson = null
+                                        detectedResidual = ""
+                                    },
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, stringResource(R.string.clear), modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        )
+                    }
 
                     // Auto-suggest
                     if (searchSuggestions.isNotEmpty() && searchQuery.isNotEmpty()) {
@@ -3002,7 +3097,19 @@ fun VaultScreen(
                 }
 
                 IconButton(
-                    onClick = { viewerBitmap = null; page = VaultPage.GALLERY },
+                    onClick = {
+                        viewerBitmap = null
+                        // Mirror the BackHandler: deep-linked viewer leaves the
+                        // Vault entirely so the user lands back in the caller
+                        // (e.g. the Assistant chat). Otherwise return to the
+                        // gallery they came from.
+                        if (viewerFromDeepLink) {
+                            viewerFromDeepLink = false
+                            onBack?.invoke()
+                        } else {
+                            page = VaultPage.GALLERY
+                        }
+                    },
                     Modifier.align(Alignment.TopStart).padding(top = 48.dp, start = 16.dp).size(40.dp).background(Color.White.copy(alpha = 0.9f), CircleShape)
                 ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = Color(0xFF333333)) }
 

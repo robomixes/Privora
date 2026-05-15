@@ -228,13 +228,18 @@ object GemmaRunner {
     }
 
     /**
-     * Auto-clear sticky crash flags when the app's versionCode changes.
-     * Reasoning: a crash flag persists across launches to break in-process
-     * retry loops, but a fresh install / upgrade ships fixes that may have
-     * resolved the underlying crash. Without this, a user who hit
-     * `vision_crashed=true` on an old build stays locked out of AI vision
-     * forever — even after the bug is fixed in the next release. Called once
-     * from MainActivity.onCreate.
+     * Auto-clear sticky crash flags. Called once from MainActivity.onCreate.
+     *
+     * Two triggers:
+     *  1. versionCode change — a release shipping vision fixes shouldn't
+     *     leave users locked out by a flag set under the old broken build.
+     *  2. age-based — if the flag has been set for more than [STALE_FLAG_MS]
+     *     (10 min), it's almost certainly leftover from an old session that
+     *     died, not an active retry-loop. The flag's purpose is to break a
+     *     loop within a single session; once enough time has passed without
+     *     the user explicitly resetting it, the safer default is to give
+     *     vision another chance. If it crashes again, [describeImage]
+     *     re-arms the flag with a fresh timestamp before each call.
      */
     fun clearStaleCrashFlagsOnUpgrade(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -242,17 +247,30 @@ object GemmaRunner {
         val currentVersion = try {
             context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toInt()
         } catch (_: Exception) { return }
-        if (storedVersion != currentVersion) {
+
+        val visionCrashedAt = prefs.getLong("vision_crashed_at", 0L)
+        val visionStale = prefs.getBoolean("vision_crashed", false) &&
+            visionCrashedAt > 0L &&
+            System.currentTimeMillis() - visionCrashedAt > STALE_FLAG_MS
+
+        if (storedVersion != currentVersion || visionStale) {
             prefs.edit()
                 .putBoolean("vision_crashed", false)
                 .putBoolean("load_crashed", false)
+                .putLong("vision_crashed_at", 0L)
                 .putInt("last_seen_version_code", currentVersion)
                 .apply()
-            if (storedVersion != -1) {
-                Log.i(TAG, "Cleared stale crash flags after upgrade $storedVersion → $currentVersion")
+            when {
+                storedVersion != -1 && storedVersion != currentVersion ->
+                    Log.i(TAG, "Cleared stale crash flags after upgrade $storedVersion → $currentVersion")
+                visionStale ->
+                    Log.i(TAG, "Cleared stale vision_crashed flag (age=${System.currentTimeMillis() - visionCrashedAt}ms)")
             }
         }
     }
+
+    /** Auto-clear horizon for the vision_crashed flag (10 minutes). */
+    private const val STALE_FLAG_MS = 10L * 60L * 1000L
 
     /** Close any active conversation (LiteRT-LM only allows one at a time). */
     private fun closeActiveConversation() {
@@ -437,7 +455,14 @@ object GemmaRunner {
                 // guarantees we disarm it for every NON-JVM-death exit path —
                 // success, caught exception, coroutine cancellation, even an
                 // adb force-stop after we leave the native call.
-                prefs.edit().putBoolean("vision_crashed", true).commit()
+                //
+                // Also stamp the time so [clearStaleCrashFlagsOnUpgrade] can
+                // auto-clear flags that are clearly leftover from a session
+                // that died long ago (10+ min stale → clear on next launch).
+                prefs.edit()
+                    .putBoolean("vision_crashed", true)
+                    .putLong("vision_crashed_at", System.currentTimeMillis())
+                    .commit()
                 try {
                     closeActiveConversation()
                     Log.d(TAG, "Creating conversation for vision...")
@@ -460,7 +485,10 @@ object GemmaRunner {
                     closeActiveConversation()
                     // Use commit() (sync) so the cleared flag hits disk before
                     // any subsequent process death can strand it.
-                    prefs.edit().putBoolean("vision_crashed", false).commit()
+                    prefs.edit()
+                        .putBoolean("vision_crashed", false)
+                        .putLong("vision_crashed_at", 0L)
+                        .commit()
                 }
             }
         }

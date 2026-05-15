@@ -233,8 +233,14 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
             onProgress(index + 1, totalFiles, "Backing up files...")
         }
 
-        // Write SQLCipher database (contacts + photo_index) if it exists
-        val dbFile = context.getDatabasePath("privora.db")
+        // Write SQLCipher database (contacts + photo_index + AI tags +
+        // descriptions) if it exists. Path must match PrivoraDatabase's actual
+        // location: <filesDir>/vault/privora.db, NOT context.getDatabasePath()
+        // (which points to <filesDir>/databases/ and is never populated).
+        // The wrong path silently produced backups missing the DB entirely —
+        // users who ran "Process all photos with AI" then restored were
+        // losing every Gemma description + AI tag.
+        val dbFile = File(File(context.filesDir, "vault"), "privora.db")
         if (dbFile.exists()) {
             // Close the database before copying to avoid corruption
             try { PrivoraDatabase.closeInstance() } catch (_: Exception) {}
@@ -242,6 +248,8 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
             FileInputStream(dbFile).use { fis -> fis.copyTo(zos) }
             zos.closeEntry()
             Log.i(TAG, "Database backed up: ${dbFile.length() / 1024}KB")
+        } else {
+            Log.w(TAG, "DB file missing at ${dbFile.absolutePath} — backup will not include photo_index / contacts")
         }
 
         // Write SharedPreferences as JSON entries
@@ -359,15 +367,19 @@ class BackupManager(private val context: Context, private val crypto: CryptoMana
                 fileIndex++
 
                 if (entry.name.startsWith("__database__/")) {
-                    // SQLCipher database (contacts + photo_index) — stream to databases dir
+                    // SQLCipher database (contacts + photo_index + Gemma
+                    // descriptions + AI tags) — restored to PrivoraDatabase's
+                    // actual location <filesDir>/vault/privora.db (NOT the
+                    // Android default databases/ dir). Wrong path was the bug
+                    // that lost AI tags on restore.
                     try {
                         val dbName = entry.name.removePrefix("__database__/")
-                        val dbFile = context.getDatabasePath(dbName)
+                        val dbFile = File(File(context.filesDir, "vault"), dbName)
                         // Close existing DB before overwriting
                         try { PrivoraDatabase.closeInstance() } catch (_: Exception) {}
                         dbFile.parentFile?.mkdirs()
                         dbFile.outputStream().use { out -> zis.copyTo(out, bufferSize = 8192) }
-                        Log.i(TAG, "Database restored: $dbName (${dbFile.length() / 1024}KB)")
+                        Log.i(TAG, "Database restored: $dbName (${dbFile.length() / 1024}KB) to ${dbFile.absolutePath}")
                         imported++
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to restore database: ${entry.name}: ${e.message}")

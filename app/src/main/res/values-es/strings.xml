@@ -274,6 +274,7 @@
     <string name="settings_screenshot_protection">Protección de capturas de pantalla</string>
     <string name="settings_screenshot_protection_desc">Activada \u2014 capturas de pantalla y grabación de pantalla bloqueadas</string>
     <string name="settings_screenshot_protection_disabled">Desactivada — capturas de pantalla y grabación de pantalla permitidas</string>
+    <string name="search_person_chip">Persona: %1$s</string>
     <string name="settings_emergency_pin">PIN de emergencia</string>
     <string name="settings_emergency_pin_active">Activo</string>
     <string name="settings_set_emergency_pin">Configurar PIN de emergencia</string>

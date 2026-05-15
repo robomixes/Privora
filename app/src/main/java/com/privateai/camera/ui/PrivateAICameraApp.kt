@@ -252,6 +252,16 @@ fun PrivateAICameraApp() {
                     onNavigate = { route -> navController.navigate(route) }
                 )
             }
+            composable("vault?openPhotoId={photoId}",
+                arguments = listOf(androidx.navigation.navArgument("photoId") { defaultValue = ""; type = androidx.navigation.NavType.StringType })
+            ) { backStackEntry ->
+                val photoId = backStackEntry.arguments?.getString("photoId")?.ifBlank { null }
+                VaultScreen(
+                    onBack = safeBack,
+                    initialOpenPhotoId = photoId,
+                    onNavigate = { route -> navController.navigate(route) }
+                )
+            }
             composable("notes") {
                 NotesScreen(onBack = safeBack)
             }
