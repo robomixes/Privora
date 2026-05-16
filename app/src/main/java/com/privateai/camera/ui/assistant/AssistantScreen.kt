@@ -635,6 +635,113 @@ private data class TurnResult(
 )
 
 /**
+ * Build the chat-bubble summary for a search_photos tool result host-side.
+ * Bypassing the LLM here avoids Gemma's number-hallucination tendency on
+ * digits inside structured prompts (logged a "total:87" → "found 7 photos"
+ * mis-copy). The thumb strip already shows the visual result; the text
+ * just needs to confirm the count + what was matched.
+ */
+private fun buildSearchPhotosSummary(
+    context: android.content.Context,
+    leanJson: String,
+    originalQuery: String,
+    thumbsShown: Int
+): String {
+    return try {
+        val obj = org.json.JSONObject(leanJson)
+        val total = obj.optInt("total", 0)
+        val person = obj.optString("detectedPerson", "").ifBlank { null }
+        val residual = obj.optString("residualQuery", "").trim()
+        val date = obj.optString("detectedDate", "").ifBlank { null }
+
+        if (total == 0) {
+            context.getString(R.string.assistant_search_photos_none, originalQuery)
+        } else {
+            // Compose a single sentence. Single-form strings (no plurals)
+            // keep the locale work simple and avoid mistakes — the digit
+            // carries the count info; grammar slack on "1 photo" vs "1
+            // photos" is acceptable for an in-chat status line.
+            val parts = mutableListOf<String>()
+            if (person != null) parts.add(context.getString(R.string.assistant_search_photos_of, person))
+            if (residual.isNotBlank()) parts.add(context.getString(R.string.assistant_search_photos_with, residual))
+            if (date != null) parts.add(context.getString(R.string.assistant_search_photos_from, date))
+
+            val suffix = if (parts.isEmpty()) "" else " " + parts.joinToString(" ")
+            val head = context.getString(R.string.assistant_search_photos_found, total)
+            val tail = if (thumbsShown in 1 until total) " " + context.getString(R.string.assistant_search_photos_showing, thumbsShown) else ""
+            "$head$suffix.$tail"
+        }
+    } catch (_: Exception) {
+        // Defensive fallback — should never trigger given the lean JSON is built host-side
+        context.getString(R.string.assistant_search_photos_generic)
+    }
+}
+
+/**
+ * Build the chat-bubble summary for a summarize_expenses tool result.
+ * Same anti-hallucination rationale as the search_photos helper: Gemma
+ * mis-copies digits from structured JSON ("total":"88.00" → wrote
+ * "$88,000.00") so deterministic host-side formatting is more reliable.
+ *
+ * Expected JSON shape (from AssistantTools.summarizeExpenses):
+ *   { "period":"month", "total":"123.45", "count":12,
+ *     "byCategory":[{"category":"Food","total":"45.67"}, ...],
+ *     "topItems":[{"description":"Lunch","amount":"12.50","date":"2026-05-01","category":"Food"}, ...] }
+ */
+private fun buildExpensesSummary(context: android.content.Context, toolJson: String): String {
+    return try {
+        val obj = org.json.JSONObject(toolJson)
+        val period = obj.optString("period", "month")
+        val total = obj.optString("total", "0.00")
+        val count = obj.optInt("count", 0)
+        val byCat = obj.optJSONArray("byCategory") ?: org.json.JSONArray()
+        val topItems = obj.optJSONArray("topItems") ?: org.json.JSONArray()
+
+        if (count == 0) {
+            return context.getString(R.string.assistant_expenses_none, period)
+        }
+
+        val sb = StringBuilder()
+        sb.append(context.getString(R.string.assistant_expenses_total, total, count, period))
+        if (byCat.length() > 0) {
+            sb.append("\n\n")
+            sb.append(context.getString(R.string.assistant_expenses_by_category_header))
+            sb.append("\n")
+            for (i in 0 until byCat.length()) {
+                val c = byCat.getJSONObject(i)
+                sb.append("- **")
+                sb.append(c.optString("category", "Other"))
+                sb.append("**: ")
+                sb.append(c.optString("total", "0.00"))
+                sb.append("\n")
+            }
+        }
+        if (topItems.length() > 0) {
+            sb.append("\n")
+            sb.append(context.getString(R.string.assistant_expenses_top_header))
+            sb.append("\n")
+            for (i in 0 until topItems.length()) {
+                val it = topItems.getJSONObject(i)
+                sb.append("- ")
+                sb.append(it.optString("description", "?"))
+                sb.append(" — ")
+                sb.append(it.optString("amount", "0.00"))
+                val date = it.optString("date", "")
+                if (date.isNotBlank()) {
+                    sb.append(" (")
+                    sb.append(date)
+                    sb.append(")")
+                }
+                sb.append("\n")
+            }
+        }
+        sb.toString().trimEnd()
+    } catch (_: Exception) {
+        context.getString(R.string.assistant_expenses_generic)
+    }
+}
+
+/**
  * Compact AssistChip with a leading icon, used in the quick-action row above
  * the input field. Disabled state visually dims the chip so users know they
  * need to type something first.
@@ -866,14 +973,17 @@ private suspend fun runAssistantTurn(
                         val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: continue
                         out.add(PhotoThumb(id, bmp))
                     }
-                    // Rebuild the JSON for the model with `photos` reduced to
-                    // just ids (no thumb bytes). Keeps the model aware of
-                    // which photos got returned without blowing context.
+                    // Rebuild the JSON for the model with the thumb bytes
+                    // stripped. Only `total` is reported back — exposing
+                    // `photosShown` (the count of base64 thumbs rendered in
+                    // the chat) made the model write awkward summaries like
+                    // "Total photos found: 87. Thumbnails shown: 6." instead
+                    // of one natural sentence.
                     leanToolResult = org.json.JSONObject().apply {
                         put("detectedPerson", obj.opt("detectedPerson") ?: org.json.JSONObject.NULL)
                         put("residualQuery", obj.optString("residualQuery", ""))
+                        put("detectedDate", obj.opt("detectedDate") ?: org.json.JSONObject.NULL)
                         put("total", obj.optInt("total", 0))
-                        put("photosShown", out.size)
                     }.toString()
                     out
                 } catch (e: Exception) {
@@ -883,19 +993,42 @@ private suspend fun runAssistantTurn(
             } else emptyList()
 
             // 6. Second turn with tool results — also streams.
-            // Note: for search_photos we pass `leanToolResult` (no base64
-            // thumb bytes) so the second Gemma call doesn't blow context.
-            val followUp = AssistantPrompts.formatToolFollowup(
-                snapshotJson, userText, firstReply.name, firstReply.query, leanToolResult
-            )
-            val rawSecond = streamAndCollect(context, followUp, temp, onChunk)
-            Log.d(TAG, "Second reply (raw): ${rawSecond.take(200)}")
-
-            val secondReply = ParsedReply.parse(rawSecond)
-            val (answerText, secondAction) = when (secondReply) {
-                is ParsedReply.Answer -> secondReply.text to null
-                is ParsedReply.ActionProposal -> secondReply.text to secondReply.action
-                is ParsedReply.ToolCall -> "I found some results but couldn't summarize them. Please try rephrasing." to null
+            // EXCEPT for search_photos: Gemma routinely mis-reads digits in
+            // the tool result ("total:87" → wrote "**7 photos**"). The
+            // thumb strip already shows the visual evidence; the text just
+            // confirms the count. Build it deterministically host-side to
+            // avoid the number-hallucination class of bug entirely.
+            val answerText: String
+            val secondAction: ProposedAction?
+            if (firstReply.name == "search_photos") {
+                answerText = buildSearchPhotosSummary(context, leanToolResult, firstReply.query, turnPhotoThumbs.size)
+                secondAction = null
+                // Stream the host-built summary to the partial-message UI so the
+                // bubble doesn't blank out between the typing dot and the final
+                // text. One emit is sufficient — the text is short.
+                onChunk(answerText)
+            } else if (firstReply.name == "summarize_expenses") {
+                // Same anti-hallucination strategy as search_photos: Gemma
+                // mis-copies currency digits from the JSON. Host-built
+                // formatting is deterministic.
+                answerText = buildExpensesSummary(context, toolResult)
+                secondAction = null
+                onChunk(answerText)
+            } else {
+                // Note: for the other tools the full toolResult string is
+                // safe (no base64 payload). For search_photos we'd use the
+                // leanToolResult but we've already bypassed this branch.
+                val followUp = AssistantPrompts.formatToolFollowup(
+                    snapshotJson, userText, firstReply.name, firstReply.query, toolResult
+                )
+                val rawSecond = streamAndCollect(context, followUp, temp, onChunk)
+                Log.d(TAG, "Second reply (raw): ${rawSecond.take(200)}")
+                val secondReply = ParsedReply.parse(rawSecond)
+                when (secondReply) {
+                    is ParsedReply.Answer -> { answerText = secondReply.text; secondAction = null }
+                    is ParsedReply.ActionProposal -> { answerText = secondReply.text; secondAction = secondReply.action }
+                    is ParsedReply.ToolCall -> { answerText = "I found some results but couldn't summarize them. Please try rephrasing."; secondAction = null }
+                }
             }
             TurnResult(answerText, toolRefs.ifEmpty { contextRefs }, secondAction, turnPhotoThumbs)
         }

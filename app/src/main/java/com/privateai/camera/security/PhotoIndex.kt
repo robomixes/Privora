@@ -334,9 +334,20 @@ class PhotoIndex(private val database: PrivoraDatabase) {
 
                     var totalScore = 0f
                     for ((labelIndex, label) in labelsList.withIndex()) {
-                        val labelLower = label.lowercase().replace(" ", "_")
+                        // Tokenize the label on underscore / hyphen / space
+                        // and match per-token instead of substring. The old
+                        // .contains() check pulled in "card" / "scarecrow"
+                        // when the user searched for "car"; matching against
+                        // tokens fixes the bleed-through while still letting
+                        // multi-word labels ("sports_car") match a single
+                        // word query.
+                        val labelLower = label.lowercase()
+                        val tokens = labelLower.split('_', '-', ' ').filter { it.isNotBlank() }
                         for (w in expandedWords) {
-                            if (labelLower.contains(w) || w.contains(labelLower)) {
+                            val hit = tokens.any { it == w } ||
+                                tokens.any { it.startsWith(w) && it.length - w.length <= 1 } ||  // singular/plural slack
+                                labelLower == w
+                            if (hit) {
                                 totalScore += if (labelIndex < scoresList.size) scoresList[labelIndex] else 0.1f
                             }
                         }

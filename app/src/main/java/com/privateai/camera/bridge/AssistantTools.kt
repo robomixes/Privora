@@ -415,7 +415,14 @@ object AssistantTools {
         // date-only queries ("show me last saturday photos") fall through to
         // a date-only filter over the full vault.
         val dateMatch = parseDateRange(query)
-        val cleanedQuery = (dateMatch?.let { stripDatePhrase(query, it.matchedPhrase) } ?: query).trim()
+        val datelessQuery = (dateMatch?.let { stripDatePhrase(query, it.matchedPhrase) } ?: query).trim()
+        // Strip filler words the model often includes from natural-language
+        // prompts ("show me girl photos" → emits query "girl photos", where
+        // "photos" then gets AND-intersected as a literal label and drops
+        // the result count from 87 to 7). The user already invoked a photo
+        // tool — they don't need "photo/photos/pictures/images" tokens
+        // surviving into the per-token search.
+        val cleanedQuery = stripNoiseTokens(datelessQuery)
 
         // Build the full photo lookup once (categories + folders).
         val fromCats = vault.listAllPhotos()
@@ -609,5 +616,27 @@ object AssistantTools {
     /** Remove the matched date phrase from the query, case-insensitive. */
     private fun stripDatePhrase(query: String, phrase: String): String {
         return Regex("\\s*${Regex.escape(phrase)}\\s*", RegexOption.IGNORE_CASE).replace(query, " ").trim()
+    }
+
+    /**
+     * Drop filler words that natural-language phrasings often include but
+     * that are not actual search labels — "photo / photos / picture /
+     * pictures / image / images / show / find / any / from / of / the / a /
+     * an / with / and / me / my". Keeps the remaining tokens for the
+     * per-token AND search. Preserves order. Returns the original query if
+     * stripping would empty it (so a pure noise query like "show me photos"
+     * still returns ALL photos rather than zero).
+     */
+    private fun stripNoiseTokens(query: String): String {
+        if (query.isBlank()) return query
+        val noise = setOf(
+            "photo", "photos", "picture", "pictures", "image", "images", "pic", "pics",
+            "show", "find", "look", "any", "have", "do", "i",
+            "from", "of", "the", "a", "an", "with", "and", "in", "at", "on", "to",
+            "me", "my", "for", "are", "is"
+        )
+        val tokens = query.trim().split(Regex("\\s+"))
+        val kept = tokens.filter { it.lowercase().trim('?', '.', ',', '!') !in noise }
+        return if (kept.isEmpty()) query.trim() else kept.joinToString(" ")
     }
 }

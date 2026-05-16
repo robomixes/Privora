@@ -264,6 +264,12 @@ fun VaultScreen(
     // where the link came from (the Assistant chat), not in a Vault grid
     // they never visited.
     var viewerFromDeepLink by remember { mutableStateOf(false) }
+    // True when the viewer was opened from a face-group / search / smart-
+    // filter (blurry, duplicates) result list. Back returns to the search-
+    // results UI (rendered over CATEGORIES via the search/face/smart state
+    // flags) instead of dropping the user into an empty Gallery and then
+    // forcing two more Back presses to escape.
+    var viewerFromSearch by remember { mutableStateOf(false) }
 
     // Hidden folder — tap vault title N times to reveal (like Android dev options)
     val hiddenTapThreshold = remember {
@@ -1398,23 +1404,35 @@ fun VaultScreen(
 
     val currentAuthMode = remember { getAuthMode(context) }
 
-    // Handle back gesture — return to vault categories instead of leaving vault
+    // Handle back gesture — return to vault categories instead of leaving vault.
+    // CRITICAL: VIEWER check runs FIRST so a Back from the photo viewer
+    // doesn't get swallowed by selectedFaceGroup/isSearching/smartMode flags
+    // (which are still set while the viewer overlays the search results UI).
+    // Without this, Back from a face-group viewer first clears the face
+    // group flag (silent — page still VIEWER), then second Back goes to an
+    // empty Gallery, then third Back to Categories — user perceived this as
+    // "Back jumped to home" instead of returning to the search results.
     BackHandler(
         enabled = showFaceGroups || selectedFaceGroup != null || isSearching || smartMode != null ||
                 page == VaultPage.GALLERY || page == VaultPage.VIEWER || page == VaultPage.FOLDER_VIEW || page == VaultPage.TRASH
     ) {
         when {
-            selectedFaceGroup != null -> { selectedFaceGroup = null; searchResults = emptyList() }
-            showFaceGroups -> { showFaceGroups = false; isSmartLoading = false }
-            isSearching || smartMode != null -> { isSearching = false; smartMode = null; isSmartLoading = false; searchResults = emptyList() }
             page == VaultPage.VIEWER -> {
                 when {
                     viewerFromDeepLink -> { viewerFromDeepLink = false; onBack?.invoke() }
                     viewerFromHidden -> { page = VaultPage.CATEGORIES; viewerFromHidden = false }
                     viewerFromFolder -> { page = VaultPage.FOLDER_VIEW; viewerFromFolder = false }
+                    // From a face-group / search / smart-filter result list:
+                    // return to the search-results UI (rendered over the
+                    // CATEGORIES page; the selectedFaceGroup / isSearching /
+                    // smartMode state flags stay set so the right view paints).
+                    viewerFromSearch -> { page = VaultPage.CATEGORIES; viewerFromSearch = false }
                     else -> page = VaultPage.GALLERY
                 }
             }
+            selectedFaceGroup != null -> { selectedFaceGroup = null; searchResults = emptyList() }
+            showFaceGroups -> { showFaceGroups = false; isSmartLoading = false }
+            isSearching || smartMode != null -> { isSearching = false; smartMode = null; isSmartLoading = false; searchResults = emptyList() }
             page == VaultPage.GALLERY -> page = VaultPage.CATEGORIES
             page == VaultPage.FOLDER_VIEW -> page = VaultPage.CATEGORIES
             page == VaultPage.TRASH -> page = VaultPage.CATEGORIES
@@ -2179,7 +2197,7 @@ fun VaultScreen(
                                                             selectedIds = if (isSelected) selectedIds - photo.id else selectedIds + photo.id
                                                             if (selectedIds.isEmpty()) isSelectionMode = false
                                                         } else {
-                                                            photos = sortedResults; thumbnails = searchThumbnails; openViewer(photo)
+                                                            photos = sortedResults; thumbnails = searchThumbnails; viewerFromSearch = true; openViewer(photo)
                                                         }
                                                     },
                                                     onLongClick = { isSelectionMode = true; selectedIds = selectedIds + photo.id }
@@ -2340,7 +2358,7 @@ fun VaultScreen(
                                                             if (isSelectionMode) {
                                                                 selectedIds = if (isSelected) selectedIds - photo.id else selectedIds + photo.id
                                                                 if (selectedIds.isEmpty()) isSelectionMode = false
-                                                            } else { photos = searchResults; thumbnails = searchThumbnails; openViewer(photo) }
+                                                            } else { photos = searchResults; thumbnails = searchThumbnails; viewerFromSearch = true; openViewer(photo) }
                                                         },
                                                         onLongClick = { isSelectionMode = true; selectedIds = selectedIds + photo.id }
                                                     ),
@@ -3100,14 +3118,15 @@ fun VaultScreen(
                     onClick = {
                         viewerBitmap = null
                         // Mirror the BackHandler: deep-linked viewer leaves the
-                        // Vault entirely so the user lands back in the caller
-                        // (e.g. the Assistant chat). Otherwise return to the
-                        // gallery they came from.
-                        if (viewerFromDeepLink) {
-                            viewerFromDeepLink = false
-                            onBack?.invoke()
-                        } else {
-                            page = VaultPage.GALLERY
+                        // Vault entirely; viewer-from-search returns to the
+                        // search-results UI; folder / hidden / default all
+                        // route back to their origin page.
+                        when {
+                            viewerFromDeepLink -> { viewerFromDeepLink = false; onBack?.invoke() }
+                            viewerFromHidden -> { viewerFromHidden = false; page = VaultPage.CATEGORIES }
+                            viewerFromFolder -> { viewerFromFolder = false; page = VaultPage.FOLDER_VIEW }
+                            viewerFromSearch -> { viewerFromSearch = false; page = VaultPage.CATEGORIES }
+                            else -> page = VaultPage.GALLERY
                         }
                     },
                     Modifier.align(Alignment.TopStart).padding(top = 48.dp, start = 16.dp).size(40.dp).background(Color.White.copy(alpha = 0.9f), CircleShape)
@@ -4330,11 +4349,21 @@ fun VaultScreen(
             vault = vault,
             onDone = {
                 showEditor = false
-                // Reload the photo to reflect edits
+                // Reload the photo + its thumbnail after edit so both the
+                // viewer and the gallery grid reflect rotation / filter /
+                // crop changes. Without the thumb refresh, the gallery kept
+                // showing the pre-edit cached bitmap from `thumbnails`.
                 editorPhoto?.let { photo ->
                     scope.launch {
-                        val bmp = withContext(Dispatchers.IO) { vault.loadFullPhoto(photo) }
-                        viewerBitmap = bmp
+                        val (full, thumb) = withContext(Dispatchers.IO) {
+                            vault.loadFullPhoto(photo) to vault.loadThumbnail(photo)
+                        }
+                        viewerBitmap = full
+                        if (thumb != null) {
+                            thumbnails = thumbnails.toMutableMap().apply { put(photo.id, thumb) }
+                            // search results grid shares a parallel cache
+                            searchThumbnails = searchThumbnails.toMutableMap().apply { put(photo.id, thumb) }
+                        }
                     }
                 }
                 editorPhoto = null

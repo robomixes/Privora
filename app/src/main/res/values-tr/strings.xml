@@ -45,8 +45,8 @@
     <string name="settings_section_home_features">Ana ekran özellikleri</string>
     <string name="feature_camera">Kamera</string>
     <string name="feature_camera_desc">Fotoğraf ve video çekimi</string>
-    <string name="feature_detect">Algıla</string>
-    <string name="feature_detect_desc">YZ nesne algılama</string>
+    <string name="feature_detect">Lens</string>
+    <string name="feature_detect_desc">YZ Mercek — doğrult, tanıla, açıkla</string>
     <string name="feature_scan">Tara</string>
     <string name="feature_scan_desc">Belge tarayıcı + OCR</string>
     <string name="feature_qr_scan">QR Kodu</string>
@@ -111,6 +111,18 @@
     <string name="assistant_example_summarize">Bu metni özetle…</string>
     <string name="assistant_example_habits">Alışkanlık raporumu göster</string>
     <string name="assistant_error_generic">Bir şeyler ters gitti. Lütfen tekrar dene.</string>
+    <string name="assistant_search_photos_found">**%1$d** fotoğraf bulundu</string>
+    <string name="assistant_search_photos_none">“%1$s” için fotoğraf bulamadım.</string>
+    <string name="assistant_search_photos_of">%1$s\'in</string>
+    <string name="assistant_search_photos_with">%1$s ile</string>
+    <string name="assistant_search_photos_from">%1$s tarihinden</string>
+    <string name="assistant_search_photos_showing">En son %1$d tanesi gösteriliyor.</string>
+    <string name="assistant_search_photos_generic">İşte kasanızdan bazı fotoğraflar.</string>
+    <string name="assistant_expenses_total">Toplam harcama: **%1$s** — bu %3$s %2$d gider.</string>
+    <string name="assistant_expenses_by_category_header">**Kategoriye göre:**</string>
+    <string name="assistant_expenses_top_header">**En çok harcananlar:**</string>
+    <string name="assistant_expenses_none">Bu %1$s için henüz gider kaydı yok.</string>
+    <string name="assistant_expenses_generic">İşte gider özeti.</string>
     <string name="reminder_notification_private">Bir hatırlatıcın var</string>
     <!-- Intruder alerts -->
     <string name="intruder_alerts_title">Davetsiz misafir uyarıları</string>

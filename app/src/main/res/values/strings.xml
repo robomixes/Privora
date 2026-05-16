@@ -45,8 +45,8 @@
     <string name="settings_section_home_features">Home Screen Features</string>
     <string name="feature_camera">Camera</string>
     <string name="feature_camera_desc">Photo &amp; Video capture</string>
-    <string name="feature_detect">Detect</string>
-    <string name="feature_detect_desc">AI object detection</string>
+    <string name="feature_detect">Lens</string>
+    <string name="feature_detect_desc">AI lens — point, identify, describe</string>
     <string name="feature_scan">Scan</string>
     <string name="feature_scan_desc">Document scanner + OCR</string>
     <string name="feature_qr_scan">QR Code</string>
@@ -111,6 +111,18 @@
     <string name="assistant_example_summarize">Summarize this text…</string>
     <string name="assistant_example_habits">Show my habits report</string>
     <string name="assistant_error_generic">Something went wrong. Please try again.</string>
+    <string name="assistant_search_photos_found">Found **%1$d** photos</string>
+    <string name="assistant_search_photos_none">I couldn\'t find any photos for \"%1$s\".</string>
+    <string name="assistant_search_photos_of">of %1$s</string>
+    <string name="assistant_search_photos_with">with %1$s</string>
+    <string name="assistant_search_photos_from">from %1$s</string>
+    <string name="assistant_search_photos_showing">Showing the latest %1$d.</string>
+    <string name="assistant_search_photos_generic">Here are some photos from your vault.</string>
+    <string name="assistant_expenses_total">Total spent: **%1$s** across %2$d expense(s) this %3$s.</string>
+    <string name="assistant_expenses_by_category_header">**By category:**</string>
+    <string name="assistant_expenses_top_header">**Top items:**</string>
+    <string name="assistant_expenses_none">No expenses logged for this %1$s yet.</string>
+    <string name="assistant_expenses_generic">Here\'s your expense summary.</string>
     <string name="reminder_notification_private">You have a reminder</string>
     <!-- Intruder alerts -->
     <string name="intruder_alerts_title">Intruder Alerts</string>
