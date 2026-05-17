@@ -287,6 +287,10 @@
     <string name="settings_screenshot_protection_desc">مفعّلة \u2014 لقطات الشاشة وتسجيل الشاشة محظوران</string>
     <string name="settings_screenshot_protection_disabled">معطّلة — لقطات الشاشة وتسجيل الشاشة مسموحان</string>
     <string name="search_person_chip">شخص: %1$s</string>
+    <string name="sort_created_desc">الأحدث أولاً (تاريخ الإنشاء)</string>
+    <string name="sort_created_asc">الأقدم أولاً (تاريخ الإنشاء)</string>
+    <string name="sort_updated_desc">آخر تعديل أولاً</string>
+    <string name="sort_updated_asc">الأقل تعديلاً أولاً</string>
     <string name="settings_emergency_pin">PIN الطوارئ</string>
     <string name="settings_emergency_pin_active">مفعّل</string>
     <string name="settings_set_emergency_pin">تعيين PIN الطوارئ</string>

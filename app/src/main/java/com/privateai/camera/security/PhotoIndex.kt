@@ -638,6 +638,41 @@ class PhotoIndex(private val database: PrivoraDatabase) {
         Log.d(TAG, "mergeAiTags: photo=$photoId newTagCount=${newTags.size} stored=${capped.size} rowsUpdated=$rows labels=$labelsJson")
     }
 
+    /**
+     * Stamp the photo's update time = NOW. Called from VaultRepository on
+     * replacePhoto so the sort modes UPDATED_DESC / UPDATED_ASC can find
+     * recently-edited photos without scanning every file's mtime.
+     */
+    fun markUpdated(photoId: String, atMillis: Long = System.currentTimeMillis()) {
+        ensureRow(photoId)
+        val cv = android.content.ContentValues().apply { put("updated_at", atMillis) }
+        db.update("photo_index", cv, "photo_id = ?", arrayOf(photoId))
+    }
+
+    /**
+     * Batch lookup: photo id → last updated_at millis (0 if never edited).
+     * Used by the gallery sort path so we don't fire a query per photo.
+     */
+    fun getUpdatedTimes(photoIds: Collection<String>): Map<String, Long> {
+        if (photoIds.isEmpty()) return emptyMap()
+        val result = HashMap<String, Long>(photoIds.size)
+        // SQLite has a default 999-parameter cap. Chunk to stay safely below.
+        photoIds.chunked(500).forEach { chunk ->
+            val placeholders = chunk.joinToString(",") { "?" }
+            db.rawQuery(
+                "SELECT photo_id, updated_at FROM photo_index WHERE photo_id IN ($placeholders)",
+                chunk.toTypedArray()
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val id = cursor.getString(0)
+                    val t = cursor.getLong(1)
+                    if (t > 0L) result[id] = t
+                }
+            }
+        }
+        return result
+    }
+
     /** Set/update the AI-generated description for a photo. */
     fun setDescription(photoId: String, description: String) {
         ensureRow(photoId)

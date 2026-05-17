@@ -301,6 +301,10 @@
     <string name="settings_screenshot_protection_desc">Enabled \u2014 screenshots and screen recording blocked</string>
     <string name="settings_screenshot_protection_disabled">Disabled \u2014 screenshots and screen recording allowed</string>
     <string name="search_person_chip">Person: %1$s</string>
+    <string name="sort_created_desc">Newest first (creation date)</string>
+    <string name="sort_created_asc">Oldest first (creation date)</string>
+    <string name="sort_updated_desc">Recently edited first</string>
+    <string name="sort_updated_asc">Least recently edited first</string>
     <string name="settings_emergency_pin">Emergency PIN</string>
     <string name="settings_emergency_pin_active">Active</string>
     <string name="settings_set_emergency_pin">Set Emergency PIN</string>

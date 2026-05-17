@@ -251,8 +251,21 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
 
     /**
      * Replace a photo's content with a new bitmap. Overwrites encrypted file + thumbnail.
+     *
+     * Preserves `file.lastModified()` on both the photo and its thumbnail
+     * across the write. Without this, editing a photo (rotate / crop /
+     * filter / sticker) bumped the mtime to "now" and the edited photo
+     * jumped to the top of every gallery / smart view / search result —
+     * because `VaultPhoto.timestamp` (used by date-grouping and sort
+     * comparators across the entire vault) reads `file.lastModified()`,
+     * and that's also the only persistent creation-date carrier we have
+     * for fresh captures. The fix preserves the original creation date as
+     * the sort key; an explicit "last edited" timestamp is tracked
+     * separately if/when a future UI feature surfaces it.
      */
     fun replacePhoto(photo: VaultPhoto, newBitmap: Bitmap) {
+        val originalMtime = photo.encryptedFile.lastModified()
+        val originalThumbMtime = photo.thumbnailFile.lastModified()
         val jpegBytes = ByteArrayOutputStream().use { out ->
             newBitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
             out.toByteArray()
@@ -268,7 +281,11 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         thumb.recycle()
         crypto.encryptToFile(jpegBytes, photo.encryptedFile)
         crypto.encryptToFile(thumbBytes, photo.thumbnailFile)
-        Log.d(TAG, "Photo replaced: ${photo.id} (${jpegBytes.size / 1024}KB)")
+        // Restore the original mtimes so sort order stays anchored to the
+        // creation date (not the edit time).
+        if (originalMtime > 0L) photo.encryptedFile.setLastModified(originalMtime)
+        if (originalThumbMtime > 0L) photo.thumbnailFile.setLastModified(originalThumbMtime)
+        Log.d(TAG, "Photo replaced: ${photo.id} (${jpegBytes.size / 1024}KB, mtime preserved=${originalMtime})")
     }
 
     /**

@@ -246,6 +246,10 @@
     <string name="settings_screenshot_protection_desc">Activée \u2014 captures d\'\u00E9cran et enregistrement d\'\u00E9cran bloqués</string>
     <string name="settings_screenshot_protection_disabled">Désactivée — captures d\'écran et enregistrement d\'écran autorisés</string>
     <string name="search_person_chip">Personne : %1$s</string>
+    <string name="sort_created_desc">Plus récentes d\'abord (date de création)</string>
+    <string name="sort_created_asc">Plus anciennes d\'abord (date de création)</string>
+    <string name="sort_updated_desc">Modifiées récemment d\'abord</string>
+    <string name="sort_updated_asc">Modifiées il y a longtemps d\'abord</string>
     <string name="settings_emergency_pin">PIN d\'urgence</string>
     <string name="settings_emergency_pin_active">Actif</string>
     <string name="settings_set_emergency_pin">Définir un PIN d\'urgence</string>

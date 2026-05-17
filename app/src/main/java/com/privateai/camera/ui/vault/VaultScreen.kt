@@ -71,6 +71,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.DriveFileMove
@@ -182,6 +184,50 @@ import com.privateai.camera.security.PrivoraDatabase
 // Screens: LOCKED -> CATEGORIES -> GALLERY -> VIEWER / VIDEO_PLAYER / PDF_VIEWER
 private enum class VaultPage { LOCKED, CATEGORIES, GALLERY, VIEWER, VIDEO_PLAYER, PDF_VIEWER, FOLDER_VIEW, TRASH, WIFI_TRANSFER }
 
+/**
+ * Sort order for vault photo grids. Persisted across launches in
+ * `app_settings/vault_sort_mode`. Applied at every `photos = ...` and
+ * `searchResults = ...` assignment so every list (gallery, folder view,
+ * smart filters, face groups, search results) respects the user's choice.
+ *
+ * UPDATED_* falls back to creation timestamp when a photo has never been
+ * edited, so freshly-imported photos slot in alongside edited ones.
+ */
+private enum class SortMode { CREATED_DESC, CREATED_ASC, UPDATED_DESC, UPDATED_ASC }
+
+private fun getSortMode(context: android.content.Context): SortMode {
+    val name = context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+        .getString("vault_sort_mode", null) ?: return SortMode.CREATED_DESC
+    return try { SortMode.valueOf(name) } catch (_: Exception) { SortMode.CREATED_DESC }
+}
+
+private fun setSortMode(context: android.content.Context, mode: SortMode) {
+    context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+        .edit().putString("vault_sort_mode", mode.name).apply()
+}
+
+/**
+ * Sort a list of photos for display. `updatedTimes` carries the
+ * (photoId → last-edit millis) map from [PhotoIndex.getUpdatedTimes]; for
+ * the CREATED_* modes it can safely be empty.
+ */
+private fun sortPhotos(
+    photos: List<VaultPhoto>,
+    mode: SortMode,
+    updatedTimes: Map<String, Long>
+): List<VaultPhoto> {
+    return when (mode) {
+        SortMode.CREATED_DESC -> photos.sortedByDescending { it.timestamp }
+        SortMode.CREATED_ASC -> photos.sortedBy { it.timestamp }
+        SortMode.UPDATED_DESC -> photos.sortedByDescending {
+            updatedTimes[it.id]?.takeIf { t -> t > 0L } ?: it.timestamp
+        }
+        SortMode.UPDATED_ASC -> photos.sortedBy {
+            updatedTimes[it.id]?.takeIf { t -> t > 0L } ?: it.timestamp
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun VaultScreen(
@@ -219,6 +265,12 @@ fun VaultScreen(
     var page by remember { mutableStateOf(if (startUnlocked) VaultPage.CATEGORIES else VaultPage.LOCKED) }
     var currentCategory by remember { mutableStateOf(VaultCategory.CAMERA) }
     var photos by remember { mutableStateOf<List<VaultPhoto>>(emptyList()) }
+    // Sort preference (creation/update × asc/desc) + the per-photo
+    // last-edit timestamps used by UPDATED_*. Persisted in app_settings.
+    // When sortMode changes, a LaunchedEffect below re-sorts the live
+    // photos + searchResults lists in place.
+    var sortMode by remember { mutableStateOf(getSortMode(context)) }
+    var updatedTimes by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
     var thumbnails by remember { mutableStateOf<Map<String, Bitmap>>(emptyMap()) }
     var categoryCounts by remember { mutableStateOf<Map<VaultCategory, Int>>(emptyMap()) }
     var trashCount by remember { mutableIntStateOf(0) }
@@ -637,7 +689,7 @@ fun VaultScreen(
             // thumbnail was decrypted + decoded. Now the LazyColumn renders
             // right away with grey placeholders (existing aspect-ratio default
             // in the cell code), and thumbnails fill in as they arrive.
-            photos = loaded
+            photos = sortPhotos(loaded, sortMode, updatedTimes)
             thumbnails = emptyMap()
             currentCategory = cat
             selectedIds = emptySet()
@@ -959,6 +1011,29 @@ fun VaultScreen(
     // for both because GALLERY and FOLDER_VIEW are mutually exclusive pages.
     var showOverflowMenu by remember { mutableStateOf(false) }
     var starredOnly by remember { mutableStateOf(false) }
+    // sortMode + updatedTimes are declared up top alongside `photos`.
+    // The LaunchedEffect + sortPhotos helper depend on them, so they live
+    // here in the same scope rather than at the top of the composable.
+    LaunchedEffect(sortMode, photoIndex) {
+        val pi = photoIndex
+        if (pi != null && (sortMode == SortMode.UPDATED_DESC || sortMode == SortMode.UPDATED_ASC)) {
+            withContext(Dispatchers.IO) {
+                val ids = getAllVaultItems().map { it.id }
+                val times = pi.getUpdatedTimes(ids)
+                withContext(Dispatchers.Main) { updatedTimes = times }
+            }
+        }
+    }
+    // Helper: apply the active sort mode to a photo list. Centralized so
+    // every list view in the Vault uses the same ordering.
+    fun sortPhotos(list: List<VaultPhoto>): List<VaultPhoto> {
+        return when (sortMode) {
+            SortMode.CREATED_DESC -> list.sortedByDescending { it.timestamp }
+            SortMode.CREATED_ASC -> list.sortedBy { it.timestamp }
+            SortMode.UPDATED_DESC -> list.sortedByDescending { updatedTimes[it.id] ?: it.timestamp }
+            SortMode.UPDATED_ASC -> list.sortedBy { updatedTimes[it.id] ?: it.timestamp }
+        }
+    }
     // AI detection / description label visibility in the photo viewer.
     // Default: shown. User can change in Settings → AI Detection → Show AI labels.
     // Re-reads on every fresh entry into VaultScreen, which is enough — users
@@ -1485,6 +1560,20 @@ fun VaultScreen(
                 }
             }
         }
+    }
+
+    // Re-sort live lists when the user changes sort mode. UPDATED_* needs
+    // a DB hit for the per-photo edit timestamps; CREATED_* doesn't.
+    LaunchedEffect(sortMode) {
+        val pi = photoIndex
+        val needsUpdateTimes = sortMode == SortMode.UPDATED_DESC || sortMode == SortMode.UPDATED_ASC
+        val times: Map<String, Long> = if (needsUpdateTimes && pi != null) {
+            val ids = (photos + searchResults).map { it.id }.toSet()
+            withContext(Dispatchers.IO) { pi.getUpdatedTimes(ids) }
+        } else emptyMap()
+        updatedTimes = times
+        photos = sortPhotos(photos, sortMode, times)
+        searchResults = sortPhotos(searchResults, sortMode, times)
     }
 
     // Observe IndexingManager progress
@@ -2126,7 +2215,7 @@ fun VaultScreen(
                     } else if (showFaceGroups && selectedFaceGroup != null) {
                         // Show photos for selected face group (sorted newest first)
                         val groupName = photoIndex?.getFaceGroupName(selectedFaceGroup!!) ?: "Unknown Person"
-                        val sortedResults = remember(searchResults) { searchResults.sortedByDescending { it.timestamp } }
+                        val sortedResults = remember(searchResults, sortMode, updatedTimes) { sortPhotos(searchResults) }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(groupName, style = MaterialTheme.typography.titleSmall)
@@ -2785,6 +2874,31 @@ fun VaultScreen(
                                                 starredOnly = !starredOnly
                                             }
                                         )
+                                        // Sort by — global preference, applied across every
+                                        // vault list view (gallery, folders, search, smart
+                                        // filters, face groups). Choosing a new mode triggers
+                                        // a LaunchedEffect that re-sorts the live state lists.
+                                        androidx.compose.material3.HorizontalDivider()
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.sort_created_desc)) },
+                                            leadingIcon = { Icon(Icons.Default.ArrowDownward, null, tint = if (sortMode == SortMode.CREATED_DESC) MaterialTheme.colorScheme.primary else LocalContentColor.current) },
+                                            onClick = { showOverflowMenu = false; sortMode = SortMode.CREATED_DESC; setSortMode(context, SortMode.CREATED_DESC) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.sort_created_asc)) },
+                                            leadingIcon = { Icon(Icons.Default.ArrowUpward, null, tint = if (sortMode == SortMode.CREATED_ASC) MaterialTheme.colorScheme.primary else LocalContentColor.current) },
+                                            onClick = { showOverflowMenu = false; sortMode = SortMode.CREATED_ASC; setSortMode(context, SortMode.CREATED_ASC) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.sort_updated_desc)) },
+                                            leadingIcon = { Icon(Icons.Default.Edit, null, tint = if (sortMode == SortMode.UPDATED_DESC) MaterialTheme.colorScheme.primary else LocalContentColor.current) },
+                                            onClick = { showOverflowMenu = false; sortMode = SortMode.UPDATED_DESC; setSortMode(context, SortMode.UPDATED_DESC) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.sort_updated_asc)) },
+                                            leadingIcon = { Icon(Icons.Default.Edit, null, tint = if (sortMode == SortMode.UPDATED_ASC) MaterialTheme.colorScheme.primary else LocalContentColor.current) },
+                                            onClick = { showOverflowMenu = false; sortMode = SortMode.UPDATED_ASC; setSortMode(context, SortMode.UPDATED_ASC) }
+                                        )
                                     }
                                 }
                             }
@@ -2807,10 +2921,12 @@ fun VaultScreen(
                             else -> photos
                         }
                     } else photos
-                    val displayPhotos = if (starredOnly) {
+                    val starFiltered = if (starredOnly) {
                         val starredIds = remember(starredOnly, typeFiltered) { vault.listStarred() }
                         typeFiltered.filter { it.id in starredIds }
                     } else typeFiltered
+                    // Re-sort the gallery according to the user's Sort menu choice.
+                    val displayPhotos = remember(starFiltered, sortMode, updatedTimes) { sortPhotos(starFiltered) }
                     val grouped = remember(displayPhotos) { groupPhotosByDate(displayPhotos) }
 
                     val galleryGridWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 16.dp
@@ -4123,7 +4239,8 @@ fun VaultScreen(
                             Text(stringResource(R.string.empty_folder), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     } else if (photos.isNotEmpty()) {
-                        val grouped = remember(photos) { groupPhotosByDate(photos) }
+                        val folderSorted = remember(photos, sortMode, updatedTimes) { sortPhotos(photos) }
+                        val grouped = remember(folderSorted) { groupPhotosByDate(folderSorted) }
                         val folderGridW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 16.dp
                         LazyColumn(contentPadding = PaddingValues(4.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             grouped.forEach { (header, groupPhotos) ->
@@ -4347,6 +4464,13 @@ fun VaultScreen(
             photo = editPhoto,
             initialBitmap = editBmp,
             vault = vault,
+            // After a successful save, stamp the photo's `updated_at` in
+            // photo_index so the Sort menu's "Updated date" modes find it.
+            onSaved = { editedId ->
+                scope.launch(Dispatchers.IO) {
+                    try { photoIndex?.markUpdated(editedId) } catch (_: Exception) {}
+                }
+            },
             onDone = {
                 showEditor = false
                 // Reload the photo + its thumbnail after edit so both the
