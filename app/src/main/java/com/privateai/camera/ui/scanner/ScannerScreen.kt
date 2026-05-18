@@ -3,6 +3,7 @@
 
 package com.privateai.camera.ui.scanner
 
+import com.privateai.camera.R
 import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Bitmap
@@ -111,9 +112,18 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
     var isProcessingOcr by remember { mutableStateOf(false) }
     var showOcrResult by remember { mutableStateOf(false) }
 
+    // Smart Scanner — Gemma classifies the saved doc and proposes a
+    // filename + folder. Loading flips true while analyze runs; suggestion
+    // populated after parse; pendingSavedFile is the encrypted .pdf.enc the
+    // user accepts/renames/moves from the sheet.
+    var smartScanLoading by remember { mutableStateOf(false) }
+    var smartScanSuggestion by remember { mutableStateOf<com.privateai.camera.bridge.ScannerAi.Suggestion?>(null) }
+    var pendingSavedFile by remember { mutableStateOf<java.io.File?>(null) }
+
     // Encrypted vault
     val crypto = remember { CryptoManager(context).also { it.initialize() } }
     val vault = remember { VaultRepository(context, crypto) }
+    val folderManager = remember { com.privateai.camera.security.FolderManager(context, crypto) }
 
     val scannerOptions = remember {
         GmsDocumentScannerOptions.Builder()
@@ -552,6 +562,37 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(context, "PDF saved to vault (${scannedPages.size} pages)", Toast.LENGTH_SHORT).show()
                                     }
+
+                                    // Smart Scanner — only when the user has it enabled in
+                                    // Settings AND Gemma is loaded. Trigger on the first
+                                    // page bitmap (already in memory from the enhancement
+                                    // loop) so the analyze call is a single ~5s GPU pass.
+                                    if (isSmartScanEnabled(context) &&
+                                        com.privateai.camera.bridge.GemmaRunner.isAvailable(context)) {
+                                        withContext(Dispatchers.Main) {
+                                            smartScanLoading = true
+                                            pendingSavedFile = savedFile
+                                        }
+                                        try {
+                                            val firstPageBmp = loadAndEnhanceBitmap(context, scannedPages[0], enhancementMode)
+                                            if (firstPageBmp != null) {
+                                                val folders = folderManager.listAllFolders().map { it.name }
+                                                val suggestion = com.privateai.camera.bridge.ScannerAi.analyze(
+                                                    context, firstPageBmp, folders
+                                                )
+                                                firstPageBmp.recycle()
+                                                withContext(Dispatchers.Main) {
+                                                    smartScanLoading = false
+                                                    smartScanSuggestion = suggestion
+                                                }
+                                            } else {
+                                                withContext(Dispatchers.Main) { smartScanLoading = false }
+                                            }
+                                        } catch (e: Exception) {
+                                            android.util.Log.w("ScannerScreen", "Smart scan failed: ${e.message}")
+                                            withContext(Dispatchers.Main) { smartScanLoading = false }
+                                        }
+                                    }
                                 } catch (e: Exception) {
                                     withContext(Dispatchers.Main) {
                                         Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -634,6 +675,90 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
     }
 
     } // Scaffold
+
+    // Smart Scanner bottom sheet — shown while Gemma is analyzing or after
+    // a parsed suggestion arrives. Accept renames + moves the saved PDF.
+    val activeSuggestion = smartScanSuggestion
+    val activeFile = pendingSavedFile
+    if (smartScanLoading || (activeSuggestion != null && activeFile != null)) {
+        SmartScanSheet(
+            loading = smartScanLoading,
+            suggestion = activeSuggestion,
+            existingFolders = remember(activeSuggestion) {
+                folderManager.listAllFolders().map { it.name }.sorted()
+            },
+            onAccept = { editedTitle, pickedFolder ->
+                val file = pendingSavedFile
+                if (file != null) {
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            // Reconstruct a VaultPhoto handle for the saved PDF.
+                            val id = file.name.removeSuffix(".pdf.enc")
+                            val photo = com.privateai.camera.security.VaultPhoto(
+                                id = id,
+                                timestamp = file.lastModified(),
+                                category = com.privateai.camera.security.VaultCategory.SCAN,
+                                encryptedFile = file,
+                                thumbnailFile = file,
+                                mediaType = com.privateai.camera.security.VaultMediaType.PDF
+                            )
+                            // Rename. Pass the raw user-typed title — renameItem
+                            // strips path-illegal chars + appends .pdf for PDFs
+                            // (so the user typing "Receipt 2024" lands as
+                            // "Receipt 2024.pdf"; spaces are preserved).
+                            val renamed = editedTitle.trim().takeIf { it.isNotBlank() }?.let { newName ->
+                                val result = vault.renameItem(photo, newName)
+                                android.util.Log.i("ScannerScreen", "Smart-scan rename '${photo.id}' → '$newName' result=$result")
+                                (result as? com.privateai.camera.security.VaultRepository.RenameResult.Success)?.updated
+                            } ?: photo
+                            // Destination: null = stay in Scan album; otherwise
+                            // find/create folder and move.
+                            val folderName = pickedFolder?.trim()?.takeIf { it.isNotBlank() }
+                            val finalDestination: String = if (folderName != null) {
+                                val existing = folderManager.listAllFolders()
+                                    .firstOrNull { it.name.equals(folderName, ignoreCase = true) }
+                                val target = existing ?: folderManager.createFolder(folderName, parentId = null)
+                                vault.moveToFolder(renamed, folderManager.getFolderDir(target.id))
+                                target.name
+                            } else {
+                                // Stay in Scan album — no move.
+                                context.getString(R.string.smart_scan_scan_album)
+                            }
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.smart_scan_saved_to, finalDestination),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.w("ScannerScreen", "Smart-scan apply failed: ${e.message}")
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, "Couldn't apply suggestions", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        withContext(Dispatchers.Main) {
+                            smartScanSuggestion = null
+                            pendingSavedFile = null
+                        }
+                    }
+                } else {
+                    smartScanSuggestion = null
+                }
+            },
+            onDismiss = {
+                smartScanLoading = false
+                smartScanSuggestion = null
+                pendingSavedFile = null
+            }
+        )
+    }
+}
+
+/** Setting accessor for the smart-scan opt-in. */
+internal fun isSmartScanEnabled(context: android.content.Context): Boolean {
+    return context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+        .getBoolean("smart_scan_enabled", false)
 }
 
 private fun loadAndEnhanceBitmap(

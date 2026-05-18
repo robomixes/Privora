@@ -491,6 +491,16 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     defaultValue = false
                 )
 
+                // Smart scan — post-save AI suggestion (filename / folder /
+                // extracted fields) after the document scanner saves a PDF.
+                AppSettingToggle(
+                    context = context,
+                    key = "smart_scan_enabled",
+                    title = stringResource(R.string.settings_smart_scan),
+                    subtitle = stringResource(R.string.settings_smart_scan_desc),
+                    defaultValue = false
+                )
+
                 // ("Process all photos with AI…" moved to Advanced section.)
             }
 

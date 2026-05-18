@@ -947,7 +947,7 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
         // confuse downstream filesystems / our id parsing. Empty or only-dot
         // names are rejected.
         val cleaned = newBaseName.trim()
-            .replace(Regex("""[/\\:*?"<>| ]"""), "")
+            .replace(Regex("""[/\\:*?"<>|]"""), "")
         if (cleaned.isBlank() || cleaned == "." || cleaned == "..") return RenameResult.InvalidName
 
         val parent = photo.encryptedFile.parentFile ?: return RenameResult.Failed

@@ -318,7 +318,10 @@ object AssistantTools {
      * then custom folders. Returns null if not found.
      */
     private fun findDocument(vault: VaultRepository, id: String): com.privateai.camera.security.VaultPhoto? {
-        // Most scanned docs land in the SCAN category; check there first for speed.
+        // Most scanned docs land in the SCAN category — check there first for speed.
+        // (Custom folders are walked by the live ATTACHED DOCUMENT path in
+        // AssistantScreen.runAssistantTurn; this fn is only hit by the
+        // deprecated summarize_document / ask_document tools.)
         VaultCategory.entries.firstOrNull { cat ->
             vault.listPhotos(cat).any { it.id == id }
         }?.let { cat ->

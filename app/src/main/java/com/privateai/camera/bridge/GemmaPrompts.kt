@@ -100,6 +100,46 @@ object GemmaPrompts {
     }
 
     /**
+     * Smart Scanner: ask Gemma to classify the scanned document, suggest a
+     * filename and destination folder, and extract a few key fields.
+     *
+     * The reply MUST be a single JSON object so the host can deterministically
+     * parse it. Free-form fields ("title", folder name, extracted values) are
+     * in the user's UI language; the discrete `type` enum is always English
+     * because the host matches it against known categories (receipt /
+     * business_card / id / invoice / recipe / handwritten_note / generic).
+     *
+     * [existingFolders] is a comma-separated list of folder names the user
+     * already has; the model is asked to reuse one when it fits the doc type
+     * rather than inventing a new one.
+     */
+    fun smartScanAnalyze(existingFolders: List<String>): String {
+        val lang = uiLanguageName()
+        val foldersHint = if (existingFolders.isEmpty()) {
+            "The user has no folders yet — pick a sensible new folder name."
+        } else {
+            "The user's existing folders are: ${existingFolders.joinToString(", ") { "\"$it\"" }}. " +
+                "Reuse one of these names when it fits, otherwise suggest a sensible new folder name."
+        }
+        return buildString {
+            append("Analyze this scanned document and return a single JSON object with these keys:\n")
+            append("  \"type\": one of receipt, business_card, id, invoice, recipe, handwritten_note, generic\n")
+            append("  \"title\": a short filename for this document (3-6 words, no extension), in $lang\n")
+            append("  \"folder\": a folder name where this document belongs, in $lang. $foldersHint\n")
+            append("  \"fields\": an object of key/value pairs of the most important data on the document. ")
+            append("Choose keys appropriate to the type — e.g. for a receipt: merchant, total, date, currency; ")
+            append("for a business card: name, phone, email, company, title; ")
+            append("for an invoice: invoice_number, vendor, total, due_date; ")
+            append("for an id: name, id_number, date_of_birth; ")
+            append("for a recipe: title, servings; ")
+            append("for a handwritten_note or generic: leave fields empty.\n")
+            append("Only emit fields that are clearly visible. Copy numbers, dates and names character-by-character from the document. ")
+            append("If a field is illegible or missing, omit it entirely instead of guessing.\n")
+            append("Output ONLY the JSON object, no extra text, no markdown, no code fences.")
+        }
+    }
+
+    /**
      * Prompt for the Detect module's per-detection "Describe with AI" action.
      * YOLO has already named the object coarsely ([yoloClass]); Gemma's job
      * is to refine — make/model for cars, breed/species for animals, type

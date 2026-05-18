@@ -808,10 +808,18 @@ private suspend fun runAssistantTurn(
             val crypto = com.privateai.camera.security.CryptoManager(context)
             if (crypto.initialize()) {
                 val vaultRepo = com.privateai.camera.security.VaultRepository(context, crypto)
-                // Find the doc across all categories (it's typically in SCAN).
-                val doc = com.privateai.camera.security.VaultCategory.entries.asSequence()
+                // Find the doc across all categories AND all custom folders.
+                // Smart Scanner moves the saved PDF out of the SCAN category
+                // and into the user-picked folder; the previous lookup only
+                // walked category dirs, so the Assistant couldn't find the
+                // OCR sidecar after a folder move.
+                val fromCategories = com.privateai.camera.security.VaultCategory.entries.asSequence()
                     .flatMap { vaultRepo.listPhotos(it).asSequence() }
-                    .firstOrNull { it.id == attachedDocId }
+                val folderManager = com.privateai.camera.security.FolderManager(context, crypto)
+                val fromFolders = folderManager.listAllFolders().asSequence().flatMap { f ->
+                    vaultRepo.listFolderItems(folderManager.getFolderDir(f.id)).asSequence()
+                }
+                val doc = (fromCategories + fromFolders).firstOrNull { it.id == attachedDocId }
                 doc?.let { vaultRepo.loadOcr(it) }
             } else null
         } catch (e: Exception) {
