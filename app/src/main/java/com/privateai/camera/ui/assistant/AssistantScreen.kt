@@ -4,6 +4,13 @@
 package com.privateai.camera.ui.assistant
 
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +37,7 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Lightbulb
@@ -43,8 +51,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -57,9 +71,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import com.privateai.camera.R
 import com.privateai.camera.bridge.AssistantPrompts
@@ -111,6 +129,21 @@ private object AssistantSession {
     var attachedDocId: String?
         get() = _attachedDocId.value
         set(value) { _attachedDocId.value = value }
+
+    /**
+     * Image the user has attached for the next message via the input-row
+     * paperclip button. One image at a time. Held as a content URI; the
+     * send path decrypts/copies it to a temp file before handing to
+     * [com.privateai.camera.bridge.GemmaRunner.describeImage].
+     *
+     * Cleared after a successful send so the next turn defaults back to
+     * pure-text mode. The user can also tap × on the preview chip to
+     * detach without sending.
+     */
+    private val _attachedImageUri = mutableStateOf<android.net.Uri?>(null)
+    var attachedImageUri: android.net.Uri?
+        get() = _attachedImageUri.value
+        set(value) { _attachedImageUri.value = value }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -132,6 +165,32 @@ fun AssistantScreen(
     // Pre-warm the Gemma engine so the first reply doesn't pay cold-load latency
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) { GemmaRunner.load(context) }
+    }
+
+    // Photo-picker launcher for the image-attach (paperclip) button in the
+    // input row. Uses the modern PickVisualMedia contract (no storage
+    // permission needed; system picker isolates the gallery). The picked
+    // URI is stashed on AssistantSession so the preview chip + send path
+    // can read it. One image at a time; picking again replaces.
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) AssistantSession.attachedImageUri = uri
+    }
+    // Read the attached image reactively so the preview chip + send-button
+    // enabled state recompose when the user attaches or clears.
+    val attachedImage: android.net.Uri? = AssistantSession.attachedImageUri
+    var showAttachMenu by remember { mutableStateOf(false) }
+    var showVaultPicker by remember { mutableStateOf(false) }
+    // Decoded thumbnail for the preview chip — cached in memory while the
+    // URI is attached. Decoded once via ContentResolver.openInputStream.
+    val attachedImageThumb = remember(attachedImage) {
+        if (attachedImage == null) null
+        else try {
+            context.contentResolver.openInputStream(attachedImage)?.use { ins ->
+                android.graphics.BitmapFactory.decodeStream(ins)
+            }
+        } catch (e: Exception) { Log.w(TAG, "thumb decode failed: ${e.message}"); null }
     }
 
     // Deep-link: bind the doc id to the session SYNCHRONOUSLY during
@@ -173,8 +232,35 @@ fun AssistantScreen(
 
     fun sendMessage() {
         val text = inputText.trim()
-        if (text.isEmpty() || thinking) return
+        val pendingImage = AssistantSession.attachedImageUri
+        // An attached image counts as content too — accept image-only sends
+        // (defaults to "Describe this image").
+        if (text.isEmpty() && pendingImage == null) return
+        if (thinking) return
         inputText = ""
+        // Image-attached send: bypass the regular runAssistantTurn pipeline
+        // (snapshot + tools + multi-turn) and call describeImage directly.
+        // Single-shot vision pass; the user's typed text becomes the prompt
+        // (or a localized "Describe this image" default).
+        if (pendingImage != null) {
+            // Capture the user's bitmap once so the chat bubble can render
+            // it even after the URI is detached. PickVisualMedia's grant
+            // may not survive past the send.
+            val capturedBitmap = attachedImageThumb
+            AssistantSession.attachedImageUri = null  // detach now so chip clears + repeated sends require re-pick
+            val displayText = text.ifBlank { context.getString(R.string.assistant_image_default_prompt) }
+            messages += ChatMessage.User(displayText, image = capturedBitmap)
+            thinking = true
+            scope.launch {
+                val reply = withContext(Dispatchers.IO) {
+                    runImageQueryTurn(context, pendingImage, displayText)
+                }
+                messages += ChatMessage.Assistant(reply ?: context.getString(R.string.assistant_error_generic), emptyList())
+                thinking = false
+            }
+            return
+        }
+        if (text.isEmpty()) return
         messages += ChatMessage.User(text)
         thinking = true
 
@@ -451,40 +537,146 @@ fun AssistantScreen(
                 item { Spacer(Modifier.height(8.dp)) }
             }
 
-            // Input bar — taller default (~4 visible lines at rest, expands to
-            // 18 for pasted emails / drafts). The system text field already
-            // exposes paste via long-press; we don't add a separate paste icon
-            // because it consumed input width users want for the field itself.
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 110.dp),
-                    placeholder = { Text(stringResource(R.string.assistant_input_hint)) },
-                    minLines = 4,
-                    maxLines = 18,
-                    enabled = !thinking
-                )
-                IconButton(
-                    onClick = { sendMessage() },
-                    enabled = inputText.isNotBlank() && !thinking
+            // Attached image preview — sits between the chat list and the
+            // input row when the user has picked an image for the next
+            // message. Tap × to detach without sending.
+            if (attachedImage != null) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Send,
-                        contentDescription = stringResource(R.string.assistant_send),
-                        tint = if (inputText.isNotBlank() && !thinking)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                    if (attachedImageThumb != null) {
+                        Image(
+                            bitmap = attachedImageThumb.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.Image, null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.assistant_attached_image),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
                     )
+                    IconButton(onClick = { AssistantSession.attachedImageUri = null }) {
+                        Icon(
+                            Icons.Default.Close,
+                            stringResource(R.string.assistant_attached_image_detach)
+                        )
+                    }
+                }
+            }
+
+            // Input bar — ChatGPT-style pill: a single rounded Surface that
+            // wraps a leading "+" attach button, an expanding text field
+            // (1 line at rest, grows up to 6 lines), and a trailing send
+            // circle. No more 110dp tall block by default — the input only
+            // takes the height the user's text needs.
+            val canSend = (inputText.isNotBlank() || attachedImage != null) && !thinking
+            androidx.compose.material3.Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    // Leading "+" attach button → dropdown (Device gallery /
+                    // Privora vault). Same enable / disable logic as before.
+                    Box {
+                        IconButton(
+                            onClick = { showAttachMenu = true },
+                            enabled = !thinking
+                        ) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = stringResource(R.string.assistant_attach_image),
+                                tint = if (!thinking) MaterialTheme.colorScheme.onSurfaceVariant
+                                       else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showAttachMenu,
+                            onDismissRequest = { showAttachMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.assistant_attach_from_gallery)) },
+                                leadingIcon = { Icon(Icons.Default.PhotoLibrary, null) },
+                                onClick = {
+                                    showAttachMenu = false
+                                    imagePickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.assistant_attach_from_vault)) },
+                                leadingIcon = { Icon(Icons.Default.Lock, null) },
+                                onClick = {
+                                    showAttachMenu = false
+                                    showVaultPicker = true
+                                }
+                            )
+                        }
+                    }
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        enabled = !thinking,
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                        maxLines = 6,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = 14.dp, horizontal = 4.dp),
+                        decorationBox = { inner ->
+                            if (inputText.isEmpty()) {
+                                Text(
+                                    stringResource(R.string.assistant_input_hint),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                            inner()
+                        }
+                    )
+                    // Trailing send: filled circle when enabled, neutral when not.
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(
+                                if (canSend) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            .clickable(enabled = canSend) { sendMessage() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Send,
+                            contentDescription = stringResource(R.string.assistant_send),
+                            modifier = Modifier.size(18.dp),
+                            tint = if (canSend) MaterialTheme.colorScheme.onPrimary
+                                   else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                    }
                 }
             }
             // Char counter — surfaces only when the user has typed enough that
@@ -498,14 +690,18 @@ fun AssistantScreen(
                 )
             }
 
-            // Quick-action tag row — under the input field. Each chip wraps
-            // the typed text in a writing-task directive and sends. Disabled
-            // when the field is empty so the user never sends a directive with
-            // nothing to act on.
-            val canApplyChip = inputText.isNotBlank() && !thinking
+            // Quick-action tag row — under the input field. Each chip sends
+            // a writing-task directive. Works when there's typed text OR an
+            // attached image / PDF (so the user can attach a doc and tap
+            // "Summarize" without typing anything). With no text, the
+            // directive becomes the prompt verbatim.
+            val canApplyChip = (inputText.isNotBlank() ||
+                attachedImage != null ||
+                AssistantSession.attachedDocId != null) && !thinking
             fun applyQuickAction(directive: String) {
                 if (!canApplyChip) return
-                inputText = "$directive\n\n${inputText.trim()}"
+                val typed = inputText.trim()
+                inputText = if (typed.isNotEmpty()) "$directive\n\n$typed" else directive
                 sendMessage()
             }
             Row(
@@ -622,6 +818,31 @@ fun AssistantScreen(
                     }
                 )
             }
+
+            // Vault-content picker — bottom sheet listing recent vault images
+            // AND PDFs. Image → decrypt to temp JPEG → set as attached image.
+            // PDF → set attachedDocId so the existing OCR-injection path
+            // grounds the next assistant turn in the doc text.
+            if (showVaultPicker) {
+                VaultPhotoPickerSheet(
+                    onPicked = { tempUri ->
+                        AssistantSession.attachedImageUri = tempUri
+                        showVaultPicker = false
+                    },
+                    onPdfPicked = { pdfId ->
+                        // Switching docs wipes prior chat so a previous
+                        // summary doesn't bias the next answer (matches the
+                        // existing PDF-viewer → Assistant deep-link behavior).
+                        val previous = AssistantSession.attachedDocId
+                        if (previous != null && previous != pdfId) {
+                            AssistantSession.messages.clear()
+                        }
+                        AssistantSession.attachedDocId = pdfId
+                        showVaultPicker = false
+                    },
+                    onDismiss = { showVaultPicker = false }
+                )
+            }
         }
     }
 }
@@ -641,6 +862,43 @@ private data class TurnResult(
  * mis-copy). The thumb strip already shows the visual result; the text
  * just needs to confirm the count + what was matched.
  */
+/**
+ * One-shot vision query: decrypt/copy the picked image URI into a temp JPEG
+ * and hand it to [GemmaRunner.describeImage] with the user's typed prompt.
+ *
+ * Bypasses [runAssistantTurn] because the regular flow does tool-calling
+ * + knowledge-snapshot context which adds zero value when the user is
+ * asking about a specific photo they just attached.
+ */
+private suspend fun runImageQueryTurn(
+    context: android.content.Context,
+    imageUri: android.net.Uri,
+    userPrompt: String
+): String? {
+    if (!GemmaRunner.isAvailable(context)) return null
+    val tempFile = File(context.cacheDir, "assistant_img_${System.currentTimeMillis()}.jpg")
+    try {
+        // Copy the picker URI to a real file path. PickVisualMedia hands us
+        // a content:// URI which GemmaRunner.describeImage can't open
+        // directly (it takes a filesystem path).
+        context.contentResolver.openInputStream(imageUri)?.use { ins ->
+            tempFile.outputStream().use { out -> ins.copyTo(out) }
+        }
+        if (!tempFile.exists() || tempFile.length() == 0L) {
+            Log.w(TAG, "runImageQueryTurn: temp file empty / missing")
+            return null
+        }
+        // Honor user's UI language for the reply.
+        val prompt = com.privateai.camera.bridge.GemmaPrompts.askAboutImage(userPrompt)
+        return GemmaRunner.describeImage(context, tempFile.absolutePath, prompt)?.trim()
+    } catch (e: Exception) {
+        Log.w(TAG, "runImageQueryTurn failed: ${e.message}")
+        return null
+    } finally {
+        try { tempFile.delete() } catch (_: Exception) {}
+    }
+}
+
 private fun buildSearchPhotosSummary(
     context: android.content.Context,
     leanJson: String,

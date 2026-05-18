@@ -77,7 +77,8 @@ data class PhotoThumb(val id: String, val bitmap: Bitmap)
 
 /** A single message in the chat — user or assistant. */
 sealed class ChatMessage {
-    data class User(val text: String) : ChatMessage()
+    /** Attached image (D2 — Ask the Assistant about a photo). null = plain text. */
+    data class User(val text: String, val image: Bitmap? = null) : ChatMessage()
     data class Assistant(
         val text: String,
         val refs: List<DataRef> = emptyList(),
@@ -115,27 +116,46 @@ fun ChatBubble(
         contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
     ) {
         if (isUser) {
-            Card(
-                modifier = Modifier
-                    .widthIn(max = 300.dp)
-                    .combinedClickable(
-                        onClick = {},
-                        onLongClick = {
-                            clipboard.setText(AnnotatedString(text))
-                            Toast.makeText(context, R.string.assistant_copied, Toast.LENGTH_SHORT).show()
-                        }
-                    ),
-                shape = RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+            val userMsg = message as ChatMessage.User
+            Column(
+                modifier = Modifier.widthIn(max = 300.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    text,
-                    modifier = Modifier.padding(12.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                // Image thumbnail above the bubble (D2 — Ask the Assistant
+                // about a photo). Stays in the chat history so the user can
+                // see which photo each turn referred to.
+                userMsg.image?.let { bmp ->
+                    Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(160.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
+                Card(
+                    modifier = Modifier
+                        .combinedClickable(
+                            onClick = {},
+                            onLongClick = {
+                                clipboard.setText(AnnotatedString(text))
+                                Toast.makeText(context, R.string.assistant_copied, Toast.LENGTH_SHORT).show()
+                            }
+                        ),
+                    shape = RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Text(
+                        text,
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
             }
         } else {
             Row(
