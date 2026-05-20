@@ -294,6 +294,17 @@
     <string name="settings_ocr_lang_not_installed">未安装 · %1$s</string>
     <string name="settings_ocr_lang_download">下载</string>
     <string name="scanner_ocr_no_languages">尚未安装 OCR 语言。打开"设置 → OCR 语言"下载一个。</string>
+    <string name="scanner_capture_permission_required">扫描文档需要相机权限。</string>
+    <string name="scanner_capture_grant_permission">授予相机权限</string>
+    <string name="scanner_capture_page_count">%1$d / %2$d</string>
+    <string name="scanner_capture_flash">闪光灯</string>
+    <string name="scanner_capture_gallery">从图库导入</string>
+    <string name="scanner_capture_done">完成</string>
+    <string name="scanner_capture_retake">重拍</string>
+    <string name="scanner_capture_max_pages">每次扫描最多 %1$d 页</string>
+    <string name="scanner_crop_hint">拖动四角以框选文档</string>
+    <string name="scanner_crop_apply">应用</string>
+    <string name="scanner_crop_skip">跳过裁剪</string>
     <string name="settings_section_security">安全</string>
     <string name="settings_encryption">加密</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 每次安装独立密钥 \u2022 硬件支持</string>

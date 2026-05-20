@@ -161,8 +161,8 @@ dependencies {
     implementation(libs.litertlm.android)
 
     // ML Kit (being phased out — see Track A. Barcode → ZXing done.
-    // Face detection → ONNX YuNet done. OCR → Tesseract 5 done.)
-    implementation(libs.mlkit.document.scanner)
+    // Face detection → ONNX YuNet done. OCR → Tesseract 5 done.
+    // Document scanner → CameraX + manual crop done. Only Translate left.)
     implementation(libs.mlkit.translate)
     implementation(libs.kotlinx.coroutines.play.services)
 

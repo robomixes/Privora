@@ -292,6 +292,17 @@
     <string name="settings_ocr_lang_not_installed">غير مثبت · %1$s</string>
     <string name="settings_ocr_lang_download">تنزيل</string>
     <string name="scanner_ocr_no_languages">لم يتم تثبيت أي لغة OCR. افتح الإعدادات ← لغات OCR لتنزيل واحدة.</string>
+    <string name="scanner_capture_permission_required">يلزم الوصول إلى الكاميرا لمسح المستندات.</string>
+    <string name="scanner_capture_grant_permission">منح إذن الكاميرا</string>
+    <string name="scanner_capture_page_count">%1$d / %2$d</string>
+    <string name="scanner_capture_flash">الفلاش</string>
+    <string name="scanner_capture_gallery">استيراد من المعرض</string>
+    <string name="scanner_capture_done">تم</string>
+    <string name="scanner_capture_retake">إعادة الالتقاط</string>
+    <string name="scanner_capture_max_pages">الحد الأقصى %1$d صفحات لكل مسح</string>
+    <string name="scanner_crop_hint">اسحب الزوايا لتأطير المستند</string>
+    <string name="scanner_crop_apply">تطبيق</string>
+    <string name="scanner_crop_skip">تخطي الاقتصاص</string>
     <string name="settings_section_security">الأمان</string>
     <string name="settings_encryption">التشفير</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 مفتاح فريد لكل تثبيت \u2022 مدعوم بالعتاد</string>

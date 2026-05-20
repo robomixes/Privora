@@ -292,6 +292,17 @@
     <string name="settings_ocr_lang_not_installed">No instalado · %1$s</string>
     <string name="settings_ocr_lang_download">Descargar</string>
     <string name="scanner_ocr_no_languages">No hay idiomas OCR instalados. Abre Ajustes → Idiomas OCR para descargar uno.</string>
+    <string name="scanner_capture_permission_required">Se necesita acceso a la cámara para escanear documentos.</string>
+    <string name="scanner_capture_grant_permission">Conceder permiso de cámara</string>
+    <string name="scanner_capture_page_count">%1$d / %2$d</string>
+    <string name="scanner_capture_flash">Flash</string>
+    <string name="scanner_capture_gallery">Importar desde la galería</string>
+    <string name="scanner_capture_done">Listo</string>
+    <string name="scanner_capture_retake">Repetir</string>
+    <string name="scanner_capture_max_pages">Máximo %1$d páginas por escaneo</string>
+    <string name="scanner_crop_hint">Arrastra las esquinas para enmarcar el documento</string>
+    <string name="scanner_crop_apply">Aplicar</string>
+    <string name="scanner_crop_skip">Omitir recorte</string>
     <string name="settings_section_security">Seguridad</string>
     <string name="settings_encryption">Cifrado</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Clave por instalación \u2022 Respaldada por hardware</string>

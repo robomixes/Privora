@@ -306,6 +306,17 @@
     <string name="settings_ocr_lang_not_installed">Kurulmadı · %1$s</string>
     <string name="settings_ocr_lang_download">İndir</string>
     <string name="scanner_ocr_no_languages">Kurulu OCR dili yok. Ayarlar → OCR dilleri\'ni açıp bir tane indirin.</string>
+    <string name="scanner_capture_permission_required">Belgeleri taramak için kamera erişimi gerekli.</string>
+    <string name="scanner_capture_grant_permission">Kamera iznini ver</string>
+    <string name="scanner_capture_page_count">%1$d / %2$d</string>
+    <string name="scanner_capture_flash">Flaş</string>
+    <string name="scanner_capture_gallery">Galeriden içe aktar</string>
+    <string name="scanner_capture_done">Bitti</string>
+    <string name="scanner_capture_retake">Yeniden çek</string>
+    <string name="scanner_capture_max_pages">Tarama başına en fazla %1$d sayfa</string>
+    <string name="scanner_crop_hint">Belgeyi çerçevelemek için köşeleri sürükleyin</string>
+    <string name="scanner_crop_apply">Uygula</string>
+    <string name="scanner_crop_skip">Kırpmayı atla</string>
     <string name="settings_section_security">Güvenlik</string>
     <string name="settings_encryption">Şifreleme</string>
     <string name="settings_encryption_desc">AES-256-GCM • Kurulum başına anahtar • Donanım destekli</string>
