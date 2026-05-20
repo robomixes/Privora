@@ -160,11 +160,15 @@ dependencies {
     // LiteRT-LM (Gemma 4 on-device LLM)
     implementation(libs.litertlm.android)
 
-    // ML Kit (being phased out — see Track A. Barcode → ZXing done.
-    // Face detection → ONNX YuNet done. OCR → Tesseract 5 done.
-    // Document scanner → CameraX + manual crop done. Only Translate left.)
-    implementation(libs.mlkit.translate)
-    implementation(libs.kotlinx.coroutines.play.services)
+    // ML Kit (Track A complete after this flavor-gate). Translate is now
+    // playstoreImplementation only — the fdroid flavor uses a Gemma-based
+    // Translator instead (see app/src/fdroid/java/.../bridge/TranslatorImpl.kt).
+    // The fdroid APK has ZERO ML Kit packages — F-Droid main eligibility
+    // unblocked once this lands.
+    "playstoreImplementation"(libs.mlkit.translate)
+    "playstoreImplementation"(libs.kotlinx.coroutines.play.services)
+    // kotlinx-coroutines-play-services is needed for ML Kit's Task.await()
+    // helpers, so it follows mlkit-translate into the playstore-only set.
 
     // Tesseract 5 (OCR) — Track A1.3 replacement for ML Kit
     // text-recognition. Multi-language by design; tessdata files are
