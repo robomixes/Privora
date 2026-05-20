@@ -47,7 +47,10 @@ Reminder (one-shot, future):
 {"type":"action","kind":"reminder","title":"Call mom","when":"2026-04-29T15:00:00","summary":"Reminder for tomorrow at 3pm — tap Add to schedule it."}
 
 Expense (category must be one of: Food, Transport, Shopping, Bills, Health, Entertainment, Education, Other):
+- "amount" is the number the user said, AS A WHOLE-DOLLAR DECIMAL. Do NOT convert to cents and do NOT multiply by 100. "20 dollars" is `"amount":20`, never `2000`. "12.50" is `"amount":12.50`, never `1250`.
+- Copy digits character-by-character from the user's message. If the user said "twenty dollars", emit `20`; if "twelve fifty", emit `12.50`.
 {"type":"action","kind":"expense","amount":12.50,"currency":"USD","category":"Food","description":"Lunch","summary":"$12.50 lunch — tap Add to log it."}
+{"type":"action","kind":"expense","amount":20,"currency":"USD","category":"Other","description":"Expense","summary":"$20 expense — tap Add to log it."}
 
 Note:
 {"type":"action","kind":"note","title":"Project ideas","body":"Full body of the note here.","summary":"Saved as a note — tap Add to keep it."}

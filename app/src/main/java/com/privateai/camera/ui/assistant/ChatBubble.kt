@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -101,7 +102,12 @@ fun ChatBubble(
     onActionConfirm: ((ProposedAction) -> Unit)? = null,
     onActionDismiss: (() -> Unit)? = null,
     onSaveAsNote: ((String) -> Unit)? = null,
-    onPhotoClick: ((String) -> Unit)? = null
+    onPhotoClick: ((String) -> Unit)? = null,
+    onSpeak: ((String) -> Unit)? = null,
+    // Tap-to-zoom callbacks. Tapping any thumbnail in the chat (the user's
+    // attached image OR a search-result thumb) raises one of these so the
+    // host (AssistantScreen) can show its full-screen viewer dialog.
+    onImageZoom: ((Bitmap) -> Unit)? = null
 ) {
     val isUser = message is ChatMessage.User
     val text = when (message) {
@@ -133,6 +139,9 @@ fun ChatBubble(
                         modifier = Modifier
                             .size(160.dp)
                             .clip(RoundedCornerShape(12.dp))
+                            .clickable(enabled = onImageZoom != null) {
+                                onImageZoom?.invoke(bmp)
+                            }
                     )
                 }
                 Card(
@@ -211,7 +220,8 @@ fun ChatBubble(
                                     Intent.createChooser(intent, context.getString(R.string.assistant_bubble_share))
                                 )
                             },
-                            onSaveAsNote = onSaveAsNote?.let { cb -> { cb(text) } }
+                            onSaveAsNote = onSaveAsNote?.let { cb -> { cb(text) } },
+                            onSpeak = onSpeak?.let { cb -> { cb(text) } }
                         )
                     }
                     // Photo thumbnails from search_photos tool — horizontal
@@ -224,6 +234,10 @@ fun ChatBubble(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(photoThumbs) { thumb ->
+                                // Tap → in-chat full-size viewer (uses the
+                                // thumb bitmap we already decoded host-side).
+                                // Long-press → open in Vault for full
+                                // metadata + sharing actions.
                                 Image(
                                     bitmap = thumb.bitmap.asImageBitmap(),
                                     contentDescription = null,
@@ -231,9 +245,14 @@ fun ChatBubble(
                                     modifier = Modifier
                                         .size(96.dp)
                                         .clip(RoundedCornerShape(12.dp))
-                                        .clickable(enabled = onPhotoClick != null) {
-                                            onPhotoClick?.invoke(thumb.id)
-                                        }
+                                        .combinedClickable(
+                                            onClick = {
+                                                onImageZoom?.invoke(thumb.bitmap)
+                                            },
+                                            onLongClick = {
+                                                onPhotoClick?.invoke(thumb.id)
+                                            }
+                                        )
                                 )
                             }
                         }
@@ -291,7 +310,8 @@ private fun BubbleActionRow(
     isSaved: Boolean,
     onCopy: () -> Unit,
     onShare: () -> Unit,
-    onSaveAsNote: (() -> Unit)?
+    onSaveAsNote: (() -> Unit)?,
+    onSpeak: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier.padding(top = 2.dp, start = 4.dp),
@@ -313,6 +333,16 @@ private fun BubbleActionRow(
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+        if (onSpeak != null) {
+            IconButton(onClick = onSpeak, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.AutoMirrored.Filled.VolumeUp,
+                    contentDescription = stringResource(R.string.assistant_bubble_speak),
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         if (onSaveAsNote != null) {
             // After save: switch to a checkmark + green tint, disable click.

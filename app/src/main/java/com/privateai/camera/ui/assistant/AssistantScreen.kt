@@ -3,10 +3,18 @@
 
 package com.privateai.camera.ui.assistant
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -38,10 +46,15 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Spellcheck
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material.icons.filled.WorkOutline
@@ -57,11 +70,13 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -144,6 +159,27 @@ private object AssistantSession {
     var attachedImageUri: android.net.Uri?
         get() = _attachedImageUri.value
         set(value) { _attachedImageUri.value = value }
+
+    /**
+     * OCR text from a PDF the user attached from device storage (SAF picker).
+     * When non-null, runAssistantTurn uses this text directly instead of
+     * loading from a vault sidecar — the device PDF isn't in the vault.
+     * Cleared when the user detaches via × or attaches a different doc/image.
+     */
+    private val _attachedDocText = mutableStateOf<String?>(null)
+    var attachedDocText: String?
+        get() = _attachedDocText.value
+        set(value) { _attachedDocText.value = value }
+
+    /**
+     * Display name for the attached doc chip. Set alongside [attachedDocText]
+     * for device PDFs (where there's no vault id to fall back to). Left null
+     * for vault PDFs — chip derives display from [attachedDocId].
+     */
+    private val _attachedDocName = mutableStateOf<String?>(null)
+    var attachedDocName: String?
+        get() = _attachedDocName.value
+        set(value) { _attachedDocName.value = value }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -162,9 +198,138 @@ fun AssistantScreen(
     var showLanguagePicker by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
+    // Vault lock state — recomputed each composition (no StateFlow on
+    // VaultLockManager, just function reads). When `vaultLocked` is true,
+    // the Assistant runs in text-only mode: empty snapshot, vault picker
+    // disabled, data tools refuse to run. The user reaches this state by
+    // tapping the Assistant tile on Home with the "Allow Assistant without
+    // unlocking vault" setting enabled.
+    var vaultLockTick by remember { mutableStateOf(0) }
+    val vaultLocked = remember(vaultLockTick) {
+        !com.privateai.camera.security.VaultLockManager.isUnlockedWithinGrace(context)
+    }
+    var showPinDialog by remember { mutableStateOf(false) }
+
+    // Full-screen image zoom — set when the user taps any thumbnail in the
+    // chat (attached-image preview, sent user image, or a search-result
+    // thumb). Cleared on dismiss / back / outside tap.
+    var zoomBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+    // The in-flight assistant Job — set when sendMessage() launches a turn,
+    // cancelled when the user taps Stop while the model is still thinking.
+    // Cancelling propagates down to GemmaRunner.completeStreaming's Flow
+    // collect, which short-circuits the LiteRT-LM stream the same way the
+    // repetition-loop guard does.
+    var inflightJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // True once the user taps Stop on the current turn; cleared on the next
+    // send. The image-attached path can't observe CancellationException
+    // because GemmaRunner.describeImage runs a blocking native call whose
+    // catch handler turns interruption into a `null` return — so we read
+    // this flag in the post-await branch to decide between "Stopped" and
+    // "Something went wrong".
+    var cancelRequested by remember { mutableStateOf(false) }
+    // True while the in-flight turn is running a vision call (synchronous
+    // describeImage). External close of a vision conversation mid-call is a
+    // native use-after-free in LiteRT-LM and produces a silent SIGSEGV
+    // ("crash without crash report") — see comment in stopInflight().
+    var visionInflight by remember { mutableStateOf(false) }
+    // True after Stop is tapped, until the in-flight job's finally clause
+    // actually completes. Send is disabled in this window so the user can't
+    // race a new request against the still-draining native call — that
+    // race produced "something went wrong" replies after Stop on a long
+    // vision turn, because the new call entered the engine before the old
+    // one had fully released its native state. Cleared by the in-flight
+    // job's finally (both image and text paths).
+    var cancelling by remember { mutableStateOf(false) }
+    fun stopInflight() {
+        // Set the soft flags first. GemmaRunner.completeStreaming wraps its
+        // LiteRT-LM collect in NonCancellable + polls outerJob.isActive, so
+        // cancelling the outer Job here only makes us "go silent" on emit;
+        // LiteRT-LM's upstream keeps generating to its natural end (avoids
+        // the tombstoned SIGSEGV in liblitertlm_jni.so we hit when cancel
+        // propagated into the library mid-warmup). The mutex inside
+        // GemmaRunner stays held until the natural completion, which
+        // serialises the next call automatically — Send stays disabled
+        // (`cancelling = true`) until the OLD job's finally clears it.
+        cancelRequested = true
+        cancelling = true
+        val jobToWait = inflightJob
+        // This is the signal GemmaRunner watches via outerJob.isActive — it
+        // stops emitting tokens to us and silently drains the rest. No
+        // close, no upstream cancel into LiteRT-LM.
+        inflightJob?.cancel()
+        thinking = false
+
+        scope.launch {
+            // Hold the cancelling gate until the OLD job has actually
+            // finished (mutex released, conversation closed naturally).
+            try { jobToWait?.join() } catch (_: Exception) {}
+            cancelling = false
+        }
+    }
+
     // Pre-warm the Gemma engine so the first reply doesn't pay cold-load latency
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) { GemmaRunner.load(context) }
+    }
+
+    // Pending capture URI for the system camera. We allocate a fresh temp
+    // file in cacheDir + FileProvider URI BEFORE launching the camera so
+    // we can read the result back as the same content://. Held outside
+    // the launcher closure because TakePicture's callback only returns a
+    // success boolean, not the URI we passed in.
+    var pendingCaptureUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val cameraCaptureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        val captured = pendingCaptureUri
+        pendingCaptureUri = null
+        if (success && captured != null) {
+            // Same mutex rules as the gallery / vault paths — attaching an
+            // image clears any previously-attached doc and prior image.
+            AssistantSession.attachedDocId = null
+            AssistantSession.attachedDocText = null
+            AssistantSession.attachedDocName = null
+            AssistantSession.attachedImageUri = captured
+        }
+    }
+    var pendingCameraAfterPermission by remember { mutableStateOf(false) }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            pendingCameraAfterPermission = false
+            android.widget.Toast.makeText(
+                context, context.getString(R.string.assistant_camera_permission_denied),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+    fun launchCameraCapture() {
+        val tempFile = File(context.cacheDir, "assistant_capture_${System.currentTimeMillis()}.jpg")
+        try { tempFile.createNewFile() } catch (e: Exception) {
+            Log.w(TAG, "create temp capture file failed: ${e.message}")
+            return
+        }
+        val uri = try {
+            androidx.core.content.FileProvider.getUriForFile(
+                context, "${context.packageName}.fileprovider", tempFile
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "FileProvider.getUriForFile failed: ${e.message}")
+            null
+        } ?: return
+        pendingCaptureUri = uri
+        try { cameraCaptureLauncher.launch(uri) } catch (e: Exception) {
+            Log.w(TAG, "cameraCaptureLauncher.launch failed: ${e.message}")
+            pendingCaptureUri = null
+        }
+    }
+    LaunchedEffect(pendingCameraAfterPermission) {
+        if (pendingCameraAfterPermission) {
+            pendingCameraAfterPermission = false
+            launchCameraCapture()
+        }
     }
 
     // Photo-picker launcher for the image-attach (paperclip) button in the
@@ -175,13 +340,79 @@ fun AssistantScreen(
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        if (uri != null) AssistantSession.attachedImageUri = uri
+        if (uri != null) {
+            // Image + PDF attachments are mutually exclusive. Attaching an
+            // image clears any previously-attached document so the next
+            // turn isn't double-grounded ("translate last message" with a
+            // PDF still attached was hitting the doc's "I can't find that"
+            // safety prompt). Clears BOTH vault-doc id and device-doc text.
+            AssistantSession.attachedDocId = null
+            AssistantSession.attachedDocText = null
+            AssistantSession.attachedDocName = null
+            AssistantSession.attachedImageUri = uri
+        }
+    }
+
+    // Device-PDF picker (SAF) for the "PDF from device" attach option. The
+    // user picks any PDF on the device; we copy it to cache, run OCR over
+    // it (PdfBox + ML Kit fallback), then stash the extracted text on the
+    // session so runAssistantTurn can ground subsequent turns. We don't
+    // import to the vault — this is a one-session attachment, not a save.
+    var pdfExtracting by remember { mutableStateOf(false) }
+    val pdfDevicePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        pdfExtracting = true
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                val cacheFile = File(context.cacheDir, "assistant_pdf_${System.currentTimeMillis()}.pdf")
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { ins ->
+                        cacheFile.outputStream().use { out -> ins.copyTo(out) }
+                    } ?: return@withContext null
+                    if (!cacheFile.exists() || cacheFile.length() == 0L) return@withContext null
+                    val crypto = CryptoManager(context).also { it.initialize() }
+                    if (!crypto.isUnlocked()) return@withContext null
+                    val vault = com.privateai.camera.security.VaultRepository(context, crypto)
+                    val text = vault.extractOcrTextFromPdfFile(cacheFile)
+                    val displayName = run {
+                        val name = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.')
+                        if (!name.isNullOrBlank()) name else "Document"
+                    }
+                    Pair(text, displayName)
+                } catch (e: Exception) {
+                    Log.w(TAG, "device PDF extract failed: ${e.message}")
+                    null
+                } finally {
+                    try { cacheFile.delete() } catch (_: Exception) {}
+                }
+            }
+            pdfExtracting = false
+            val text = ok?.first
+            val name = ok?.second
+            if (text.isNullOrBlank()) {
+                android.widget.Toast.makeText(
+                    context,
+                    context.getString(R.string.assistant_attach_pdf_no_text),
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            } else {
+                AssistantSession.attachedImageUri = null
+                AssistantSession.attachedDocId = null
+                AssistantSession.attachedDocText = text
+                AssistantSession.attachedDocName = name
+            }
+        }
     }
     // Read the attached image reactively so the preview chip + send-button
     // enabled state recompose when the user attaches or clears.
     val attachedImage: android.net.Uri? = AssistantSession.attachedImageUri
     var showAttachMenu by remember { mutableStateOf(false) }
+    // Which media type the vault picker should filter on. null = legacy
+    // (both), set to PHOTO or PDF when launched from the dedicated menu items.
     var showVaultPicker by remember { mutableStateOf(false) }
+    var vaultPickerFilter by remember { mutableStateOf<com.privateai.camera.security.VaultMediaType?>(null) }
     // Decoded thumbnail for the preview chip — cached in memory while the
     // URI is attached. Decoded once via ContentResolver.openInputStream.
     val attachedImageThumb = remember(attachedImage) {
@@ -191,6 +422,138 @@ fun AssistantScreen(
                 android.graphics.BitmapFactory.decodeStream(ins)
             }
         } catch (e: Exception) { Log.w(TAG, "thumb decode failed: ${e.message}"); null }
+    }
+
+    // ── Track B — Voice input (mic button → SpeechRecognizer) ─────────────
+    // Permission gate, recognizer instance, listening flag. The recognizer
+    // hands partials to onPartialResults so we can stream the transcript
+    // into `inputText` as the user speaks; final results overwrite. The
+    // user reviews + sends manually (no accidental auto-send).
+    var hasAudioPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var pendingMicAfterPermission by remember { mutableStateOf(false) }
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasAudioPermission = granted
+        if (!granted) {
+            pendingMicAfterPermission = false
+            android.widget.Toast.makeText(
+                context, context.getString(R.string.assistant_voice_permission_denied),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+    var listening by remember { mutableStateOf(false) }
+    val speechRecognizer = remember {
+        if (SpeechRecognizer.isRecognitionAvailable(context)) SpeechRecognizer.createSpeechRecognizer(context)
+        else null
+    }
+    DisposableEffect(speechRecognizer) {
+        onDispose { try { speechRecognizer?.destroy() } catch (_: Exception) {} }
+    }
+    // Recognizer callbacks — `partial` mirrors live partial transcript into
+    // the input; `final` overwrites with the cleaned recognized text. Both
+    // ignore empty / whitespace-only results to avoid blowing away the
+    // current draft when the recognizer reports no speech.
+    fun startListening() {
+        val sr = speechRecognizer ?: run {
+            android.widget.Toast.makeText(
+                context, context.getString(R.string.assistant_voice_unavailable),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        sr.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(p0: android.os.Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(p0: Float) {}
+            override fun onBufferReceived(p0: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onError(error: Int) {
+                listening = false
+                Log.w(TAG, "SpeechRecognizer error: $error")
+            }
+            override fun onResults(results: android.os.Bundle?) {
+                val list = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val text = list?.firstOrNull()?.trim().orEmpty()
+                if (text.isNotEmpty()) inputText = text
+                listening = false
+            }
+            override fun onPartialResults(partialResults: android.os.Bundle?) {
+                val list = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val text = list?.firstOrNull()?.trim().orEmpty()
+                if (text.isNotEmpty()) inputText = text
+            }
+            override fun onEvent(p0: Int, p1: android.os.Bundle?) {}
+        })
+        val intent = android.content.Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault().toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+        }
+        listening = true
+        try { sr.startListening(intent) } catch (e: Exception) {
+            Log.w(TAG, "startListening failed: ${e.message}"); listening = false
+        }
+    }
+    fun stopListening() {
+        try { speechRecognizer?.stopListening() } catch (_: Exception) {}
+        listening = false
+    }
+    // Permission-grant trigger: when the user taps the mic while permission
+    // was missing, we set `pendingMicAfterPermission` and request — once
+    // granted, this effect kicks the listener on.
+    LaunchedEffect(hasAudioPermission) {
+        if (hasAudioPermission && pendingMicAfterPermission) {
+            pendingMicAfterPermission = false
+            startListening()
+        }
+    }
+
+    // ── Track B — Voice output (TTS) ──────────────────────────────────────
+    // Engine + speaking flag. Settings toggle `voice_output_enabled` gates
+    // auto-speak of assistant chunks; the per-bubble replay icon + top-bar
+    // speaker toggle stay functional regardless of the toggle.
+    val ttsEngine = remember { mutableStateOf<TextToSpeech?>(null) }
+    var ttsSpeaking by remember { mutableStateOf(false) }
+    DisposableEffect(Unit) {
+        var engine: TextToSpeech? = null
+        engine = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                engine?.language = java.util.Locale.getDefault()
+                engine?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post { ttsSpeaking = true }
+                    }
+                    override fun onDone(utteranceId: String?) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post { ttsSpeaking = false }
+                    }
+                    @Deprecated("legacy") override fun onError(utteranceId: String?) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).post { ttsSpeaking = false }
+                    }
+                })
+                ttsEngine.value = engine
+            }
+        }
+        onDispose { engine?.shutdown() }
+    }
+    fun speakOnce(text: String) {
+        val eng = ttsEngine.value ?: return
+        if (text.isBlank()) return
+        eng.speak(text, TextToSpeech.QUEUE_FLUSH, null, "assistant-${System.currentTimeMillis()}")
+    }
+    fun stopSpeaking() {
+        try { ttsEngine.value?.stop() } catch (_: Exception) {}
+        ttsSpeaking = false
+    }
+    val voiceOutputAuto = remember {
+        context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+            .getBoolean("voice_output_enabled", false)
     }
 
     // Deep-link: bind the doc id to the session SYNCHRONOUSLY during
@@ -238,6 +601,9 @@ fun AssistantScreen(
         if (text.isEmpty() && pendingImage == null) return
         if (thinking) return
         inputText = ""
+        // Fresh turn — clear the cancel flag from any prior stop so the new
+        // reply isn't mis-labelled as "Stopped".
+        cancelRequested = false
         // Image-attached send: bypass the regular runAssistantTurn pipeline
         // (snapshot + tools + multi-turn) and call describeImage directly.
         // Single-shot vision pass; the user's typed text becomes the prompt
@@ -247,17 +613,59 @@ fun AssistantScreen(
             // it even after the URI is detached. PickVisualMedia's grant
             // may not survive past the send.
             val capturedBitmap = attachedImageThumb
-            AssistantSession.attachedImageUri = null  // detach now so chip clears + repeated sends require re-pick
+            // Image stays attached across follow-up turns so "what color is
+            // the rabbit?" → "what are they doing?" both see the same photo.
+            // User explicitly detaches via × on the preview chip or by
+            // attaching a different image. Tracked: previously cleared here,
+            // which broke multi-question flows about the same picture.
             val displayText = text.ifBlank { context.getString(R.string.assistant_image_default_prompt) }
             messages += ChatMessage.User(displayText, image = capturedBitmap)
             thinking = true
-            scope.launch {
-                val reply = withContext(Dispatchers.IO) {
-                    runImageQueryTurn(context, pendingImage, displayText)
+            visionInflight = true
+            // Capture a reference to THIS launch's job so the finally can
+            // check whether it's still the current in-flight one. Race:
+            // user stops the first call (which can't be killed mid-native),
+            // sends a second, then the FIRST call's finally finally runs
+            // and would otherwise stomp on the SECOND's `thinking=true` /
+            // `visionInflight=true` / `inflightJob=secondJob` state.
+            lateinit var thisJob: kotlinx.coroutines.Job
+            thisJob = scope.launch {
+                try {
+                    val reply = withContext(Dispatchers.IO) {
+                        runImageQueryTurn(context, pendingImage, displayText)
+                    }
+                    // describeImage swallows CancellationException internally
+                    // and returns null. We can't distinguish "user stopped"
+                    // from "model failed" by reply value alone — check the
+                    // cancel flag instead so a stopped turn shows "Stopped",
+                    // not the generic "something went wrong".
+                    val replyText = when {
+                        cancelRequested -> context.getString(R.string.assistant_stopped)
+                        reply != null -> reply
+                        else -> context.getString(R.string.assistant_error_generic)
+                    }
+                    messages += ChatMessage.Assistant(replyText, emptyList())
+                    if (voiceOutputAuto && !cancelRequested && reply != null) speakOnce(replyText)
+                } catch (_: kotlinx.coroutines.CancellationException) {
+                    messages += ChatMessage.Assistant(
+                        context.getString(R.string.assistant_stopped), emptyList()
+                    )
+                } finally {
+                    // Only clear state if THIS is still the current job.
+                    // A newer job may have replaced us already.
+                    if (inflightJob === thisJob) {
+                        thinking = false
+                        inflightJob = null
+                        visionInflight = false
+                    }
+                    // The cancelling gate releases whenever the cancelled
+                    // job actually finishes, regardless of who replaced it.
+                    // Send was disabled until this point so the next user
+                    // request lands on a fully-idle engine.
+                    cancelling = false
                 }
-                messages += ChatMessage.Assistant(reply ?: context.getString(R.string.assistant_error_generic), emptyList())
-                thinking = false
             }
+            inflightJob = thisJob
             return
         }
         if (text.isEmpty()) return
@@ -273,7 +681,8 @@ fun AssistantScreen(
         // bubble (no empty placeholder rendered alongside it).
         var streamIndex = -1
 
-        scope.launch {
+        lateinit var textJob: kotlinx.coroutines.Job
+        textJob = scope.launch {
             try {
                 val historySnapshot = messages.toList()
                 val turn = withContext(Dispatchers.IO) {
@@ -291,6 +700,22 @@ fun AssistantScreen(
                         }
                     }
                 }
+                // If the user tapped Stop, the inner Gemma catch may have
+                // swallowed the cancellation and returned a half-finished
+                // string. Honor cancelRequested so the bubble reads
+                // "Stopped" instead of the truncated model output.
+                if (cancelRequested) {
+                    val partial = if (streamIndex >= 0 && streamIndex < messages.size) {
+                        (messages[streamIndex] as? ChatMessage.Assistant)?.text.orEmpty()
+                    } else ""
+                    val stoppedText = context.getString(R.string.assistant_stopped)
+                    val combined = if (partial.isBlank()) stoppedText
+                                   else "$partial\n\n_${stoppedText}_"
+                    val stoppedMsg = ChatMessage.Assistant(combined, emptyList())
+                    if (streamIndex < 0) messages += stoppedMsg
+                    else if (streamIndex < messages.size) messages[streamIndex] = stoppedMsg
+                    return@launch
+                }
                 // Final pass: replace the streaming bubble with the cleaned
                 // answer + any proposed action (or append a fresh one if nothing
                 // streamed — e.g. the model emitted only an action JSON we held back).
@@ -300,15 +725,44 @@ fun AssistantScreen(
                 } else if (streamIndex < messages.size) {
                     messages[streamIndex] = finalMsg
                 }
+                // Auto-speak the final reply when Settings → Voice output is on.
+                if (voiceOutputAuto && turn.text.isNotBlank()) speakOnce(turn.text)
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                // User tapped Stop. Replace the partial streaming bubble (if
+                // any) with a "Stopped" marker so the chat doesn't end on a
+                // truncated half-sentence. If no chunks streamed yet, append
+                // a fresh marker bubble.
+                val stoppedText = context.getString(R.string.assistant_stopped)
+                val partial = if (streamIndex >= 0 && streamIndex < messages.size) {
+                    (messages[streamIndex] as? ChatMessage.Assistant)?.text.orEmpty()
+                } else ""
+                val combined = if (partial.isBlank()) stoppedText else "$partial\n\n_${stoppedText}_"
+                val stoppedMsg = ChatMessage.Assistant(combined, emptyList())
+                if (streamIndex < 0) messages += stoppedMsg
+                else if (streamIndex < messages.size) messages[streamIndex] = stoppedMsg
             } catch (e: Exception) {
                 Log.e(TAG, "Assistant error: ${e.message}", e)
                 val errMsg = ChatMessage.Assistant(context.getString(R.string.assistant_error_generic), emptyList())
                 if (streamIndex < 0) messages += errMsg
                 else if (streamIndex < messages.size) messages[streamIndex] = errMsg
             } finally {
-                thinking = false
+                // Only clear state if THIS launch is still the active one.
+                // After Stop + new send, the old launch's finally must not
+                // overwrite the new launch's thinking=true / inflightJob=ref.
+                if (inflightJob === textJob) {
+                    thinking = false
+                    inflightJob = null
+                }
+                // Release the cancelling gate whenever any in-flight job
+                // ends (cancelled or not). This is what re-enables Send
+                // after the user taps Stop and the native call has finally
+                // returned. Cleared unconditionally — if a fresh send is
+                // racing this finally, it sets cancelling=false at its
+                // own start too, so no harm.
+                cancelling = false
             }
         }
+        inflightJob = textJob
     }
 
     Scaffold(
@@ -326,14 +780,52 @@ fun AssistantScreen(
                     }
                 },
                 actions = {
+                    // Top-bar lock icon — mirrors the lock toggle on Home.
+                    // Visible only when the vault is currently unlocked AND
+                    // the unlocked-access setting is on (i.e. the user opted
+                    // into locked-mode Assistant — they probably want a way
+                    // to re-lock from here too). Tapping re-locks the vault
+                    // and stays inside the Assistant; the banner appears.
+                    val unlockedAccessOn = remember(vaultLockTick) {
+                        com.privateai.camera.ui.settings.isAssistantUnlockedAccessEnabled(context)
+                    }
+                    if (!vaultLocked && unlockedAccessOn) {
+                        IconButton(onClick = {
+                            com.privateai.camera.security.VaultLockManager.lock()
+                            vaultLockTick++
+                        }) {
+                            Icon(
+                                Icons.Default.Lock,
+                                contentDescription = stringResource(R.string.action_lock),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    // Top-bar speaker toggle — only visible while TTS is
+                    // mid-reply. Tap to stop. The toggle is intentionally
+                    // hidden when idle so the bar doesn't carry a dead icon
+                    // when no reply is being spoken.
+                    if (ttsSpeaking) {
+                        IconButton(onClick = { stopSpeaking() }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.VolumeOff,
+                                contentDescription = stringResource(R.string.assistant_voice_stop_speaking),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                     // "New chat" — clears the session so the user starts fresh
                     if (messages.isNotEmpty()) {
                         IconButton(onClick = {
                             messages.clear()
-                            // Drop the doc binding when starting a fresh chat — the
-                            // user shouldn't keep accidentally answering against the
-                            // last doc they were asking about.
+                            stopSpeaking()
+                            // Drop all doc + image bindings when starting a fresh
+                            // chat — the user shouldn't keep accidentally answering
+                            // against the last attachment.
                             AssistantSession.attachedDocId = null
+                            AssistantSession.attachedDocText = null
+                            AssistantSession.attachedDocName = null
+                            AssistantSession.attachedImageUri = null
                         }) {
                             Icon(
                                 Icons.Default.Add,
@@ -352,14 +844,57 @@ fun AssistantScreen(
                 .padding(padding)
                 .imePadding()
         ) {
-            // Attached-document chip — always visible while a vault doc is
-            // bound to the session, so the user can see which doc the
-            // assistant is grounded in (not just in the first chat bubble).
-            // Tap × to detach: clears the session binding so the next message
-            // is a normal chat, not a doc Q&A. The chat history is preserved.
+            // Locked-vault banner — visible whenever the user reached this
+            // screen with the vault still locked (Settings → "Allow Assistant
+            // without unlocking vault"). Explains why the snapshot is empty
+            // and exposes an Unlock button that fires the standard PIN
+            // dialog. Tapping Unlock keeps the user inside the Assistant,
+            // they just gain full data access after the PIN check.
+            if (vaultLocked) {
+                androidx.compose.material3.Surface(
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Lock,
+                            null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Text(
+                            stringResource(R.string.assistant_vault_locked_banner),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        androidx.compose.material3.TextButton(
+                            onClick = { showPinDialog = true }
+                        ) {
+                            Text(stringResource(R.string.action_unlock))
+                        }
+                    }
+                }
+            }
+            // Attached-document chip — visible while EITHER a vault doc id
+            // OR a device-doc text blob is bound to the session. Tap × to
+            // detach: clears the session binding so the next message is a
+            // normal chat, not a doc Q&A. The chat history is preserved.
             val currentAttachedDoc = AssistantSession.attachedDocId
-            if (!currentAttachedDoc.isNullOrBlank()) {
-                val displayName = currentAttachedDoc.removeSuffix(".pdf").removeSuffix(".PDF")
+            val currentAttachedDocText = AssistantSession.attachedDocText
+            val currentAttachedDocName = AssistantSession.attachedDocName
+            val docChipVisible = !currentAttachedDoc.isNullOrBlank() || !currentAttachedDocText.isNullOrBlank()
+            if (docChipVisible) {
+                val displayName = currentAttachedDocName
+                    ?: currentAttachedDoc?.removeSuffix(".pdf")?.removeSuffix(".PDF")
+                    ?: "Document"
                 androidx.compose.material3.AssistChip(
                     onClick = {},
                     label = {
@@ -379,7 +914,11 @@ fun AssistantScreen(
                     },
                     trailingIcon = {
                         IconButton(
-                            onClick = { AssistantSession.attachedDocId = null },
+                            onClick = {
+                                AssistantSession.attachedDocId = null
+                                AssistantSession.attachedDocText = null
+                                AssistantSession.attachedDocName = null
+                            },
                             modifier = Modifier.size(20.dp)
                         ) {
                             Icon(
@@ -404,6 +943,26 @@ fun AssistantScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
                 )
+            }
+            // Device-PDF extraction progress strip — visible only while
+            // OCR is running over a freshly picked device PDF. Native text
+            // PDFs finish in <200ms; rendered/scanned PDFs can take 5-30s.
+            if (pdfExtracting) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                ) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Text(
+                        stringResource(R.string.assistant_attach_pdf_extracting),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             // Chat messages list
             LazyColumn(
@@ -522,11 +1081,18 @@ fun AssistantScreen(
                             }
                         },
                         onPhotoClick = { photoId ->
-                            // search_photos tap → deep-link the Vault to
-                            // auto-open this photo in the viewer (the
-                            // openPhotoId route runs openViewer post-unlock).
+                            // Long-press a search-result thumb → deep-link the
+                            // Vault to auto-open this photo (full metadata +
+                            // share actions). Short tap goes to onImageZoom.
                             onNavigate?.invoke("vault?openPhotoId=$photoId")
-                        }
+                        },
+                        onSpeak = { replyText ->
+                            // Per-bubble TTS replay — works regardless of the
+                            // auto-speak setting. If TTS is already speaking
+                            // (this bubble or another), QUEUE_FLUSH replaces.
+                            speakOnce(replyText)
+                        },
+                        onImageZoom = { bmp -> zoomBitmap = bmp }
                     )
                 }
 
@@ -556,6 +1122,7 @@ fun AssistantScreen(
                             modifier = Modifier
                                 .size(56.dp)
                                 .clip(RoundedCornerShape(8.dp))
+                                .clickable { zoomBitmap = attachedImageThumb }
                         )
                     } else {
                         Icon(
@@ -569,10 +1136,21 @@ fun AssistantScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f)
                     )
-                    IconButton(onClick = { AssistantSession.attachedImageUri = null }) {
+                    // Labeled "Remove photo" action — replaces the bare × icon
+                    // so users know how to stop follow-up questions about the
+                    // attached image without having to discover the close icon.
+                    androidx.compose.material3.TextButton(
+                        onClick = { AssistantSession.attachedImageUri = null }
+                    ) {
                         Icon(
                             Icons.Default.Close,
-                            stringResource(R.string.assistant_attached_image_detach)
+                            null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.size(4.dp))
+                        Text(
+                            stringResource(R.string.assistant_remove_photo),
+                            style = MaterialTheme.typography.labelLarge
                         )
                     }
                 }
@@ -583,7 +1161,7 @@ fun AssistantScreen(
             // (1 line at rest, grows up to 6 lines), and a trailing send
             // circle. No more 110dp tall block by default — the input only
             // takes the height the user's text needs.
-            val canSend = (inputText.isNotBlank() || attachedImage != null) && !thinking
+            val canSend = (inputText.isNotBlank() || attachedImage != null) && !thinking && !cancelling
             androidx.compose.material3.Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -614,8 +1192,30 @@ fun AssistantScreen(
                             expanded = showAttachMenu,
                             onDismissRequest = { showAttachMenu = false }
                         ) {
+                            // Device row — both items use system pickers
+                            // (PickVisualMedia + SAF GetContent). No vault
+                            // unlock needed.
+                            // Take photo — system camera, captures directly
+                            // into a cache temp file via FileProvider URI.
+                            // Asks for CAMERA permission on first use.
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.assistant_attach_from_gallery)) },
+                                text = { Text(stringResource(R.string.assistant_attach_take_photo)) },
+                                leadingIcon = { Icon(Icons.Default.PhotoCamera, null) },
+                                onClick = {
+                                    showAttachMenu = false
+                                    val hasCamera = ContextCompat.checkSelfPermission(
+                                        context, Manifest.permission.CAMERA
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    if (hasCamera) {
+                                        launchCameraCapture()
+                                    } else {
+                                        pendingCameraAfterPermission = true
+                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                    }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.assistant_attach_photo_device)) },
                                 leadingIcon = { Icon(Icons.Default.PhotoLibrary, null) },
                                 onClick = {
                                     showAttachMenu = false
@@ -625,10 +1225,37 @@ fun AssistantScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.assistant_attach_from_vault)) },
-                                leadingIcon = { Icon(Icons.Default.Lock, null) },
+                                text = { Text(stringResource(R.string.assistant_attach_pdf_device)) },
+                                leadingIcon = { Icon(Icons.Default.Description, null) },
                                 onClick = {
                                     showAttachMenu = false
+                                    pdfDevicePickerLauncher.launch("application/pdf")
+                                }
+                            )
+                            androidx.compose.material3.HorizontalDivider()
+                            // Vault row — both items open the in-app picker,
+                            // filtered to one media type each. Disabled while
+                            // the vault is locked (Settings → "Allow Assistant
+                            // without unlocking vault"): tap shows a toast
+                            // pointing the user at the Unlock button in the
+                            // banner instead of opening an empty picker.
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.assistant_attach_photo_vault)) },
+                                leadingIcon = { Icon(Icons.Default.Lock, null) },
+                                enabled = !vaultLocked,
+                                onClick = {
+                                    showAttachMenu = false
+                                    vaultPickerFilter = com.privateai.camera.security.VaultMediaType.PHOTO
+                                    showVaultPicker = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.assistant_attach_pdf_vault)) },
+                                leadingIcon = { Icon(Icons.Default.Lock, null) },
+                                enabled = !vaultLocked,
+                                onClick = {
+                                    showAttachMenu = false
+                                    vaultPickerFilter = com.privateai.camera.security.VaultMediaType.PDF
                                     showVaultPicker = true
                                 }
                             )
@@ -657,25 +1284,98 @@ fun AssistantScreen(
                             inner()
                         }
                     )
-                    // Trailing send: filled circle when enabled, neutral when not.
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(androidx.compose.foundation.shape.CircleShape)
-                            .background(
-                                if (canSend) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            .clickable(enabled = canSend) { sendMessage() },
-                        contentAlignment = Alignment.Center
+                    // Mic button — tap to start dictation. Toggles to a red
+                    // "stop" icon while listening so the user can stop the
+                    // capture without waiting for end-of-speech. Permission
+                    // requested on first tap; recognizer availability checked
+                    // up front (surfaces a toast on de-Googled / GrapheneOS
+                    // devices without an installed speech service).
+                    val micEnabled = !thinking
+                    IconButton(
+                        onClick = {
+                            if (listening) {
+                                stopListening()
+                            } else if (!hasAudioPermission) {
+                                pendingMicAfterPermission = true
+                                audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            } else {
+                                startListening()
+                            }
+                        },
+                        enabled = micEnabled
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Filled.Send,
-                            contentDescription = stringResource(R.string.assistant_send),
-                            modifier = Modifier.size(18.dp),
-                            tint = if (canSend) MaterialTheme.colorScheme.onPrimary
-                                   else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            if (listening) Icons.Default.MicOff else Icons.Default.Mic,
+                            contentDescription = stringResource(
+                                if (listening) R.string.assistant_voice_stop else R.string.assistant_voice_start
+                            ),
+                            tint = when {
+                                !micEnabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                                listening -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                         )
+                    }
+                    // Trailing button: while a turn is in flight this is a
+                    // Stop button (square icon, error color) — tap to cancel
+                    // the Gemma stream mid-generation. When idle, reverts to
+                    // the regular Send button (filled when canSend, neutral
+                    // when there's nothing to send).
+                    if (thinking) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(MaterialTheme.colorScheme.error)
+                                .clickable { stopInflight() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Stop,
+                                contentDescription = stringResource(R.string.assistant_stop_generation),
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onError
+                            )
+                        }
+                    } else if (cancelling) {
+                        // After Stop, the old native call may still be
+                        // draining. Show a spinner in place of the send
+                        // button so the user knows we're waiting for the
+                        // engine to release before accepting a new request.
+                        // Send is gated on !cancelling — see canSend.
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(
+                                    if (canSend) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .clickable(enabled = canSend) { sendMessage() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.Send,
+                                contentDescription = stringResource(R.string.assistant_send),
+                                modifier = Modifier.size(18.dp),
+                                tint = if (canSend) MaterialTheme.colorScheme.onPrimary
+                                       else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                        }
                     }
                 }
             }
@@ -697,7 +1397,8 @@ fun AssistantScreen(
             // directive becomes the prompt verbatim.
             val canApplyChip = (inputText.isNotBlank() ||
                 attachedImage != null ||
-                AssistantSession.attachedDocId != null) && !thinking
+                AssistantSession.attachedDocId != null ||
+                AssistantSession.attachedDocText != null) && !thinking
             fun applyQuickAction(directive: String) {
                 if (!canApplyChip) return
                 val typed = inputText.trim()
@@ -825,7 +1526,13 @@ fun AssistantScreen(
             // grounds the next assistant turn in the doc text.
             if (showVaultPicker) {
                 VaultPhotoPickerSheet(
+                    mediaTypeFilter = vaultPickerFilter,
                     onPicked = { tempUri ->
+                        // Picking an image from vault clears any attached
+                        // PDF (mutual exclusion — see device-gallery picker).
+                        AssistantSession.attachedDocId = null
+                        AssistantSession.attachedDocText = null
+                        AssistantSession.attachedDocName = null
                         AssistantSession.attachedImageUri = tempUri
                         showVaultPicker = false
                     },
@@ -837,11 +1544,73 @@ fun AssistantScreen(
                         if (previous != null && previous != pdfId) {
                             AssistantSession.messages.clear()
                         }
+                        // Picking a PDF clears any attached image / device doc.
+                        AssistantSession.attachedImageUri = null
+                        AssistantSession.attachedDocText = null
+                        AssistantSession.attachedDocName = null
                         AssistantSession.attachedDocId = pdfId
                         showVaultPicker = false
                     },
                     onDismiss = { showVaultPicker = false }
                 )
+            }
+
+            // Unlock PIN dialog — reused from HomeScreen. Fires when the user
+            // taps "Unlock" in the locked-vault banner (or the top-bar lock
+            // icon when re-locking, though that path doesn't need the dialog).
+            // On success VaultLockManager.markUnlocked() flips the state and
+            // we bump vaultLockTick so the banner + gates recompose.
+            if (showPinDialog) {
+                val cryptoForDialog = remember {
+                    com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
+                }
+                com.privateai.camera.ui.home.VaultPinDialog(
+                    crypto = cryptoForDialog,
+                    onUnlocked = { _ ->
+                        showPinDialog = false
+                        vaultLockTick++
+                    },
+                    onDismiss = { showPinDialog = false }
+                )
+            }
+
+            // Full-screen image viewer. Opens when the user taps any
+            // thumbnail in the chat (attached image, sent user image, or
+            // search-result thumb). Plain tap / Back dismisses.
+            zoomBitmap?.let { bmp ->
+                androidx.compose.ui.window.Dialog(
+                    onDismissRequest = { zoomBitmap = null },
+                    properties = androidx.compose.ui.window.DialogProperties(
+                        usePlatformDefaultWidth = false
+                    )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.95f))
+                            .clickable { zoomBitmap = null },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = stringResource(R.string.assistant_image_zoom_view),
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        IconButton(
+                            onClick = { zoomBitmap = null },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = stringResource(R.string.action_close),
+                                tint = androidx.compose.ui.graphics.Color.White
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -875,7 +1644,10 @@ private suspend fun runImageQueryTurn(
     imageUri: android.net.Uri,
     userPrompt: String
 ): String? {
-    if (!GemmaRunner.isAvailable(context)) return null
+    if (!GemmaRunner.isAvailable(context)) {
+        Log.w(TAG, "runImageQueryTurn: GemmaRunner.isAvailable=false")
+        return null
+    }
     val tempFile = File(context.cacheDir, "assistant_img_${System.currentTimeMillis()}.jpg")
     try {
         // Copy the picker URI to a real file path. PickVisualMedia hands us
@@ -885,14 +1657,22 @@ private suspend fun runImageQueryTurn(
             tempFile.outputStream().use { out -> ins.copyTo(out) }
         }
         if (!tempFile.exists() || tempFile.length() == 0L) {
-            Log.w(TAG, "runImageQueryTurn: temp file empty / missing")
+            Log.w(TAG, "runImageQueryTurn: temp file empty / missing for $imageUri")
             return null
         }
+        Log.d(TAG, "runImageQueryTurn: temp file ready (${tempFile.length()} bytes), calling describeImage")
         // Honor user's UI language for the reply.
         val prompt = com.privateai.camera.bridge.GemmaPrompts.askAboutImage(userPrompt)
-        return GemmaRunner.describeImage(context, tempFile.absolutePath, prompt)?.trim()
+        val result = GemmaRunner.describeImage(context, tempFile.absolutePath, prompt)?.trim()
+        if (result.isNullOrBlank()) {
+            Log.w(TAG, "runImageQueryTurn: describeImage returned null/blank")
+        }
+        return result
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        Log.d(TAG, "runImageQueryTurn cancelled")
+        throw e
     } catch (e: Exception) {
-        Log.w(TAG, "runImageQueryTurn failed: ${e.message}")
+        Log.w(TAG, "runImageQueryTurn failed: ${e.javaClass.simpleName}: ${e.message}", e)
         return null
     } finally {
         try { tempFile.delete() } catch (_: Exception) {}
@@ -1048,21 +1828,29 @@ private suspend fun runAssistantTurn(
     // empty stub — the user's notes / expenses / health are irrelevant noise
     // for doc Q&A, and skipping them frees ~1-2 KB of context budget for the
     // doc itself.
-    val snapshot = KnowledgeSnapshot.build(context)
-    val snapshotJson = if (AssistantSession.attachedDocId.isNullOrBlank()) {
-        snapshot.toJson()
-    } else {
-        "{}"
-    }
+    // Locked-vault mode: skip the snapshot build entirely (it'd just fail
+    // to decrypt) and pass `{}` to the model. We still let the user attach
+    // device images / device PDFs and chat about pasted text — those code
+    // paths don't touch encrypted data.
+    val vaultLocked = !com.privateai.camera.security.VaultLockManager.isUnlockedWithinGrace(context)
+    val snapshot = if (vaultLocked) KnowledgeSnapshot.empty() else KnowledgeSnapshot.build(context)
+    val docAttached = !AssistantSession.attachedDocId.isNullOrBlank() ||
+        !AssistantSession.attachedDocText.isNullOrBlank()
+    val snapshotJson = if (!docAttached && !vaultLocked) snapshot.toJson() else "{}"
 
-    // 1b. If a vault document is attached to this session, load its OCR text
-    // and prepend it to the prompt as DOCUMENT CONTEXT. This bypasses the
-    // tool-call dance — Gemma 4 E2B can't reliably echo a 13-digit doc id
-    // back through a structured tool call, but it CAN read text that's
-    // already in its context. Phase 0 of the "Ask My Documents" spike.
+    // 1b. If a document is attached to this session, prepend its OCR text to
+    // the prompt as DOCUMENT CONTEXT. Two sources, in priority order:
+    //   1. attachedDocText — pre-loaded OCR for a device-picked PDF (SAF).
+    //   2. attachedDocId   — vault PDF; load OCR from its `.ocr.enc` sidecar.
+    // Either way the model sees the text directly — Gemma 4 E2B can't echo
+    // a 13-digit doc id through a structured tool call, but it CAN read
+    // text already in its context (Phase 0 of "Ask My Documents").
     val attachedDocId = AssistantSession.attachedDocId
-    val attachedOcr: String? = if (!attachedDocId.isNullOrBlank()) {
-        try {
+    val attachedDocText = AssistantSession.attachedDocText
+    val attachedDocName = AssistantSession.attachedDocName
+    val attachedOcr: String? = when {
+        !attachedDocText.isNullOrBlank() -> attachedDocText
+        !attachedDocId.isNullOrBlank() -> try {
             val crypto = com.privateai.camera.security.CryptoManager(context)
             if (crypto.initialize()) {
                 val vaultRepo = com.privateai.camera.security.VaultRepository(context, crypto)
@@ -1084,12 +1872,28 @@ private suspend fun runAssistantTurn(
             Log.w(TAG, "Failed to load attached doc OCR: ${e.message}")
             null
         }
-    } else null
+        else -> null
+    }
 
-    // 2. Assemble recent chat history — 8 exchanges (16 messages) for real follow-up context
+    // 2. Assemble recent chat history — 8 exchanges (16 messages) for real
+    // follow-up context. When the vault is currently UNLOCKED but the chat
+    // history contains stale "vault is locked" assistant replies from
+    // before the unlock, drop those replies from history. Otherwise Gemma
+    // E2B mirrors them on the very first post-unlock turn ("the vault is
+    // still locked") even though the snapshot is now populated. The user's
+    // original questions stay so the conversation flow is preserved.
+    val staleLockPatterns = listOf(
+        "vault is locked", "vault is off", "tap unlock",
+        "coffre est verrouillé", "خزنتك مقفلة", "kasanız kilitli",
+        "bóveda está bloqueada", "保险库已锁定"
+    )
     val history = allMessages
         .dropLast(1)
         .takeLast(16)
+        .filter { msg ->
+            if (vaultLocked || msg !is ChatMessage.Assistant) true
+            else staleLockPatterns.none { p -> msg.text.contains(p, ignoreCase = true) }
+        }
         .map { msg ->
             when (msg) {
                 is ChatMessage.User -> "user" to msg.text
@@ -1101,11 +1905,39 @@ private suspend fun runAssistantTurn(
     // stay precise. When an attached doc is in play, force a cooler temp:
     // doc Q&A is factual / extractive, and warmer sampling pushes Gemma 4 E2B
     // into degenerate repetition loops (same summary block emitted forever).
-    val temp = if (!AssistantSession.attachedDocId.isNullOrBlank()) 0.2
-               else classifyTemperature(userText)
+    val temp = if (docAttached) 0.2 else classifyTemperature(userText)
 
     // 4. First turn — stream and decide free-text vs JSON-wrapped on the fly
-    val basePrompt = AssistantPrompts.formatTurn(snapshotJson, history, userText)
+    val basePromptRaw = AssistantPrompts.formatTurn(snapshotJson, history, userText)
+    // Detect the lock→unlock transition: vault is currently unlocked, but
+    // the recent chat history contains stale "vault is locked" replies
+    // from before the user unlocked. Without this hint the model parrots
+    // the past replies for several turns ("vault is off") even though the
+    // snapshot is now populated — chat-history bias on Gemma E2B.
+    val lockedHints = listOf("vault is locked", "vault is off", "tap unlock", "coffre est verrouillé", "خزنتك مقفلة", "kasanız kilitli", "bóveda está bloqueada", "保险库已锁定")
+    val recentMentionsLocked = !vaultLocked && history.takeLast(6).any { (role, text) ->
+        role == "assistant" && lockedHints.any { hint -> text.contains(hint, ignoreCase = true) }
+    }
+    val basePrompt = when {
+        vaultLocked -> buildString {
+            // When the vault is locked, prepend a small system note + forbid
+            // tool calls. Snapshot is already `{}`; without this note the
+            // model would hallucinate empty data ("you have no expenses")
+            // instead of saying "your vault is locked — unlock to see it".
+            append("VAULT LOCKED: the user's personal data (notes, expenses, photos, contacts, habits, health) is encrypted and NOT accessible this turn. The snapshot above is `{}` for that reason — it does NOT mean the user has zero data.\n")
+            append("Rules while locked:\n")
+            append("- For text tasks (summarize / rewrite / translate / draft / fix grammar) and general chat, answer normally using the user's typed text or attached document/image.\n")
+            append("- If the user asks about THEIR data (\"my expenses this week\", \"find note about X\", \"photos of Anas\"), reply briefly: tell them the vault is locked and they need to unlock to access that. Do NOT pretend the data is missing — it is locked, not empty.\n")
+            append("- DO NOT call any tools (search_notes / fetch_note / summarize_expenses / search_photos / summarize_document / ask_document). They will refuse to run.\n")
+            append("- DO NOT propose actions (`{\"type\":\"action\",...}`) — reminders / expenses / notes / health / contacts / medications / habits all write to the locked encrypted store. If the user asks to save something, reply briefly that they need to unlock the vault first.\n\n")
+            append(basePromptRaw)
+        }
+        recentMentionsLocked -> buildString {
+            append("VAULT NOW UNLOCKED: the user previously asked while the vault was locked. The vault has since been unlocked and the snapshot above is current and complete. The earlier \"vault is locked\" replies in this conversation are OUTDATED — do NOT repeat them. Tools and actions are available again. Answer this turn from the current snapshot / tools as you normally would.\n\n")
+            append(basePromptRaw)
+        }
+        else -> basePromptRaw
+    }
     val prompt = if (attachedOcr != null) {
         // 5 KB budget. The snapshot is now empty `{}` when a doc is attached
         // (see step 1), so the freed context goes back to the doc. A 7 KB
@@ -1120,8 +1952,12 @@ private suspend fun runAssistantTurn(
         // the model away from defaulting to English when the UI is Arabic /
         // the document is French / etc.
         val langHint = describeLanguage(userText)
+        // Header identifier — prefer the device-doc filename when present,
+        // fall back to the vault id. Lets the model refer to "the document"
+        // without us leaking ugly basenames into the user-visible reply.
+        val docIdentifier = attachedDocName ?: attachedDocId ?: "document"
         buildString {
-            append("ATTACHED DOCUMENT (id: $attachedDocId):\n")
+            append("ATTACHED DOCUMENT (id: $docIdentifier):\n")
             append(clipped)
             append(truncatedNote)
             append("\n\n---\n\n")
@@ -1139,14 +1975,54 @@ private suspend fun runAssistantTurn(
             append("- Reply in the same language as the user's question")
             if (langHint != null) append(" ($langHint)")
             append(". Do NOT default to English unless the user wrote in English. If the user's message is too short to tell, match the document's language instead.\n")
-            append("- Keep answers compact. Don't list every section of the document if the user asked about one specific thing. Long replies get cut off mid-sentence — be concise.\n\n")
+            append("- Keep answers compact. Don't list every section of the document if the user asked about one specific thing. Long replies get cut off mid-sentence — be concise.\n")
+            // Force doc-grounded replies on follow-up turns. Without this the
+            // model would sometimes emit a tool call (search_notes / fetch_note
+            // / ask_document) on a short follow-up like "tell me more" or
+            // "translate that to French", which routes around the attached doc
+            // entirely and returns "I can't find that" against an unrelated
+            // tool result. The attached document IS the source of truth here.
+            append("- DO NOT call any tools (search_notes / fetch_note / summarize_expenses / search_photos / summarize_document / ask_document). The document text above is already in your context — answer directly from it. Do NOT emit `{\"type\":\"tool\",...}` JSON.\n")
+            append("- This grounding rule applies to EVERY turn while the document is attached, including short follow-ups like \"translate that\", \"summarize\", or \"tell me more\". Treat those as referring to the document above.\n\n")
             append(basePrompt)
         }
     } else basePrompt
     val rawFirst = streamAndCollect(context, prompt, temp, onChunk)
     Log.d(TAG, "First reply (raw): ${rawFirst.take(200)}")
 
-    val firstReply = ParsedReply.parse(rawFirst)
+    var firstReply = ParsedReply.parse(rawFirst)
+    // Defensive: when a document is attached, the model is forbidden from
+    // calling tools (see grounding rules in the prompt). If it slips one
+    // out anyway on a follow-up turn, treat the raw text as a normal
+    // answer rather than routing to a tool that has nothing to do with
+    // the attached doc. This was the cause of follow-up turns failing
+    // with "I can't find that in the document" — the model had emitted
+    // a stray search_notes call instead of reading the doc context.
+    if (docAttached && firstReply is ParsedReply.ToolCall) {
+        Log.w(TAG, "Suppressed stray tool call '${firstReply.name}' — doc is attached")
+        val fallback = rawFirst.replace(Regex("\\{\\s*\"type\"\\s*:\\s*\"tool\".*?\\}", RegexOption.DOT_MATCHES_ALL), "").trim()
+        firstReply = ParsedReply.Answer(
+            if (fallback.isNotEmpty()) fallback
+            else context.getString(R.string.assistant_doc_followup_retry)
+        )
+    }
+    // Same defensive intercept while the vault is locked. Every tool needs
+    // crypto access; running them would fail at the repo layer anyway, but
+    // catching the stray call here gives the user a useful "unlock first"
+    // message instead of an opaque error.
+    if (vaultLocked && firstReply is ParsedReply.ToolCall) {
+        Log.w(TAG, "Suppressed tool call '${firstReply.name}' — vault locked")
+        firstReply = ParsedReply.Answer(context.getString(R.string.assistant_vault_locked_tool))
+    }
+    // Also suppress action proposals while locked — "add expense", "save
+    // note", "schedule reminder" all write to encrypted repos and would
+    // fail or worse leak data through a half-completed write. Strip the
+    // action and reply with the locked-vault hint so the user can choose
+    // to unlock and re-ask.
+    if (vaultLocked && firstReply is ParsedReply.ActionProposal) {
+        Log.w(TAG, "Suppressed action proposal (${firstReply.action::class.simpleName}) — vault locked")
+        firstReply = ParsedReply.Answer(context.getString(R.string.assistant_vault_locked_action))
+    }
     val contextRefs = buildContextRefs(snapshot, userText)
 
     return when (firstReply) {

@@ -16,8 +16,10 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.SamplerConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -278,6 +280,42 @@ object GemmaRunner {
         activeConversation = null
     }
 
+    /**
+     * Cancel any in-flight Gemma generation. Called from the Assistant's
+     * Stop button so the underlying native LiteRT-LM `sendMessageAsync`
+     * stream is closed promptly — without this, the engine stays in a
+     * "generating" state and the next call blocks on the mutex / wedges
+     * the vision crash flag.
+     *
+     * Closing the conversation from outside the running call is safe:
+     * LiteRT-LM treats it as a stream end. The Flow `collect` inside
+     * `completeStreaming` then exits cleanly, the `finally` runs (closes
+     * again, which is a no-op), and the mutex releases. Vision's
+     * `describeImage` runs synchronously and cannot be interrupted
+     * mid-call, but closing the conversation here still releases the
+     * native handle so the next call gets a fresh one.
+     */
+    fun cancelInflight() {
+        // Drop the reference synchronously so any subsequent call sees a
+        // clean state immediately. Run the native close on a background
+        // dispatcher — close() on a mid-generation LiteRT-LM stream is a
+        // blocking call that can take several seconds, and the Stop button
+        // fires this from the UI thread. Without the dispatcher hop we ANR
+        // ("Privora is not responding") when the user kills a long
+        // translation and immediately sends a new prompt.
+        val conv = activeConversation
+        activeConversation = null
+        if (conv != null) {
+            @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+            GlobalScope.launch(Dispatchers.IO) {
+                try { conv.close() } catch (e: Exception) {
+                    Log.w(TAG, "cancelInflight close threw: ${e.message}")
+                }
+            }
+        }
+    }
+
+
     /** Unload the engine to free RAM. */
     fun unload() {
         closeActiveConversation()
@@ -389,11 +427,11 @@ object GemmaRunner {
         prompt: String,
         systemInstruction: String = "",
         temperature: Double = 0.7
-    ): Flow<String> = flow {
+    ): Flow<String> = kotlinx.coroutines.flow.channelFlow {
         if (engine == null) {
             withContext(Dispatchers.IO) { load(context) }
         }
-        val eng = engine ?: return@flow
+        val eng = engine ?: return@channelFlow
 
         mutex.withLock {
             closeActiveConversation()
@@ -406,21 +444,59 @@ object GemmaRunner {
             activeConversation = conversation
 
             var emittedChars = 0
+            var wasCancelled = false
+            // The user-facing Job we polled to know if Stop was tapped.
+            // channelFlow's `send`/`trySend` is thread-safe across contexts,
+            // so we can drain the LM in NonCancellable without violating
+            // Flow's emission contract (the failure that produced the
+            // "I couldn't generate a response" message after the v1 fix).
+            val outerJob = kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job]
             try {
-                conversation.sendMessageAsync(prompt).collect { chunk ->
-                    val s = chunk.toString()
-                    emittedChars += s.length
-                    emit(s)
+                // Drain runs in NonCancellable so a user Stop NEVER tears
+                // down LiteRT-LM's flow upstream while its native worker
+                // thread is still alive — that race dereferences freed
+                // state in liblitertlm_jni.so and SIGSEGVs (confirmed via
+                // tombstone: Thread-267 fault addr 0x0 at +0x4c9060).
+                // Instead we keep collecting tokens to their natural end;
+                // once Stop is detected we just stop emitting them. The
+                // mutex is held until this returns, so the next call can't
+                // race the dying worker.
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    conversation.sendMessageAsync(prompt).collect { chunk ->
+                        val s = chunk.toString()
+                        emittedChars += s.length
+                        if (outerJob?.isActive == false) {
+                            if (!wasCancelled) {
+                                wasCancelled = true
+                                Log.d(TAG, "Stop detected at $emittedChars chars — draining silently")
+                            }
+                            return@collect
+                        }
+                        // trySend is thread-safe across coroutine contexts,
+                        // unlike `emit` on a regular flow {}. If the
+                        // downstream collector has already cancelled, the
+                        // channel is closed and trySend returns failure —
+                        // we just record that and keep draining.
+                        val result = trySend(s)
+                        if (result.isClosed) {
+                            if (!wasCancelled) {
+                                wasCancelled = true
+                                Log.d(TAG, "Downstream closed at $emittedChars chars — draining silently")
+                            }
+                        }
+                    }
                 }
-                Log.d(TAG, "Streaming completed cleanly — $emittedChars chars emitted")
+                if (wasCancelled) Log.d(TAG, "Stream drained after Stop — $emittedChars chars discarded")
+                else Log.d(TAG, "Streaming completed cleanly — $emittedChars chars emitted")
             } catch (e: Exception) {
-                // Log enough to diagnose the "stopped mid-sentence" failure
-                // mode. Without this, partial answers in the chat look like
-                // the model decided to stop — when actually LiteRT-LM threw.
                 Log.e(TAG, "Streaming inference failed after $emittedChars chars: ${e.javaClass.simpleName}: ${e.message}", e)
             } finally {
+                // Safe to close now — the native worker has finished. The
+                // mutex stays held until the close returns, so the next
+                // createConversation waits behind us, never races.
                 closeActiveConversation()
             }
+            if (wasCancelled) throw kotlinx.coroutines.CancellationException("Streaming stopped by user")
         }
     }
 
@@ -435,20 +511,27 @@ object GemmaRunner {
         Log.d(TAG, "describeImage() called — loadFailed=$loadFailed, engine=${engine != null}, path=$imagePath")
         if (loadFailed) { Log.w(TAG, "describeImage() skipped — loadFailed"); return null }
 
-        // Per-feature crash recovery: if a previous vision call hard-crashed the
-        // process, the flag committed before that call is still set. Skip until
-        // the user explicitly resets via Settings → AI → "Retry vision".
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        if (prefs.getBoolean("vision_crashed", false)) {
-            Log.w(TAG, "describeImage() skipped — previous call crashed; user must reset flag")
-            return null
-        }
 
         if (engine == null) load(context)
         val eng = engine
         if (eng == null) { Log.w(TAG, "describeImage() skipped — engine null"); return null }
 
         return mutex.withLock {
+            // Crash-recovery check has to happen INSIDE the mutex, not before.
+            // A still-running previous call (e.g. the user tapped Stop on a
+            // long vision turn but its native sendMessage hasn't finished
+            // yet) holds vision_crashed=true. If we checked outside the
+            // mutex, the second call would bail out with "something went
+            // wrong" even though no real crash occurred — the flag was just
+            // mid-flight. Inside the mutex, the previous call's finally has
+            // already cleared the flag.
+            if (prefs.getBoolean("vision_crashed", false)) {
+                val stampedAt = prefs.getLong("vision_crashed_at", 0L)
+                val ageMs = System.currentTimeMillis() - stampedAt
+                Log.w(TAG, "describeImage() skipped — vision_crashed flag armed (age=${ageMs}ms). Was the previous call interrupted mid-stream?")
+                return@withLock null
+            }
             withContext(Dispatchers.IO) {
                 // Arm the crash flag with a synchronous commit so it persists if
                 // the JVM dies (SIGSEGV) during sendMessage. The `finally` below
@@ -478,17 +561,32 @@ object GemmaRunner {
                     )
                     Log.d(TAG, "Vision response: ${response.toString().take(100)}")
                     extractText(response)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    // User tapped Stop while the vision call was running.
+                    // We MUST re-throw CancellationException — the previous
+                    // `catch (Exception)` swallowed it and left structured
+                    // concurrency thinking the call completed normally,
+                    // which wedged subsequent calls.
+                    Log.d(TAG, "Vision inference cancelled by user")
+                    throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "Vision inference failed: ${e.message}", e)
                     null
                 } finally {
                     closeActiveConversation()
                     // Use commit() (sync) so the cleared flag hits disk before
-                    // any subsequent process death can strand it.
-                    prefs.edit()
-                        .putBoolean("vision_crashed", false)
-                        .putLong("vision_crashed_at", 0L)
-                        .commit()
+                    // any subsequent process death can strand it. The
+                    // NonCancellable guard ensures this still runs even if
+                    // the coroutine was cancelled — without it, a cancel
+                    // mid-vision-call could leave `vision_crashed` armed,
+                    // blocking every subsequent vision call until the user
+                    // resets it from Settings.
+                    withContext(kotlinx.coroutines.NonCancellable) {
+                        prefs.edit()
+                            .putBoolean("vision_crashed", false)
+                            .putLong("vision_crashed_at", 0L)
+                            .commit()
+                    }
                 }
             }
         }

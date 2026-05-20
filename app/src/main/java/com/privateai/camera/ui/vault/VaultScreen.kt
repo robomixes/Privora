@@ -1319,6 +1319,11 @@ fun VaultScreen(
                         deletePhotos(setOf(current.id))
                         videoTempFile?.delete()
                         videoTempFile = null
+                        // PDF viewer also owns a decrypted temp file —
+                        // clean it up so we don't leak plaintext on disk.
+                        pdfTempFile?.delete()
+                        pdfTempFile = null
+                        pdfTitle = ""
 
                         if (nextItem != null) {
                             // Stays on VaultPage.VIEWER (or switches to video
@@ -3545,6 +3550,29 @@ fun VaultScreen(
                                 showDetailsDialog = true
                             }
                         )
+                        // Delete — duplicate of the bottom-bar Delete icon so
+                        // users who landed on the overflow menu first don't
+                        // have to look down. Same confirm dialog + moveToTrash
+                        // path is reused (state hoisted via showDeleteDialog).
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(R.string.delete),
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            onClick = {
+                                showOverflowMenu = false
+                                showDeleteDialog = true
+                            }
+                        )
                     }
                 }
 
@@ -3850,6 +3878,7 @@ fun VaultScreen(
                     // success the rerun increments ocrRefresh which flips
                     // docHasOcr to true and the menu rotates to Summarize /
                     // Ask the Assistant.
+                    onDelete = { showDeleteDialog = true },
                     onExtractText = if (!docHasOcr && viewerDoc != null) {
                         {
                             scope.launch {

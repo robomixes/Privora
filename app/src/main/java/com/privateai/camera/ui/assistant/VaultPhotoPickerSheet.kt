@@ -67,7 +67,8 @@ import java.io.FileOutputStream
 fun VaultPhotoPickerSheet(
     onPicked: (Uri) -> Unit,
     onPdfPicked: (String) -> Unit = {},
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    mediaTypeFilter: VaultMediaType? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -95,15 +96,21 @@ fun VaultPhotoPickerSheet(
                 val folderManager = FolderManager(context, crypto)
                 val map = mutableMapOf<String, List<VaultPhoto>>()
                 // "" = top-level categories (Camera / Scans / Detect / Reports / Files / Hidden)
+                // When [mediaTypeFilter] is non-null we narrow to that type so
+                // the 4-way attach menu (Photo from vault / PDF from vault)
+                // doesn't mix the two kinds in one grid.
+                fun keep(p: VaultPhoto): Boolean =
+                    if (mediaTypeFilter != null) p.mediaType == mediaTypeFilter
+                    else p.mediaType == VaultMediaType.PHOTO || p.mediaType == VaultMediaType.PDF
                 val fromCats = vault.listAllPhotos()
-                    .filter { it.mediaType == VaultMediaType.PHOTO || it.mediaType == VaultMediaType.PDF }
+                    .filter(::keep)
                     .sortedByDescending { it.timestamp }
                 map[""] = fromCats
                 // Each custom folder gets its own bucket.
                 val folders = folderManager.listAllFolders().sortedBy { it.name }
                 for (f in folders) {
                     val items = vault.listFolderItems(folderManager.getFolderDir(f.id))
-                        .filter { it.mediaType == VaultMediaType.PHOTO || it.mediaType == VaultMediaType.PDF }
+                        .filter(::keep)
                         .sortedByDescending { it.timestamp }
                     if (items.isNotEmpty()) map[f.name] = items
                 }

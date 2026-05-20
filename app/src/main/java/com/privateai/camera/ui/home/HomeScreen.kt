@@ -370,8 +370,15 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name_home)) },
                 actions = {
-                    // ✨ AI Assistant — only when AI available + vault unlocked + not duress
-                    if (isVaultUnlocked
+                    // ✨ AI Assistant — visible when AI is available AND
+                    // either the vault is unlocked OR the user opted in to
+                    // "Allow Assistant without unlocking vault" (Settings →
+                    // AI Detection). Still hidden under duress: the duress
+                    // PIN should expose nothing, not even chat.
+                    val assistantUnlockedAccess = remember(isVaultUnlocked) {
+                        com.privateai.camera.ui.settings.isAssistantUnlockedAccessEnabled(context)
+                    }
+                    if ((isVaultUnlocked || assistantUnlockedAccess)
                         && com.privateai.camera.bridge.GemmaRunner.isAvailable(context)
                         && !VaultLockManager.isDuressActive
                         && onAssistantClick != null

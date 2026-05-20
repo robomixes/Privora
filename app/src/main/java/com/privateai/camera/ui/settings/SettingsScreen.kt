@@ -360,6 +360,20 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     defaultValue = false
                 )
 
+                // Locked-vault Assistant access — when on, the Assistant tile
+                // is reachable from Home without entering the PIN, but the
+                // chat runs in text-only mode. The snapshot, vault picker
+                // and tools (notes / expenses / photos) all stay locked
+                // until the user explicitly unlocks. Default OFF for the
+                // privacy-safe default.
+                AppSettingToggle(
+                    context = context,
+                    key = "assistant_unlocked_access",
+                    title = stringResource(R.string.settings_assistant_unlocked_access),
+                    subtitle = stringResource(R.string.settings_assistant_unlocked_access_desc),
+                    defaultValue = false
+                )
+
                 // Screen lock + screenshot protection — both also appear in the
                 // Security section (same prefs). Surfacing them here saves a
                 // collapse-tap for the most-used security controls.
@@ -498,6 +512,18 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     key = "smart_scan_enabled",
                     title = stringResource(R.string.settings_smart_scan),
                     subtitle = stringResource(R.string.settings_smart_scan_desc),
+                    defaultValue = false
+                )
+
+                // Track B — Voice output for the Assistant. When ON,
+                // assistant replies are spoken via Android TextToSpeech.
+                // The mic button + per-bubble Replay icon work regardless
+                // of this toggle.
+                AppSettingToggle(
+                    context = context,
+                    key = "voice_output_enabled",
+                    title = stringResource(R.string.settings_voice_output),
+                    subtitle = stringResource(R.string.settings_voice_output_desc),
                     defaultValue = false
                 )
 
@@ -2046,6 +2072,20 @@ fun isDetectTtsEnabled(context: android.content.Context): Boolean {
 fun isAutoAiTagEnabled(context: android.content.Context): Boolean {
     return context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
         .getBoolean("auto_ai_tag_new_photos", false)
+}
+
+/**
+ * True when the user has opted in to reaching the AI Assistant without
+ * entering the vault PIN. Default OFF — the safe privacy default.
+ *
+ * In this mode the Assistant tile is visible on Home even when the vault
+ * is locked, but the chat runs in text-only mode: snapshot is empty,
+ * vault picker is disabled, and data tools (search_notes, search_photos,
+ * etc.) refuse to run until the user explicitly unlocks.
+ */
+fun isAssistantUnlockedAccessEnabled(context: android.content.Context): Boolean {
+    return context.getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE)
+        .getBoolean("assistant_unlocked_access", false)
 }
 
 @Composable

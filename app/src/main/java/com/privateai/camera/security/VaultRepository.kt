@@ -760,6 +760,86 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
     }
 
     /**
+     * Extract OCR text directly from an UNENCRYPTED on-disk PDF file. Used by
+     * the AI Assistant when the user attaches a PDF from device storage (SAF
+     * picker) — the file isn't in the vault, so there's no `VaultPhoto` and
+     * no sidecar to write. We just want the text in memory for one session.
+     *
+     * Same two-pass pipeline as [extractOcrForPdf]: PdfBox native text first,
+     * fall back to render + ML Kit OCR. Returns the extracted text on success,
+     * or null when the file can't be opened / both passes produce nothing
+     * usable.
+     */
+    suspend fun extractOcrTextFromPdfFile(
+        pdfFile: File,
+        onProgress: (current: Int, total: Int) -> Unit = { _, _ -> }
+    ): String? {
+        if (!pdfFile.exists() || pdfFile.length() == 0L) return null
+        try {
+            com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(context)
+        } catch (e: Exception) {
+            Log.w(TAG, "PdfBox init failed: ${e.message}")
+        }
+        try {
+            val (nativeText, _) = try {
+                com.tom_roush.pdfbox.pdmodel.PDDocument.load(pdfFile).use { doc ->
+                    val stripper = com.tom_roush.pdfbox.text.PDFTextStripper()
+                    stripper.getText(doc).trim() to doc.numberOfPages
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "PdfBox extraction failed for ${pdfFile.name}: ${e.message}")
+                "" to 0
+            }
+            if (nativeText.length >= 50 && looksLikeReadableLatinOcr(nativeText)) {
+                return nativeText
+            }
+            val pfd = android.os.ParcelFileDescriptor.open(
+                pdfFile, android.os.ParcelFileDescriptor.MODE_READ_ONLY
+            )
+            val renderer = android.graphics.pdf.PdfRenderer(pfd)
+            val pageCount = renderer.pageCount
+            val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
+                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+            )
+            val perPage = mutableListOf<String>()
+            try {
+                for (i in 0 until pageCount) {
+                    onProgress(i + 1, pageCount)
+                    val page = renderer.openPage(i)
+                    val targetW = 1240
+                    val targetH = (targetW.toFloat() * page.height / page.width).toInt().coerceAtLeast(1)
+                    val bmp = android.graphics.Bitmap.createBitmap(
+                        targetW, targetH, android.graphics.Bitmap.Config.ARGB_8888
+                    )
+                    bmp.eraseColor(android.graphics.Color.WHITE)
+                    page.render(bmp, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    page.close()
+                    try {
+                        val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
+                        val text = recognizer.process(image).await().text
+                        perPage.add(text)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "OCR failed for page $i of ${pdfFile.name}: ${e.message}")
+                        perPage.add("")
+                    } finally {
+                        bmp.recycle()
+                    }
+                }
+            } finally {
+                try { renderer.close() } catch (_: Exception) {}
+                try { pfd.close() } catch (_: Exception) {}
+            }
+            val fullText = perPage.joinToString("\n\n").trim()
+            if (fullText.isEmpty()) return null
+            if (!looksLikeReadableLatinOcr(fullText)) return null
+            return fullText
+        } catch (e: Exception) {
+            Log.e(TAG, "extractOcrTextFromPdfFile failed for ${pdfFile.name}: ${e.message}", e)
+            return null
+        }
+    }
+
+    /**
      * One-shot pass over the entire vault directory: for every `<id>.meta.enc`
      * sidecar, decrypt it, read the EXIF `dateTaken`, and re-apply it as the
      * file mtime of the corresponding photo / thumb / video files.

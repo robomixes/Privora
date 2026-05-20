@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.MoreVert
@@ -98,6 +99,7 @@ fun PdfViewerScreen(
     onViewExtractedText: (() -> Unit)? = null,
     onRename: ((String) -> Unit)? = null,
     onExtractText: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     /** Pair of (currentPage, totalPages) while OCR extraction runs; null when idle. */
     extractionProgress: Pair<Int, Int>? = null
 ) {
@@ -214,7 +216,8 @@ fun PdfViewerScreen(
             // When the document has an OCR sidecar, the host wires onAskAssistant
             // / onSummarize and we surface the overflow. Otherwise just Share.
             val hasAiActions = onAskAssistant != null || onSummarize != null ||
-                onViewExtractedText != null || onRename != null || onExtractText != null
+                onViewExtractedText != null || onRename != null || onExtractText != null ||
+                onDelete != null
             if (hasAiActions) {
                 var menuOpen by remember { mutableStateOf(false) }
                 var showRenameDialog by remember { mutableStateOf(false) }
@@ -277,6 +280,31 @@ fun PdfViewerScreen(
                                 } catch (_: Exception) {}
                             }
                         )
+                        // Delete — kept at the bottom of the menu (destructive
+                        // action). The host shows the shared confirm dialog,
+                        // moves the doc to trash, and pops back to the gallery
+                        // — same path the photo viewer uses.
+                        if (onDelete != null) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(R.string.delete),
+                                        color = androidx.compose.material3.MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        null,
+                                        tint = androidx.compose.material3.MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    onDelete()
+                                }
+                            )
+                        }
                     }
                 }
                 if (showRenameDialog && onRename != null) {
