@@ -848,7 +848,7 @@ fun VaultScreen(
 
                 // Face blur if enabled
                 if (com.privateai.camera.ui.settings.isFaceBlurEnabled(context)) {
-                    bitmap = com.privateai.camera.util.FaceBlur.blurFaces(bitmap)
+                    bitmap = com.privateai.camera.util.FaceBlur.blurFaces(context, bitmap)
                 }
 
                 val uri = com.privateai.camera.util.saveBitmapToCache(context, bitmap, "vault_share.jpg")
@@ -2259,53 +2259,68 @@ fun VaultScreen(
                                 }
                             }
                         }
-                        // Google Photos-style staggered grid
+                        // Google Photos-style staggered grid, now grouped
+                        // by date — same Today / Yesterday / weekday / month
+                        // headers the main vault gallery uses (see
+                        // [groupPhotosByDate]). Headers are LazyColumn
+                        // items so they recycle alongside the photo rows.
                         val faceGridWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp - 24.dp
-                        val maxItemHeight = 160f // cap max height
+                        val maxItemHeight = 160f
+                        val faceGrouped = remember(sortedResults) { groupPhotosByDate(sortedResults) }
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            // Build rows: pack photos into rows of 3, using real aspect ratios
-                            val photosWithAspect = sortedResults.map { photo ->
-                                val thumb = searchThumbnails[photo.id]
-                                val aspect = if (thumb != null && thumb.height > 0) thumb.width.toFloat() / thumb.height else if (photo.mediaType == VaultMediaType.PDF) 0.75f else 1.33f
-                                photo to aspect
-                            }
-                            val rows = photosWithAspect.chunked(3)
-
-                            items(rows) { row ->
-                                val totalAspect = row.sumOf { it.second.toDouble() }.toFloat()
-                                val gaps = (row.size - 1) * 3f
-                                val rowHeight = ((faceGridWidth.value - gaps) / totalAspect).coerceAtMost(maxItemHeight)
-                                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    row.forEach { (photo, aspect) ->
-                                        val itemWidth = (rowHeight * aspect).dp
-                                        val itemHeight = rowHeight.dp
-                                        val thumb = searchThumbnails[photo.id]
-                                        val isSelected = photo.id in selectedIds
-                                        Box(
-                                            Modifier.width(itemWidth).height(itemHeight)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
-                                                .combinedClickable(
-                                                    onClick = {
-                                                        if (isSelectionMode) {
-                                                            selectedIds = if (isSelected) selectedIds - photo.id else selectedIds + photo.id
-                                                            if (selectedIds.isEmpty()) isSelectionMode = false
-                                                        } else {
-                                                            photos = sortedResults; thumbnails = searchThumbnails; viewerFromSearch = true; openViewer(photo)
-                                                        }
-                                                    },
-                                                    onLongClick = { isSelectionMode = true; selectedIds = selectedIds + photo.id }
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (thumb != null) {
-                                                Image(thumb.asImageBitmap(), "Photo", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                                            } else {
-                                                Icon(Icons.Default.Lock, "Encrypted", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            }
-                                            if (isSelectionMode && isSelected) {
-                                                Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
-                                                    Icon(Icons.Default.Check, null, Modifier.size(14.dp), tint = Color.White)
+                            faceGrouped.forEach { (header, groupPhotos) ->
+                                item(key = "face_header_$header") {
+                                    Text(
+                                        text = header,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                    )
+                                }
+                                // Build rows: pack each date group's photos into rows of 3
+                                // using real aspect ratios so portraits don't get stretched.
+                                val photosWithAspect = groupPhotos.map { photo ->
+                                    val thumb = searchThumbnails[photo.id]
+                                    val aspect = if (thumb != null && thumb.height > 0) thumb.width.toFloat() / thumb.height else if (photo.mediaType == VaultMediaType.PDF) 0.75f else 1.33f
+                                    photo to aspect
+                                }
+                                val rows = photosWithAspect.chunked(3)
+                                items(rows) { row ->
+                                    val totalAspect = row.sumOf { it.second.toDouble() }.toFloat()
+                                    val gaps = (row.size - 1) * 3f
+                                    val rowHeight = ((faceGridWidth.value - gaps) / totalAspect).coerceAtMost(maxItemHeight)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        row.forEach { (photo, aspect) ->
+                                            val itemWidth = (rowHeight * aspect).dp
+                                            val itemHeight = rowHeight.dp
+                                            val thumb = searchThumbnails[photo.id]
+                                            val isSelected = photo.id in selectedIds
+                                            Box(
+                                                Modifier.width(itemWidth).height(itemHeight)
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
+                                                    .combinedClickable(
+                                                        onClick = {
+                                                            if (isSelectionMode) {
+                                                                selectedIds = if (isSelected) selectedIds - photo.id else selectedIds + photo.id
+                                                                if (selectedIds.isEmpty()) isSelectionMode = false
+                                                            } else {
+                                                                photos = sortedResults; thumbnails = searchThumbnails; viewerFromSearch = true; openViewer(photo)
+                                                            }
+                                                        },
+                                                        onLongClick = { isSelectionMode = true; selectedIds = selectedIds + photo.id }
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (thumb != null) {
+                                                    Image(thumb.asImageBitmap(), "Photo", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                                } else {
+                                                    Icon(Icons.Default.Lock, "Encrypted", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                                if (isSelectionMode && isSelected) {
+                                                    Box(Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {
+                                                        Icon(Icons.Default.Check, null, Modifier.size(14.dp), tint = Color.White)
+                                                    }
                                                 }
                                             }
                                         }
@@ -3521,7 +3536,7 @@ fun VaultScreen(
                                         withContext(Dispatchers.IO) {
                                             var bitmap = vault.loadFullPhoto(photo) ?: return@withContext
                                             if (!blurDefault) {
-                                                bitmap = com.privateai.camera.util.FaceBlur.blurFaces(bitmap)
+                                                bitmap = com.privateai.camera.util.FaceBlur.blurFaces(context, bitmap)
                                             }
                                             val uri = com.privateai.camera.util.saveBitmapToCache(context, bitmap, "vault_alt_share.jpg")
                                             bitmap.recycle()

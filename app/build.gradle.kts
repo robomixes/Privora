@@ -160,10 +160,10 @@ dependencies {
     // LiteRT-LM (Gemma 4 on-device LLM)
     implementation(libs.litertlm.android)
 
-    // ML Kit (being phased out — see Track A. Barcode → ZXing already done.)
+    // ML Kit (being phased out — see Track A. Barcode → ZXing done.
+    // Face detection → ONNX YuNet done.)
     implementation(libs.mlkit.document.scanner)
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.translate)
-    implementation(libs.mlkit.face.detection)
     implementation(libs.kotlinx.coroutines.play.services)
 }

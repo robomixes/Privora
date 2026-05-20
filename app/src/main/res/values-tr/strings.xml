@@ -294,6 +294,11 @@
     <string name="settings_reindex_confirm">Bu işlem tüm YZ etiketlerini, yüz gruplarını ve fotoğraf etiketlerini — Gemma görüşle oluşturulan YZ açıklamaları ve YZ etiketleri dahil — temizler. Temel etiketler ve yüz grupları kasayı açtığında yeniden oluşturulur; Gemma açıklamalarını ve etiketlerini geri yüklemek için sonrasında \"Tüm fotoğrafları YZ ile işle\"yi çalıştır. Devam edilsin mi?</string>
     <string name="settings_reindex_done">Dizin temizlendi. Yeniden dizinlemek için Kasa\'yı aç.</string>
     <string name="settings_reindex_action">Temizle ve yeniden dizinle</string>
+    <string name="settings_reset_face_groups">Yüz gruplarını sıfırla</string>
+    <string name="settings_reset_face_groups_desc">Grup adlarını ve kimliklerini siler. Fotoğraf gömüllerini, AI etiketlerini ve açıklamaları korur — mevcut verilerden yeniden kümeler, yeniden dizine ekleme gerekmez.</string>
+    <string name="settings_reset_face_groups_confirm">Tüm geçerli yüz grubu adları ve kişi bağlantıları silinecek. Fotoğraf gömüllerine ve AI etiketlerine dokunulmaz; Yüzler ekranını bir sonraki açışınızda gruplar otomatik olarak yeniden oluşturulur. Devam edilsin mi?</string>
+    <string name="settings_reset_face_groups_action">Sıfırla</string>
+    <string name="settings_reset_face_groups_done">Yüz grupları sıfırlandı. Yeniden kümelemek için Yüzler ekranını açın.</string>
     <string name="settings_section_security">Güvenlik</string>
     <string name="settings_encryption">Şifreleme</string>
     <string name="settings_encryption_desc">AES-256-GCM • Kurulum başına anahtar • Donanım destekli</string>
