@@ -280,6 +280,11 @@
     <string name="settings_reindex_confirm">سيتم مسح جميع تسميات الذكاء الاصطناعي ومجموعات الوجوه وعلامات الصور — بما في ذلك الأوصاف والتسميات التي أنشأتها رؤية Gemma. سيتم إعادة بناء التسميات الأساسية ومجموعات الوجوه عند فتح الخزنة؛ لاستعادة أوصاف Gemma وتسمياته، شغّل بعد ذلك «معالجة كل الصور بالذكاء الاصطناعي». متابعة؟</string>
     <string name="settings_reindex_done">تم مسح الفهرس. افتح الخزنة لإعادة الفهرسة.</string>
     <string name="settings_reindex_action">مسح وإعادة فهرسة</string>
+    <string name="settings_reset_face_groups">إعادة تعيين مجموعات الوجوه</string>
+    <string name="settings_reset_face_groups_desc">يمسح أسماء المجموعات والهويات. يحافظ على بصمات الصور وعلامات الذكاء الاصطناعي والأوصاف — يعيد التجميع من البيانات الموجودة دون إعادة الفهرسة.</string>
+    <string name="settings_reset_face_groups_confirm">سيتم مسح جميع أسماء المجموعات وروابط جهات الاتصال الحالية. يتم الاحتفاظ ببصمات الصور وعلامات الذكاء الاصطناعي؛ ستُعاد المجموعات تلقائيًا عند فتح شاشة الوجوه. المتابعة؟</string>
+    <string name="settings_reset_face_groups_action">إعادة تعيين</string>
+    <string name="settings_reset_face_groups_done">تمت إعادة تعيين المجموعات. افتح شاشة الوجوه لإعادة التجميع.</string>
     <string name="settings_section_security">الأمان</string>
     <string name="settings_encryption">التشفير</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 مفتاح فريد لكل تثبيت \u2022 مدعوم بالعتاد</string>

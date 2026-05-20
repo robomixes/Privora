@@ -1134,6 +1134,30 @@ class PhotoIndex(private val database: PrivoraDatabase) {
         db.update("face_identities", cv, "id = ?", arrayOf(identityId))
     }
 
+    /**
+     * Soft-reset face groups: wipe identities + exclusions + "not this
+     * person" flags but KEEP the per-face embeddings (`face_entries`) and
+     * AI tags (`photo_index.labels` / `description`). The next call to
+     * [getFaceGroups] re-clusters from the surviving embeddings — no model
+     * inference needed, no re-index pass.
+     *
+     * Useful after a detector backend swap (ML Kit → ONNX YuNet, Track A1.2),
+     * after the user tweaks the clustering threshold, or to recover from a
+     * messy chain of merges/renames. Cheap: three DELETEs in a single
+     * transaction.
+     */
+    fun clearFaceGroups() {
+        db.beginTransaction()
+        try {
+            db.delete("face_identities", null, null)
+            db.delete("face_exclusions", null, null)
+            db.delete("face_unlinked", null, null)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     /** Link a face group to a person (contact). Survives group renames. */
     fun linkFaceGroupToPerson(identityId: String, personId: String, personName: String) {
         // Get current name to preserve it if non-blank

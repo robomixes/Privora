@@ -280,6 +280,11 @@
     <string name="settings_reindex_confirm">Se borrar\u00e1n todas las etiquetas IA, grupos de caras y tags de fotos \u2014 incluidas las descripciones y etiquetas IA generadas por Gemma vision. Las etiquetas b\u00e1sicas y grupos de caras se reconstruir\u00e1n al abrir la b\u00f3veda; para restaurar las descripciones y etiquetas de Gemma, ejecute despu\u00e9s \u00abProcesar todas las fotos con IA\u00bb. \u00bfContinuar?</string>
     <string name="settings_reindex_done">\u00cdndice borrado. Abre la B\u00f3veda para reindexar.</string>
     <string name="settings_reindex_action">Borrar y reindexar</string>
+    <string name="settings_reset_face_groups">Restablecer grupos de caras</string>
+    <string name="settings_reset_face_groups_desc">Borra nombres e identidades de grupos. Conserva los embeddings de las fotos, las etiquetas de IA y las descripciones — re-agrupa con los datos existentes, sin reindexar.</string>
+    <string name="settings_reset_face_groups_confirm">Se borrarán todos los nombres de grupos y enlaces de contacto actuales. Los embeddings y etiquetas de IA se conservan; los grupos se re-agruparán automáticamente la próxima vez que abras la pantalla Caras. ¿Continuar?</string>
+    <string name="settings_reset_face_groups_action">Restablecer</string>
+    <string name="settings_reset_face_groups_done">Grupos restablecidos. Abre Caras para re-agrupar.</string>
     <string name="settings_section_security">Seguridad</string>
     <string name="settings_encryption">Cifrado</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Clave por instalación \u2022 Respaldada por hardware</string>

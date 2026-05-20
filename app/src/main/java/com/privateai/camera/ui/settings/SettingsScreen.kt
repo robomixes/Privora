@@ -24,6 +24,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.GroupRemove
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
@@ -742,6 +743,53 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("More groups", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Fewer groups", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(8.dp))
+
+                // Reset face groups — wipes cluster identities + names +
+                // contact links but PRESERVES per-face embeddings, AI tags,
+                // and photo metadata. Cheap (3 DELETEs); the next Face
+                // Groups screen open re-clusters from existing embeddings.
+                // Useful after detector swaps (Track A1.2: ML Kit → ONNX)
+                // or after a tangled merge/rename chain.
+                var showResetFaceGroupsDialog by remember { mutableStateOf(false) }
+                SettingsItem(
+                    icon = Icons.Default.GroupRemove,
+                    title = stringResource(R.string.settings_reset_face_groups),
+                    subtitle = stringResource(R.string.settings_reset_face_groups_desc),
+                    onClick = { showResetFaceGroupsDialog = true }
+                )
+                if (showResetFaceGroupsDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showResetFaceGroupsDialog = false },
+                        title = { Text(stringResource(R.string.settings_reset_face_groups)) },
+                        text = { Text(stringResource(R.string.settings_reset_face_groups_confirm)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showResetFaceGroupsDialog = false
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        try {
+                                            val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
+                                            val db = com.privateai.camera.security.PrivoraDatabase.getInstance(context, crypto)
+                                            com.privateai.camera.security.PhotoIndex(db).clearFaceGroups()
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("Settings", "reset face groups failed: ${e.message}", e)
+                                        }
+                                    }
+                                    Toast.makeText(context, context.getString(R.string.settings_reset_face_groups_done), Toast.LENGTH_SHORT).show()
+                                }
+                            }) {
+                                Text(stringResource(R.string.settings_reset_face_groups_action),
+                                    color = MaterialTheme.colorScheme.error)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showResetFaceGroupsDialog = false }) {
+                                Text(stringResource(R.string.cancel))
+                            }
+                        }
+                    )
                 }
                 Spacer(Modifier.height(8.dp))
                 } // end effExpandedCamera

@@ -239,6 +239,11 @@
     <string name="settings_reindex_confirm">Toutes les \u00e9tiquettes IA, groupes de visages et tags photo seront effac\u00e9s \u2014 y compris les descriptions IA et tags IA g\u00e9n\u00e9r\u00e9s par Gemma vision. Les \u00e9tiquettes de base et groupes de visages seront reconstruits \u00e0 l\'ouverture du coffre ; pour restaurer les descriptions et tags Gemma, lancez ensuite \u00ab Traiter toutes les photos avec l\'IA \u00bb. Continuer ?</string>
     <string name="settings_reindex_done">Index effac\u00e9. Ouvrez le coffre pour r\u00e9indexer.</string>
     <string name="settings_reindex_action">Effacer et r\u00e9indexer</string>
+    <string name="settings_reset_face_groups">R\u00e9initialiser les groupes de visages</string>
+    <string name="settings_reset_face_groups_desc">Efface les noms et identit\u00e9s des groupes. Conserve les empreintes photo, les tags IA et les descriptions \u2014 re-regroupe \u00e0 partir des donn\u00e9es existantes, sans r\u00e9indexation.</string>
+    <string name="settings_reset_face_groups_confirm">Tous les noms de groupes et liens de contact actuels seront effac\u00e9s. Les empreintes photo et tags IA sont conserv\u00e9s ; les groupes seront re-regroup\u00e9s automatiquement \u00e0 la prochaine ouverture de l\'\u00e9cran Visages. Continuer ?</string>
+    <string name="settings_reset_face_groups_action">R\u00e9initialiser</string>
+    <string name="settings_reset_face_groups_done">Groupes r\u00e9initialis\u00e9s. Ouvrez l\'\u00e9cran Visages pour re-regrouper.</string>
     <string name="settings_section_security">Sécurité</string>
     <string name="settings_encryption">Chiffrement</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Clé unique par installation \u2022 Matériel sécurisé</string>

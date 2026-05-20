@@ -282,6 +282,11 @@
     <string name="settings_reindex_confirm">将清除所有 AI 标签、人脸分组和照片标签 — 包括由 Gemma 视觉生成的 AI 描述和 AI 标签。打开保险库时将重新构建基础标签和人脸分组；要恢复 Gemma 描述和标签，请之后运行"使用 AI 处理所有照片"。继续？</string>
     <string name="settings_reindex_done">索引已清除。打开保险库重新索引。</string>
     <string name="settings_reindex_action">清除并重新索引</string>
+    <string name="settings_reset_face_groups">重置人脸分组</string>
+    <string name="settings_reset_face_groups_desc">清除人脸分组名称和身份。保留照片特征、AI 标签和描述 — 基于现有数据重新聚类,无需重新索引。</string>
+    <string name="settings_reset_face_groups_confirm">将清除所有当前人脸分组名称和联系人链接。照片特征和 AI 标签会保留;下次打开"人脸"屏幕时会自动重新聚类。继续?</string>
+    <string name="settings_reset_face_groups_action">重置</string>
+    <string name="settings_reset_face_groups_done">已重置人脸分组。打开"人脸"屏幕以重新聚类。</string>
     <string name="settings_section_security">安全</string>
     <string name="settings_encryption">加密</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 每次安装独立密钥 \u2022 硬件支持</string>
