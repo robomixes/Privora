@@ -244,6 +244,13 @@
     <string name="settings_reset_face_groups_confirm">Tous les noms de groupes et liens de contact actuels seront effac\u00e9s. Les empreintes photo et tags IA sont conserv\u00e9s ; les groupes seront re-regroup\u00e9s automatiquement \u00e0 la prochaine ouverture de l\'\u00e9cran Visages. Continuer ?</string>
     <string name="settings_reset_face_groups_action">R\u00e9initialiser</string>
     <string name="settings_reset_face_groups_done">Groupes r\u00e9initialis\u00e9s. Ouvrez l\'\u00e9cran Visages pour re-regrouper.</string>
+    <string name="settings_ocr_languages">Langues OCR</string>
+    <string name="settings_ocr_languages_desc">T\u00e9l\u00e9chargez les mod\u00e8les de reconnaissance de texte pour le scanner et l\'Assistant.</string>
+    <string name="settings_ocr_languages_intro">Chaque langue est t\u00e9l\u00e9charg\u00e9e \u00e0 la demande et stock\u00e9e sur cet appareil. Plusieurs langues peuvent \u00eatre actives \u00e0 la fois \u2014 Tesseract lit les documents multi-\u00e9criture en une seule passe.</string>
+    <string name="settings_ocr_lang_installed">Install\u00e9 \u00b7 %1$s</string>
+    <string name="settings_ocr_lang_not_installed">Non install\u00e9 \u00b7 %1$s</string>
+    <string name="settings_ocr_lang_download">T\u00e9l\u00e9charger</string>
+    <string name="scanner_ocr_no_languages">Aucune langue OCR install\u00e9e. Ouvrez Param\u00e8tres \u2192 Langues OCR pour en t\u00e9l\u00e9charger une.</string>
     <string name="settings_section_security">Sécurité</string>
     <string name="settings_encryption">Chiffrement</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Clé unique par installation \u2022 Matériel sécurisé</string>

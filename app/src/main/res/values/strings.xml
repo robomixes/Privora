@@ -299,6 +299,13 @@
     <string name="settings_reset_face_groups_confirm">All current face-group names and contact links will be cleared. Photo embeddings and AI tags are kept; groups will be re-clustered automatically next time you open the Faces screen. Continue?</string>
     <string name="settings_reset_face_groups_action">Reset</string>
     <string name="settings_reset_face_groups_done">Face groups reset. Open the Faces screen to re-cluster.</string>
+    <string name="settings_ocr_languages">OCR languages</string>
+    <string name="settings_ocr_languages_desc">Download text-recognition language models for the scanner and Assistant.</string>
+    <string name="settings_ocr_languages_intro">Each language is downloaded on demand and stored on this device. Multiple languages can be active at once — Tesseract reads mixed-script documents in one pass.</string>
+    <string name="settings_ocr_lang_installed">Installed · %1$s</string>
+    <string name="settings_ocr_lang_not_installed">Not installed · %1$s</string>
+    <string name="settings_ocr_lang_download">Download</string>
+    <string name="scanner_ocr_no_languages">No OCR languages installed. Open Settings → OCR languages to download one.</string>
     <string name="settings_section_security">Security</string>
     <string name="settings_encryption">Encryption</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Per-install key \u2022 Hardware-backed</string>

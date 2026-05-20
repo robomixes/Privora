@@ -660,13 +660,13 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
                 "" to 0
             }
 
-            // If the native pass got a usable amount of text AND it actually
-            // looks like Latin script, write the sidecar and return. The
-            // looksLikeReadableLatinOcr check guards against ML Kit / PdfBox
-            // returning corrupted output when fed a non-Latin doc — better
-            // to fall through to the OCR pass (also Latin, but at least we
-            // can flag it later) than to write a garbage sidecar.
-            if (nativeText.length >= 50 && looksLikeReadableLatinOcr(nativeText)) {
+            // If the native pass got a usable amount of text, write the
+            // sidecar and skip the render-OCR fallback. We dropped the
+            // looksLikeReadableLatinOcr gate when Tesseract replaced ML
+            // Kit (Track A1.3) — the fallback handles non-Latin scripts
+            // correctly now via downloaded language packs, so falling
+            // through is safe even on Arabic / CJK docs.
+            if (nativeText.length >= 50) {
                 val perPage = nativeText.split("")  // PdfBox separates pages with form-feed
                     .map { it.trim() }
                     .filter { it.isNotEmpty() }
@@ -685,22 +685,21 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
             }
 
             // 2. Fall back to render-and-OCR. Slow but covers image-of-pages
-            // PDFs that PdfBox can't read text from.
+            // PDFs that PdfBox can't read text from. Track A1.3: ML Kit
+            // text-recognition → Tesseract 5. Uses whichever languages the
+            // user has downloaded via Settings → OCR languages.
             val pfd = android.os.ParcelFileDescriptor.open(
                 tempPdf, android.os.ParcelFileDescriptor.MODE_READ_ONLY
             )
             val renderer = android.graphics.pdf.PdfRenderer(pfd)
             val pageCount = renderer.pageCount
-            val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
-                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
-            )
             val perPage = mutableListOf<String>()
             try {
                 for (i in 0 until pageCount) {
                     onProgress(i + 1, pageCount)
                     val page = renderer.openPage(i)
                     // Target ~1240px wide to match the scanner's saved-PDF
-                    // resolution — gives ML Kit comparable input quality.
+                    // resolution — gives the recogniser comparable input quality.
                     val targetW = 1240
                     val targetH = (targetW.toFloat() * page.height / page.width).toInt().coerceAtLeast(1)
                     val bmp = android.graphics.Bitmap.createBitmap(
@@ -710,8 +709,8 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
                     page.render(bmp, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     page.close()
                     try {
-                        val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
-                        val text = recognizer.process(image).await().text
+                        val text = com.privateai.camera.bridge.TesseractRecognizer
+                            .recognizeInstalledLanguages(context, bmp)
                         perPage.add(text)
                     } catch (e: Exception) {
                         Log.w(TAG, "OCR failed for page $i of ${photo.id}: ${e.message}")
@@ -730,22 +729,17 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
                 Log.i(TAG, "OCR fallback produced no text for ${photo.id}")
                 return OcrExtractionResult.NoTextFound
             }
-            // Refuse to write a sidecar of garbled non-Latin output — ML Kit
-            // v2 only ships a Latin model, so Arabic / Hebrew / Thai / etc.
-            // PDFs come back as corrupt symbols. Treating that as a successful
-            // extraction would point the Assistant at noise and produce
-            // confidently-wrong answers for every question.
-            if (!looksLikeReadableLatinOcr(fullText)) {
-                Log.i(TAG, "OCR fallback produced non-readable text for ${photo.id} (likely non-Latin script) — no sidecar written")
-                return OcrExtractionResult.NoTextFound
-            }
+            // With Tesseract we no longer need the Latin-only sanity gate
+            // — the user picked which languages to install, so the output
+            // script is by definition something the engine knows. Any
+            // non-empty result is worth saving.
             saveOcrSidecar(
                 photo.id,
                 photo.encryptedFile.parentFile ?: return OcrExtractionResult.Failed,
                 fullText,
                 perPage
             )
-            Log.i(TAG, "OCR sidecar written via render+ML Kit: ${photo.id} ($pageCount pages, ${fullText.length} chars)")
+            Log.i(TAG, "OCR sidecar written via render+Tesseract: ${photo.id} ($pageCount pages, ${fullText.length} chars)")
             return OcrExtractionResult.Success(
                 pageCount = pageCount,
                 charCount = fullText.length,
@@ -790,7 +784,11 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
                 Log.w(TAG, "PdfBox extraction failed for ${pdfFile.name}: ${e.message}")
                 "" to 0
             }
-            if (nativeText.length >= 50 && looksLikeReadableLatinOcr(nativeText)) {
+            // Pre-Tesseract this required a Latin-only sanity gate to
+            // avoid pointing the Assistant at garbled non-Latin output.
+            // Tesseract handles whatever language the user has installed,
+            // so any non-empty native text layer is good to return.
+            if (nativeText.length >= 50) {
                 return nativeText
             }
             val pfd = android.os.ParcelFileDescriptor.open(
@@ -798,9 +796,6 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
             )
             val renderer = android.graphics.pdf.PdfRenderer(pfd)
             val pageCount = renderer.pageCount
-            val recognizer = com.google.mlkit.vision.text.TextRecognition.getClient(
-                com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
-            )
             val perPage = mutableListOf<String>()
             try {
                 for (i in 0 until pageCount) {
@@ -815,8 +810,8 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
                     page.render(bmp, null, null, android.graphics.pdf.PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     page.close()
                     try {
-                        val image = com.google.mlkit.vision.common.InputImage.fromBitmap(bmp, 0)
-                        val text = recognizer.process(image).await().text
+                        val text = com.privateai.camera.bridge.TesseractRecognizer
+                            .recognizeInstalledLanguages(context, bmp)
                         perPage.add(text)
                     } catch (e: Exception) {
                         Log.w(TAG, "OCR failed for page $i of ${pdfFile.name}: ${e.message}")
@@ -831,7 +826,6 @@ class VaultRepository(private val context: Context, private val crypto: CryptoMa
             }
             val fullText = perPage.joinToString("\n\n").trim()
             if (fullText.isEmpty()) return null
-            if (!looksLikeReadableLatinOcr(fullText)) return null
             return fullText
         } catch (e: Exception) {
             Log.e(TAG, "extractOcrTextFromPdfFile failed for ${pdfFile.name}: ${e.message}", e)

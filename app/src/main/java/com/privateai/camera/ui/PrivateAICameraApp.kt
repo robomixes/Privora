@@ -353,8 +353,12 @@ fun PrivateAICameraApp() {
                     onBackupClick = { navController.navigate("backup") },
                     onDuressClick = { navController.navigate("duress_setup") },
                     onChangePinClick = { navController.navigate("change_pin") },
-                    onRerunWizardClick = { navController.navigate("calibrate") }
+                    onRerunWizardClick = { navController.navigate("calibrate") },
+                    onOcrLanguagesClick = { navController.navigate("ocr_languages") }
                 )
+            }
+            composable("ocr_languages") {
+                com.privateai.camera.ui.settings.OcrLanguagesScreen(onBack = safeBack)
             }
             composable("duress_setup") {
                 DuressSetupScreen(onBack = safeBack)

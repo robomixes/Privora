@@ -287,6 +287,13 @@
     <string name="settings_reset_face_groups_confirm">将清除所有当前人脸分组名称和联系人链接。照片特征和 AI 标签会保留;下次打开"人脸"屏幕时会自动重新聚类。继续?</string>
     <string name="settings_reset_face_groups_action">重置</string>
     <string name="settings_reset_face_groups_done">已重置人脸分组。打开"人脸"屏幕以重新聚类。</string>
+    <string name="settings_ocr_languages">OCR 语言</string>
+    <string name="settings_ocr_languages_desc">为扫描器和助手下载文字识别语言模型。</string>
+    <string name="settings_ocr_languages_intro">每种语言按需下载并存储在本机。可同时启用多种语言 — Tesseract 一次性识别混合文字文档。</string>
+    <string name="settings_ocr_lang_installed">已安装 · %1$s</string>
+    <string name="settings_ocr_lang_not_installed">未安装 · %1$s</string>
+    <string name="settings_ocr_lang_download">下载</string>
+    <string name="scanner_ocr_no_languages">尚未安装 OCR 语言。打开"设置 → OCR 语言"下载一个。</string>
     <string name="settings_section_security">安全</string>
     <string name="settings_encryption">加密</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 每次安装独立密钥 \u2022 硬件支持</string>
