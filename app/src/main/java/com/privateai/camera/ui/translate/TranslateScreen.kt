@@ -75,35 +75,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import com.google.mlkit.common.model.DownloadConditions
-import com.google.mlkit.nl.translate.TranslateLanguage
 import com.privateai.camera.R
-import com.google.mlkit.nl.translate.Translation
-import com.google.mlkit.nl.translate.TranslatorOptions
+import com.privateai.camera.bridge.LangItem
+import com.privateai.camera.bridge.Translator
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import java.io.File
 import java.util.Locale
 
-data class LangItem(val code: String, val name: String)
-
-val LANGUAGES = listOf(
-    LangItem(TranslateLanguage.ENGLISH, "English"),
-    LangItem(TranslateLanguage.ARABIC, "Arabic"),
-    LangItem(TranslateLanguage.FRENCH, "French"),
-    LangItem(TranslateLanguage.SPANISH, "Spanish"),
-    LangItem(TranslateLanguage.GERMAN, "German"),
-    LangItem(TranslateLanguage.CHINESE, "Chinese"),
-    LangItem(TranslateLanguage.JAPANESE, "Japanese"),
-    LangItem(TranslateLanguage.KOREAN, "Korean"),
-    LangItem(TranslateLanguage.PORTUGUESE, "Portuguese"),
-    LangItem(TranslateLanguage.RUSSIAN, "Russian"),
-    LangItem(TranslateLanguage.TURKISH, "Turkish"),
-    LangItem(TranslateLanguage.ITALIAN, "Italian"),
-    LangItem(TranslateLanguage.HINDI, "Hindi"),
-    LangItem(TranslateLanguage.DUTCH, "Dutch"),
-    LangItem(TranslateLanguage.POLISH, "Polish"),
-)
+// LANGUAGES and LangItem live in [com.privateai.camera.bridge.Translator].
+// Re-exported here so the rest of this file can keep its `LANGUAGES` /
+// `LangItem` references unchanged.
+private val LANGUAGES: List<LangItem> = Translator.LANGUAGES
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -204,26 +186,25 @@ fun TranslateScreen(onBack: (() -> Unit)? = null) {
             return
         }
 
-        // Text-only translation — always ML Kit (best for words + short phrases)
+        // Text-only translation. The Translator interface is implemented
+        // per build flavor (Track A3) — playstore wraps ML Kit, fdroid
+        // wraps Gemma. Both expose the same suspend translate() so this
+        // call doesn't change between flavors. Translator instances are
+        // cheap in playstore (one ML Kit client per language pair, cached
+        // and reused) and a no-op in fdroid (Gemma is a process-wide
+        // singleton).
         isTranslating = true
         translatedText = "" // clear old result + alternatives immediately
         statusMessage = "Translating..."
-        val options = TranslatorOptions.Builder()
-            .setSourceLanguage(sourceLang.code)
-            .setTargetLanguage(targetLang.code)
-            .build()
-        val translator = Translation.getClient(options)
         scope.launch {
+            val translator = Translator.create(context)
             try {
-                translator.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
-                val result = kotlinx.coroutines.withTimeoutOrNull(8000L) {
-                    translator.translate(sourceText).await()
-                }
-                if (result != null) {
+                val result = translator.translate(sourceText, sourceLang, targetLang)
+                if (!result.isNullOrBlank()) {
                     translatedText = result
                     statusMessage = ""
                 } else {
-                    statusMessage = "Translation timed out — the word may not exist in this language."
+                    statusMessage = "Translation failed — the word may not exist in this language."
                 }
             } catch (e: Exception) {
                 statusMessage = "Translation failed: ${e.message}"
@@ -564,26 +545,22 @@ private fun processImage(
             }
             onOcrDone(ocrText)
 
-            // Translate
-            val options = TranslatorOptions.Builder()
-                .setSourceLanguage(sourceLang.code)
-                .setTargetLanguage(targetLang.code)
-                .build()
-            val translator = Translation.getClient(options)
-            translator.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
-
+            // Translate via the flavor-specific Translator (Track A3).
+            // We translate paragraph-by-paragraph because per-paragraph
+            // calls keep the LLM's working context small in the fdroid
+            // path and the ML Kit path's per-call cost is dominated by
+            // model load (already paid on first call) regardless.
+            val translator = Translator.create(context)
             val resultBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
             val fullTranslated = StringBuilder()
-            // Translate paragraph-by-paragraph (Tesseract separates with \n\n).
-            // The per-block overlay rendering that lived here is removed —
-            // see comment above; we surface the translated text via the
-            // result callback instead.
-            for (block in ocrText.split("\n\n").map { it.trim() }.filter { it.isNotEmpty() }) {
-                val translatedBlock = translator.translate(block).await()
-                fullTranslated.appendLine(translatedBlock)
+            try {
+                for (block in ocrText.split("\n\n").map { it.trim() }.filter { it.isNotEmpty() }) {
+                    val translatedBlock = translator.translate(block, sourceLang, targetLang)
+                    if (!translatedBlock.isNullOrBlank()) fullTranslated.appendLine(translatedBlock)
+                }
+            } finally {
+                translator.close()
             }
-
-            translator.close()
             onTranslated(fullTranslated.toString().trim(), resultBitmap)
 
         } catch (e: Exception) {
