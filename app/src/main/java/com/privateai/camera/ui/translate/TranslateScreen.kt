@@ -77,12 +77,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.translate.TranslateLanguage
+import com.privateai.camera.R
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.Text
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.io.File
@@ -545,18 +542,27 @@ private fun processImage(
                 }
             } catch (_: Exception) {}
 
-            // OCR
-            val image = InputImage.fromBitmap(originalBitmap, 0)
-            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-            val ocrResult = recognizer.process(image).await()
-
-            if (ocrResult.text.isBlank()) {
-                onError("No text found in image")
+            // OCR via Tesseract (Track A1.3 — replaces ML Kit text recognition).
+            // The previous ML Kit path exposed per-block bounding boxes which
+            // this screen used to draw a translation overlay on top of the
+            // original photo. Tesseract4Android does expose word-level
+            // boxes (TessBaseAPI.regions / words), but the multi-region
+            // overlay code below is not Track A1.3's scope — for now we
+            // translate the full document text and surface it via the
+            // existing onOcrDone / onSuccess callbacks. The bitmap returned
+            // is the original image (no overlay yet).
+            val ocrText = com.privateai.camera.bridge.TesseractRecognizer
+                .recognizeInstalledLanguages(context, originalBitmap)
+            if (ocrText.isBlank()) {
+                if (!com.privateai.camera.bridge.TesseractRecognizer.hasAnyLanguage(context)) {
+                    onError(context.getString(R.string.scanner_ocr_no_languages))
+                } else {
+                    onError("No text found in image")
+                }
                 originalBitmap.recycle()
                 return@launch
             }
-
-            onOcrDone(ocrResult.text)
+            onOcrDone(ocrText)
 
             // Translate
             val options = TranslatorOptions.Builder()
@@ -566,35 +572,15 @@ private fun processImage(
             val translator = Translation.getClient(options)
             translator.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
 
-            // Translate each text block and overlay on image
             val resultBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
-            val canvas = Canvas(resultBitmap)
             val fullTranslated = StringBuilder()
-
-            for (block in ocrResult.textBlocks) {
-                val translatedBlock = translator.translate(block.text).await()
+            // Translate paragraph-by-paragraph (Tesseract separates with \n\n).
+            // The per-block overlay rendering that lived here is removed —
+            // see comment above; we surface the translated text via the
+            // result callback instead.
+            for (block in ocrText.split("\n\n").map { it.trim() }.filter { it.isNotEmpty() }) {
+                val translatedBlock = translator.translate(block).await()
                 fullTranslated.appendLine(translatedBlock)
-
-                val box = block.boundingBox ?: continue
-
-                // Draw white background over original text
-                val bgPaint = Paint().apply {
-                    color = AndroidColor.WHITE
-                    style = Paint.Style.FILL
-                    alpha = 220
-                }
-                canvas.drawRect(box, bgPaint)
-
-                // Draw translated text
-                val textPaint = Paint().apply {
-                    color = AndroidColor.rgb(0, 100, 200)
-                    textSize = calculateTextSize(translatedBlock, box)
-                    isAntiAlias = true
-                    isFakeBoldText = true
-                }
-
-                // Wrap text within the box
-                drawTextInBox(canvas, translatedBlock, box, textPaint)
             }
 
             translator.close()

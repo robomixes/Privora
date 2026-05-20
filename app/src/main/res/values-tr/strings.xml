@@ -299,6 +299,13 @@
     <string name="settings_reset_face_groups_confirm">Tüm geçerli yüz grubu adları ve kişi bağlantıları silinecek. Fotoğraf gömüllerine ve AI etiketlerine dokunulmaz; Yüzler ekranını bir sonraki açışınızda gruplar otomatik olarak yeniden oluşturulur. Devam edilsin mi?</string>
     <string name="settings_reset_face_groups_action">Sıfırla</string>
     <string name="settings_reset_face_groups_done">Yüz grupları sıfırlandı. Yeniden kümelemek için Yüzler ekranını açın.</string>
+    <string name="settings_ocr_languages">OCR dilleri</string>
+    <string name="settings_ocr_languages_desc">Tarayıcı ve Asistan için metin tanıma dil modellerini indirin.</string>
+    <string name="settings_ocr_languages_intro">Her dil isteğe bağlı olarak indirilir ve bu cihazda saklanır. Birden fazla dil aynı anda etkin olabilir — Tesseract karışık betikli belgeleri tek seferde okur.</string>
+    <string name="settings_ocr_lang_installed">Kuruldu · %1$s</string>
+    <string name="settings_ocr_lang_not_installed">Kurulmadı · %1$s</string>
+    <string name="settings_ocr_lang_download">İndir</string>
+    <string name="scanner_ocr_no_languages">Kurulu OCR dili yok. Ayarlar → OCR dilleri\'ni açıp bir tane indirin.</string>
     <string name="settings_section_security">Güvenlik</string>
     <string name="settings_encryption">Şifreleme</string>
     <string name="settings_encryption_desc">AES-256-GCM • Kurulum başına anahtar • Donanım destekli</string>

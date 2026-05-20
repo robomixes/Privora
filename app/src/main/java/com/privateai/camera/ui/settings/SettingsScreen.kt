@@ -108,7 +108,7 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = null, onDuressClick: (() -> Unit)? = null, onChangePinClick: (() -> Unit)? = null, onRerunWizardClick: (() -> Unit)? = null) {
+fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = null, onDuressClick: (() -> Unit)? = null, onChangePinClick: (() -> Unit)? = null, onRerunWizardClick: (() -> Unit)? = null, onOcrLanguagesClick: (() -> Unit)? = null) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
@@ -791,6 +791,15 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         }
                     )
                 }
+                // OCR languages — manage downloaded Tesseract .traineddata
+                // files. Track A1.3: now that we own the OCR backend, the
+                // user gets a per-language picker that ML Kit never offered.
+                SettingsItem(
+                    icon = Icons.Default.Translate,
+                    title = stringResource(R.string.settings_ocr_languages),
+                    subtitle = stringResource(R.string.settings_ocr_languages_desc),
+                    onClick = { onOcrLanguagesClick?.invoke() }
+                )
                 Spacer(Modifier.height(8.dp))
                 } // end effExpandedCamera
             }

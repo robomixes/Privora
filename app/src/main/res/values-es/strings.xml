@@ -285,6 +285,13 @@
     <string name="settings_reset_face_groups_confirm">Se borrarán todos los nombres de grupos y enlaces de contacto actuales. Los embeddings y etiquetas de IA se conservan; los grupos se re-agruparán automáticamente la próxima vez que abras la pantalla Caras. ¿Continuar?</string>
     <string name="settings_reset_face_groups_action">Restablecer</string>
     <string name="settings_reset_face_groups_done">Grupos restablecidos. Abre Caras para re-agrupar.</string>
+    <string name="settings_ocr_languages">Idiomas OCR</string>
+    <string name="settings_ocr_languages_desc">Descarga modelos de reconocimiento de texto para el escáner y el Asistente.</string>
+    <string name="settings_ocr_languages_intro">Cada idioma se descarga bajo demanda y se almacena en este dispositivo. Pueden activarse varios a la vez — Tesseract lee documentos con escrituras mixtas en una sola pasada.</string>
+    <string name="settings_ocr_lang_installed">Instalado · %1$s</string>
+    <string name="settings_ocr_lang_not_installed">No instalado · %1$s</string>
+    <string name="settings_ocr_lang_download">Descargar</string>
+    <string name="scanner_ocr_no_languages">No hay idiomas OCR instalados. Abre Ajustes → Idiomas OCR para descargar uno.</string>
     <string name="settings_section_security">Seguridad</string>
     <string name="settings_encryption">Cifrado</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Clave por instalación \u2022 Respaldada por hardware</string>

@@ -71,12 +71,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -174,10 +171,16 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
         isProcessingOcr = true
         scope.launch {
             try {
-                val image = InputImage.fromBitmap(bitmap, 0)
-                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                val result = recognizer.process(image).await()
-                ocrText = result.text
+                // Track A1.3: ML Kit text-recognition → Tesseract 5.
+                // We OCR with whichever languages the user has downloaded
+                // via Settings → OCR languages. If none, the recognizer
+                // returns empty and we surface a helpful pointer.
+                val text = com.privateai.camera.bridge.TesseractRecognizer
+                    .recognizeInstalledLanguages(context, bitmap)
+                ocrText = if (text.isBlank() &&
+                    !com.privateai.camera.bridge.TesseractRecognizer.hasAnyLanguage(context)) {
+                    context.getString(R.string.scanner_ocr_no_languages)
+                } else text
                 showOcrResult = true
             } catch (e: Exception) {
                 ocrText = "OCR failed: ${e.message}"
@@ -524,15 +527,17 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
                                     // OCR every page and write an encrypted sidecar so the
                                     // Assistant can answer questions about this document.
                                     // Best-effort: failures here don't block the PDF save.
+                                    // Track A1.3: now uses Tesseract 5 across whichever
+                                    // languages the user has downloaded — multi-script
+                                    // (Arabic + English in the same doc, etc.) just works.
                                     try {
-                                        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
                                         val perPage = mutableListOf<String>()
                                         for (i in scannedPages.indices) {
                                             val pageBmp = loadAndEnhanceBitmap(context, scannedPages[i], enhancementMode) ?: continue
                                             try {
-                                                val img = InputImage.fromBitmap(pageBmp, 0)
-                                                val res = recognizer.process(img).await()
-                                                perPage.add(res.text)
+                                                val res = com.privateai.camera.bridge.TesseractRecognizer
+                                                    .recognizeInstalledLanguages(context, pageBmp)
+                                                perPage.add(res)
                                             } catch (e: Exception) {
                                                 Log.w("ScannerScreen", "OCR failed on page ${i+1}: ${e.message}")
                                                 perPage.add("")
@@ -541,19 +546,15 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
                                             }
                                         }
                                         val fullText = perPage.joinToString("\n\n").trim()
-                                        // Skip the sidecar entirely if the OCR
-                                        // output isn't coherent Latin text — ML
-                                        // Kit v2 doesn't ship an Arabic model,
-                                        // so Arabic scans come back as garbage.
-                                        // Writing that sidecar would point the
-                                        // Assistant at noise.
-                                        if (fullText.isNotEmpty() && vault.looksLikeReadableLatinOcr(fullText)) {
-                                            // sidecar id is the encFile basename minus `.pdf.enc`
-                                            // (== the filename we passed to saveFile, including `.pdf`).
+                                        // With Tesseract we no longer need the
+                                        // Latin-only sanity gate — the user picks
+                                        // which languages to install, so the
+                                        // output script is by definition something
+                                        // the engine knows how to read. Any
+                                        // non-empty result is worth saving.
+                                        if (fullText.isNotEmpty()) {
                                             val sidecarId = savedFile.name.removeSuffix(".pdf.enc")
                                             vault.saveOcrSidecar(sidecarId, savedFile.parentFile!!, fullText, perPage)
-                                        } else if (fullText.isNotEmpty()) {
-                                            Log.i("ScannerScreen", "Skipped OCR sidecar — output doesn't look like Latin text (${fullText.length} chars). Likely a non-Latin script ML Kit can't read.")
                                         }
                                     } catch (e: Exception) {
                                         Log.w("ScannerScreen", "OCR sidecar pass failed: ${e.message}")

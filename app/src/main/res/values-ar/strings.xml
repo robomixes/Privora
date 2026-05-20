@@ -285,6 +285,13 @@
     <string name="settings_reset_face_groups_confirm">سيتم مسح جميع أسماء المجموعات وروابط جهات الاتصال الحالية. يتم الاحتفاظ ببصمات الصور وعلامات الذكاء الاصطناعي؛ ستُعاد المجموعات تلقائيًا عند فتح شاشة الوجوه. المتابعة؟</string>
     <string name="settings_reset_face_groups_action">إعادة تعيين</string>
     <string name="settings_reset_face_groups_done">تمت إعادة تعيين المجموعات. افتح شاشة الوجوه لإعادة التجميع.</string>
+    <string name="settings_ocr_languages">لغات التعرف الضوئي على النصوص</string>
+    <string name="settings_ocr_languages_desc">قم بتنزيل نماذج التعرف على النصوص للماسح الضوئي والمساعد.</string>
+    <string name="settings_ocr_languages_intro">يتم تنزيل كل لغة عند الطلب وتخزينها على هذا الجهاز. يمكن تفعيل عدة لغات في وقت واحد — يقرأ Tesseract المستندات متعددة الخطوط في تمريرة واحدة.</string>
+    <string name="settings_ocr_lang_installed">مثبت · %1$s</string>
+    <string name="settings_ocr_lang_not_installed">غير مثبت · %1$s</string>
+    <string name="settings_ocr_lang_download">تنزيل</string>
+    <string name="scanner_ocr_no_languages">لم يتم تثبيت أي لغة OCR. افتح الإعدادات ← لغات OCR لتنزيل واحدة.</string>
     <string name="settings_section_security">الأمان</string>
     <string name="settings_encryption">التشفير</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 مفتاح فريد لكل تثبيت \u2022 مدعوم بالعتاد</string>

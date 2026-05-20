@@ -50,8 +50,17 @@ kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "ko
 
 # ML Kit
 mlkit-document-scanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version = "16.0.0-beta1" }
-mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version = "16.0.1" }
 mlkit-translate = { group = "com.google.mlkit", name = "translate", version = "17.0.3" }
+
+# Tesseract 5 (OCR — replaces ML Kit text-recognition, Track A1.3). The
+# tesseract4android library is the maintained Android wrapper around the
+# upstream Tesseract C++ engine. The `-openmp` variant uses OpenMP for
+# multi-threaded recognition (~2x faster on multi-core devices). Hosted
+# on JitPack only — Maven Central doesn't carry this artifact, so the
+# JitPack repo is added in settings.gradle.kts. The group uses `.` not
+# `:` between user/repo because we're pulling a subproject of the
+# multi-module Tesseract4Android Gradle build.
+tesseract4android = { group = "com.github.adaptech-cz.Tesseract4Android", name = "tesseract4android-openmp", version = "4.9.0" }
 
 # ZXing (QR code generation)
 zxing-core = { group = "com.google.zxing", name = "core", version = "3.5.3" }

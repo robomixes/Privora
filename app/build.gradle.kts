@@ -161,9 +161,13 @@ dependencies {
     implementation(libs.litertlm.android)
 
     // ML Kit (being phased out — see Track A. Barcode → ZXing done.
-    // Face detection → ONNX YuNet done.)
+    // Face detection → ONNX YuNet done. OCR → Tesseract 5 done.)
     implementation(libs.mlkit.document.scanner)
-    implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.translate)
     implementation(libs.kotlinx.coroutines.play.services)
+
+    // Tesseract 5 (OCR) — Track A1.3 replacement for ML Kit
+    // text-recognition. Multi-language by design; tessdata files are
+    // downloaded lazily per language at runtime (TesseractDataManager).
+    implementation(libs.tesseract4android)
 }
