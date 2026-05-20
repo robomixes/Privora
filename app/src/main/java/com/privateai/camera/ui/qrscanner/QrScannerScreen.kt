@@ -82,9 +82,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.DecodeHintType
+import com.google.zxing.MultiFormatReader
+import com.google.zxing.NotFoundException
+import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.common.HybridBinarizer
 import java.util.concurrent.Executors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -261,7 +265,36 @@ private fun QrScanTab(
         // Camera preview with barcode analysis
         val previewView = remember { PreviewView(context) }
         val executor = remember { Executors.newSingleThreadExecutor() }
-        val scanner = remember { BarcodeScanning.getClient() }
+        // ZXing reader (Track A1.1 — replaces ML Kit BarcodeScanning so the
+        // fdroid flavor sheds another Google dependency on the way to F-Droid
+        // main eligibility). MultiFormatReader is single-threaded; we wrap
+        // it in a single-thread executor so each frame is decoded serially.
+        // POSSIBLE_FORMATS narrows the symbology set we try — Privora's
+        // scanner is QR-first but 1-D barcodes (EAN/UPC) are nice-to-have
+        // for products / ISBNs. TRY_HARDER trades a small bit of CPU for
+        // better recovery on tilted / dim / partly occluded codes.
+        val reader = remember {
+            MultiFormatReader().apply {
+                setHints(mapOf(
+                    DecodeHintType.POSSIBLE_FORMATS to listOf(
+                        BarcodeFormat.QR_CODE,
+                        BarcodeFormat.AZTEC,
+                        BarcodeFormat.DATA_MATRIX,
+                        BarcodeFormat.PDF_417,
+                        BarcodeFormat.EAN_13,
+                        BarcodeFormat.EAN_8,
+                        BarcodeFormat.UPC_A,
+                        BarcodeFormat.UPC_E,
+                        BarcodeFormat.CODE_128,
+                        BarcodeFormat.CODE_39,
+                        BarcodeFormat.CODE_93,
+                        BarcodeFormat.CODABAR,
+                        BarcodeFormat.ITF,
+                    ),
+                    DecodeHintType.TRY_HARDER to true,
+                ))
+            }
+        }
 
         DisposableEffect(lifecycleOwner) {
             val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
@@ -279,28 +312,54 @@ private fun QrScanTab(
                             @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
                             val mediaImage = imageProxy.image
                             if (mediaImage != null && !showResult) {
-                                val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                                scanner.process(image)
-                                    .addOnSuccessListener { barcodes ->
-                                        if (barcodes.isNotEmpty() && !showResult) {
-                                            val barcode = barcodes[0]
-                                            val raw = barcode.rawValue ?: ""
-                                            // TOTP shortcut — when the scanned QR is an
-                                            // otpauth:// URI and the host wired a callback,
-                                            // skip the generic result sheet and route to
-                                            // the Authenticator add screen instead.
-                                            if (onOtpAuthScanned != null && raw.startsWith("otpauth://", ignoreCase = true)) {
-                                                try { vibrate() } catch (_: Exception) {}
-                                                showResult = true  // suppress further frames
-                                                onOtpAuthScanned(raw)
-                                                return@addOnSuccessListener
-                                            }
+                                // Pull the Y plane (luminance) out of the
+                                // YUV_420_888 frame. PlanarYUVLuminanceSource
+                                // operates directly on this without an extra
+                                // ARGB conversion — much faster than going
+                                // through Bitmap. The row stride may exceed
+                                // the image width on some devices (padding
+                                // bytes); ZXing handles that via its
+                                // dataWidth argument.
+                                val plane = mediaImage.planes[0]
+                                val buffer = plane.buffer
+                                val data = ByteArray(buffer.remaining())
+                                buffer.get(data)
+                                val width = mediaImage.width
+                                val height = mediaImage.height
+                                val rowStride = plane.rowStride
+
+                                // Account for camera rotation. The Y plane is
+                                // delivered in sensor orientation (usually
+                                // landscape); rotating the bytes lets ZXing
+                                // see the QR upright. Cheaper than re-encoding
+                                // a Bitmap. We rotate only the multiples of
+                                // 90 — anything in between never happens for
+                                // back-camera CameraX feeds.
+                                val rotation = imageProxy.imageInfo.rotationDegrees
+                                val source = buildLuminanceSource(data, width, height, rowStride, rotation)
+
+                                val bitmap = BinaryBitmap(HybridBinarizer(source))
+                                try {
+                                    val result = reader.decode(bitmap)
+                                    val raw = result.text ?: ""
+                                    if (raw.isNotEmpty() && !showResult) {
+                                        // TOTP shortcut — same as the ML Kit
+                                        // path it replaces. Route otpauth://
+                                        // URIs straight to the Authenticator
+                                        // add screen instead of the generic
+                                        // result sheet.
+                                        if (onOtpAuthScanned != null && raw.startsWith("otpauth://", ignoreCase = true)) {
+                                            try { vibrate() } catch (_: Exception) {}
+                                            showResult = true
+                                            onOtpAuthScanned(raw)
+                                        } else {
+                                            val valueType = BarcodeType.classify(raw)
                                             val item = QrHistoryItem(
                                                 rawValue = raw,
-                                                displayValue = barcode.displayValue ?: raw,
-                                                format = barcode.format,
-                                                valueType = barcode.valueType,
-                                                typeLabel = getTypeLabel(barcode.valueType),
+                                                displayValue = raw,
+                                                format = BarcodeType.FORMAT_QR_CODE,
+                                                valueType = valueType,
+                                                typeLabel = getTypeLabel(valueType),
                                                 source = QrSource.SCANNED
                                             )
                                             scannedResult = item
@@ -309,11 +368,18 @@ private fun QrScanTab(
                                             try { vibrate() } catch (_: Exception) {}
                                         }
                                     }
-                                    .addOnCompleteListener { imageProxy.close() }
-                            } else {
-                                imageProxy.close()
+                                } catch (_: NotFoundException) {
+                                    // No barcode found in this frame — normal
+                                    // case during scanning; ignore silently.
+                                } catch (e: Exception) {
+                                    android.util.Log.w("QrScanner", "ZXing decode error: ${e.message}")
+                                } finally {
+                                    reader.reset()
+                                }
                             }
-                        } catch (_: Exception) {
+                        } catch (e: Exception) {
+                            android.util.Log.w("QrScanner", "Analyzer error: ${e.message}")
+                        } finally {
                             imageProxy.close()
                         }
                     }
@@ -438,7 +504,7 @@ fun ScannedResultContent(item: QrHistoryItem, context: Context, onDismiss: () ->
             }
 
             // URL: open in browser
-            if (item.valueType == Barcode.TYPE_URL || item.rawValue.startsWith("http")) {
+            if (item.valueType == BarcodeType.URL || item.rawValue.startsWith("http")) {
                 IconButton(onClick = {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.rawValue)))
                 }) {
@@ -447,7 +513,7 @@ fun ScannedResultContent(item: QrHistoryItem, context: Context, onDismiss: () ->
             }
 
             // WiFi
-            if (item.valueType == Barcode.TYPE_WIFI) {
+            if (item.valueType == BarcodeType.WIFI) {
                 IconButton(onClick = {
                     Toast.makeText(context, "WiFi: ${item.displayValue}", Toast.LENGTH_LONG).show()
                 }) {
@@ -456,7 +522,7 @@ fun ScannedResultContent(item: QrHistoryItem, context: Context, onDismiss: () ->
             }
 
             // Phone: dial
-            if (item.valueType == Barcode.TYPE_PHONE) {
+            if (item.valueType == BarcodeType.PHONE) {
                 IconButton(onClick = {
                     context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${item.rawValue}")))
                 }) {
@@ -465,7 +531,7 @@ fun ScannedResultContent(item: QrHistoryItem, context: Context, onDismiss: () ->
             }
 
             // Email: compose
-            if (item.valueType == Barcode.TYPE_EMAIL) {
+            if (item.valueType == BarcodeType.EMAIL) {
                 IconButton(onClick = {
                     context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${item.rawValue}")))
                 }) {
@@ -488,16 +554,71 @@ fun ScannedResultContent(item: QrHistoryItem, context: Context, onDismiss: () ->
 
 fun getTypeLabel(valueType: Int): String {
     return when (valueType) {
-        Barcode.TYPE_URL -> "URL"
-        Barcode.TYPE_WIFI -> "WiFi"
-        Barcode.TYPE_EMAIL -> "Email"
-        Barcode.TYPE_PHONE -> "Phone"
-        Barcode.TYPE_SMS -> "SMS"
-        Barcode.TYPE_GEO -> "Location"
-        Barcode.TYPE_CONTACT_INFO -> "Contact"
-        Barcode.TYPE_CALENDAR_EVENT -> "Calendar Event"
-        Barcode.TYPE_ISBN -> "ISBN"
-        Barcode.TYPE_PRODUCT -> "Product"
+        BarcodeType.URL -> "URL"
+        BarcodeType.WIFI -> "WiFi"
+        BarcodeType.EMAIL -> "Email"
+        BarcodeType.PHONE -> "Phone"
+        BarcodeType.SMS -> "SMS"
+        BarcodeType.GEO -> "Location"
+        BarcodeType.CONTACT_INFO -> "Contact"
+        BarcodeType.CALENDAR_EVENT -> "Calendar Event"
+        BarcodeType.ISBN -> "ISBN"
+        BarcodeType.PRODUCT -> "Product"
         else -> "Code"
+    }
+}
+
+/**
+ * Build a ZXing [PlanarYUVLuminanceSource] from a CameraX Y-plane buffer,
+ * honouring the device's reported rotation so the QR code reads upright.
+ *
+ * CameraX delivers preview frames in sensor orientation — typically landscape
+ * even when the phone is held portrait — and ZXing has no built-in rotate.
+ * For the 90° / 270° common cases we rotate the byte array directly; 180° is
+ * a simple reverse. 0° is the cheap fast-path (no copy past the buffer get).
+ */
+private fun buildLuminanceSource(
+    data: ByteArray,
+    width: Int,
+    height: Int,
+    rowStride: Int,
+    rotationDegrees: Int
+): PlanarYUVLuminanceSource {
+    return when (rotationDegrees) {
+        90 -> {
+            val rotated = ByteArray(width * height)
+            for (y in 0 until height) {
+                val srcBase = y * rowStride
+                for (x in 0 until width) {
+                    rotated[x * height + (height - y - 1)] = data[srcBase + x]
+                }
+            }
+            PlanarYUVLuminanceSource(rotated, height, width, 0, 0, height, width, false)
+        }
+        180 -> {
+            val rotated = ByteArray(width * height)
+            for (y in 0 until height) {
+                val srcBase = y * rowStride
+                for (x in 0 until width) {
+                    rotated[(height - y - 1) * width + (width - x - 1)] = data[srcBase + x]
+                }
+            }
+            PlanarYUVLuminanceSource(rotated, width, height, 0, 0, width, height, false)
+        }
+        270 -> {
+            val rotated = ByteArray(width * height)
+            for (y in 0 until height) {
+                val srcBase = y * rowStride
+                for (x in 0 until width) {
+                    rotated[(width - x - 1) * height + y] = data[srcBase + x]
+                }
+            }
+            PlanarYUVLuminanceSource(rotated, height, width, 0, 0, height, width, false)
+        }
+        else -> {
+            // 0° or unrecognised — pass the raw Y plane through. ZXing's
+            // dataWidth=rowStride argument handles padding bytes.
+            PlanarYUVLuminanceSource(data, rowStride, height, 0, 0, width, height, false)
+        }
     }
 }
