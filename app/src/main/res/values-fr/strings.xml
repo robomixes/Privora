@@ -251,6 +251,17 @@
     <string name="settings_ocr_lang_not_installed">Non install\u00e9 \u00b7 %1$s</string>
     <string name="settings_ocr_lang_download">T\u00e9l\u00e9charger</string>
     <string name="scanner_ocr_no_languages">Aucune langue OCR install\u00e9e. Ouvrez Param\u00e8tres \u2192 Langues OCR pour en t\u00e9l\u00e9charger une.</string>
+    <string name="scanner_capture_permission_required">L\'acc\u00e8s \u00e0 la cam\u00e9ra est n\u00e9cessaire pour num\u00e9riser des documents.</string>
+    <string name="scanner_capture_grant_permission">Accorder l\'autorisation cam\u00e9ra</string>
+    <string name="scanner_capture_page_count">%1$d / %2$d</string>
+    <string name="scanner_capture_flash">Flash</string>
+    <string name="scanner_capture_gallery">Importer depuis la galerie</string>
+    <string name="scanner_capture_done">Termin\u00e9</string>
+    <string name="scanner_capture_retake">Reprendre</string>
+    <string name="scanner_capture_max_pages">%1$d pages maximum par scan</string>
+    <string name="scanner_crop_hint">Faites glisser les coins pour cadrer le document</string>
+    <string name="scanner_crop_apply">Appliquer</string>
+    <string name="scanner_crop_skip">Ignorer le recadrage</string>
     <string name="settings_section_security">Sécurité</string>
     <string name="settings_encryption">Chiffrement</string>
     <string name="settings_encryption_desc">AES-256-GCM \u2022 Clé unique par installation \u2022 Matériel sécurisé</string>

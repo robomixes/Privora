@@ -18,9 +18,6 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -71,9 +68,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
-import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
-import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -122,40 +116,15 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
     val vault = remember { VaultRepository(context, crypto) }
     val folderManager = remember { com.privateai.camera.security.FolderManager(context, crypto) }
 
-    val scannerOptions = remember {
-        GmsDocumentScannerOptions.Builder()
-            .setGalleryImportAllowed(true)
-            .setPageLimit(10)
-            .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
-            .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
-            .build()
-    }
-    val scanner = remember { GmsDocumentScanning.getClient(scannerOptions) }
+    // Track A2: replaced ML Kit's `GmsDocumentScanning` activity with
+    // Privora's own CameraX-based capture flow + manual corner-drag
+    // perspective correction (see ScannerCaptureScreen). The intent
+    // launcher / scanner client are gone; we toggle an in-place
+    // composable instead so back-press works the same and ML Kit's
+    // play-services dep can leave the build entirely.
+    var showCaptureFlow by remember { mutableStateOf(false) }
 
-    val scannerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        val scanResult = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
-        scanResult?.pages?.let { pages ->
-            scannedPages = pages.map { it.imageUri }
-            currentPageIndex = 0
-            ocrText = null
-            showOcrResult = false
-            if (pages.isNotEmpty()) {
-                displayBitmap = loadAndEnhanceBitmap(context, pages[0].imageUri, enhancementMode)
-            }
-        }
-    }
-
-    fun startScan() {
-        scanner.getStartScanIntent(context as android.app.Activity)
-            .addOnSuccessListener { intentSender ->
-                scannerLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
-            }
-            .addOnFailureListener { e ->
-                Toast.makeText(context, "Scanner error: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-    }
+    fun startScan() { showCaptureFlow = true }
 
     fun switchPage(index: Int) {
         if (index in scannedPages.indices) {
@@ -308,6 +277,26 @@ fun ScannerScreen(onBack: (() -> Unit)? = null) {
                 }
             }
         }
+    }
+
+    // Render the capture flow full-screen while it's active; on Done it
+    // hands back the captured page URIs (same shape ML Kit used to give us)
+    // and we fall through to the existing page-display + enhance + save UI.
+    if (showCaptureFlow) {
+        ScannerCaptureScreen(
+            onDone = { uris ->
+                if (uris.isNotEmpty()) {
+                    scannedPages = uris
+                    currentPageIndex = 0
+                    ocrText = null
+                    showOcrResult = false
+                    displayBitmap = loadAndEnhanceBitmap(context, uris[0], enhancementMode)
+                }
+                showCaptureFlow = false
+            },
+            onCancel = { showCaptureFlow = false }
+        )
+        return
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
