@@ -216,8 +216,14 @@
     <string name="tip_wifi_transfer">Send files from your computer with one QR scan — Vault → 📶 icon. No cloud.</string>
     <string name="tip_play_all_voice">A note with multiple voice clips? Tap \"Play all\" to hear them in sequence.</string>
 
-    <!-- Settings: AI Detection -->
+    <!-- Settings: AI section (unified Gemma controls) -->
+    <string name="settings_section_ai">AI</string>
+    <string name="settings_ai_section_off_hint">On-device AI is off. Enable it to get photo descriptions, smart tags, voice replies, document summarization, and the AI Assistant chat.</string>
+    <string name="settings_ai_section_downloading_hint">Downloading the AI model. Once finished, AI features will appear here.</string>
+
+    <!-- Settings: AI Detection (legacy ID kept for backwards-compatible expand-state key) -->
     <string name="settings_section_ai_detection">AI Detection</string>
+    <string name="settings_section_object_detection">Object Detection</string>
     <string name="settings_min_confidence">Minimum Confidence: %1$d%%</string>
     <string name="settings_min_confidence_desc">Hide detections below this threshold</string>
     <string name="settings_detection_categories">Detection Categories</string>

@@ -345,35 +345,10 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                     onClick = { showLanguageDialog = true }
                 )
 
-                AppSettingToggle(
-                    context = context,
-                    key = "show_ai_labels",
-                    title = stringResource(R.string.settings_show_ai_labels),
-                    subtitle = stringResource(R.string.settings_show_ai_labels_desc),
-                    defaultValue = true
-                )
-
-                AppSettingToggle(
-                    context = context,
-                    key = "auto_ai_tag_new_photos",
-                    title = stringResource(R.string.settings_auto_ai_tag),
-                    subtitle = stringResource(R.string.settings_auto_ai_tag_desc),
-                    defaultValue = false
-                )
-
-                // Locked-vault Assistant access — when on, the Assistant tile
-                // is reachable from Home without entering the PIN, but the
-                // chat runs in text-only mode. The snapshot, vault picker
-                // and tools (notes / expenses / photos) all stay locked
-                // until the user explicitly unlocks. Default OFF for the
-                // privacy-safe default.
-                AppSettingToggle(
-                    context = context,
-                    key = "assistant_unlocked_access",
-                    title = stringResource(R.string.settings_assistant_unlocked_access),
-                    subtitle = stringResource(R.string.settings_assistant_unlocked_access_desc),
-                    defaultValue = false
-                )
+                // (AI toggles moved into the dedicated AI section below.
+                // Essentials only carries general settings now — anything
+                // Gemma-related lives in one place so the user has a single
+                // truth for AI state.)
 
                 // Screen lock + screenshot protection — both also appear in the
                 // Security section (same prefs). Surfacing them here saves a
@@ -383,6 +358,405 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
             }
+
+            // ─── AI section ─────────────────────────────────────────────
+            // Everything Gemma-related lives here, in one collapsible block,
+            // out of the PIN-gated Advanced. The main switch is what flips
+            // the app's AI surface on/off; when AI isn't READY the only row
+            // visible is the switch itself (plus a status hint), so the user
+            // never sees a wall of disabled controls.
+            val showAi = matchesSearch(
+                "AI", "AI Assistant", "Gemma", "AI model", "Auto-tag", "AI labels",
+                "Voice", "Smart scan", "Read aloud", "TTS", "Process all", "Delete AI",
+                "Allow Assistant", "Locked assistant"
+            )
+            if (showAi) {
+                val expandedAiSection = rememberSectionExpansion(context, "ai_main")
+                val effExpandedAiSection = expandedAiSection.value || searchQuery.isNotBlank()
+                CollapsibleSectionHeader(
+                    stringResource(R.string.settings_section_ai),
+                    effExpandedAiSection
+                ) { expandedAiSection.value = !expandedAiSection.value }
+                if (effExpandedAiSection) {
+
+                    // Main AI Assistant toggle — moved out of Advanced. Local
+                    // state mirrors GemmaRunner; the SharedPrefs listener in
+                    // AiStatus.kt picks up the same flip and rebuilds every
+                    // other AI-conditional surface across the app.
+                    var aiEnabled by remember { mutableStateOf(com.privateai.camera.bridge.GemmaRunner.isEnabled(context)) }
+                    var aiModelDownloaded by remember { mutableStateOf(com.privateai.camera.bridge.GemmaRunner.isModelDownloaded(context)) }
+                    var showAiDownloadDialog by remember { mutableStateOf(false) }
+                    val aiModelSize = remember(aiModelDownloaded) { com.privateai.camera.bridge.GemmaRunner.getModelSizeBytes(context) }
+                    val downloadState by com.privateai.camera.bridge.GemmaModelManager.downloadState.collectAsState()
+
+                    androidx.compose.runtime.LaunchedEffect(downloadState) {
+                        when (downloadState) {
+                            is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Complete -> {
+                                aiModelDownloaded = true
+                            }
+                            is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error -> {
+                                com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
+                                aiEnabled = false
+                                aiModelDownloaded = false
+                            }
+                            else -> {}
+                        }
+                    }
+
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clickable {
+                                if (!aiEnabled) {
+                                    if (aiModelDownloaded) {
+                                        com.privateai.camera.bridge.GemmaRunner.resetCrashFlag(context)
+                                        com.privateai.camera.bridge.GemmaRunner.resetVisionCrashFlag(context)
+                                        com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
+                                        aiEnabled = true
+                                    } else {
+                                        showAiDownloadDialog = true
+                                    }
+                                } else {
+                                    com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
+                                    com.privateai.camera.bridge.GemmaRunner.unload()
+                                    com.privateai.camera.bridge.GemmaModelManager.cancelDownload(context)
+                                    aiEnabled = false
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.AutoAwesome, null, Modifier.size(24.dp),
+                            tint = if (aiEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_ai_assistant_title), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                when {
+                                    aiEnabled && aiModelDownloaded -> stringResource(R.string.settings_ai_assistant_enabled, StorageManager.formatSize(aiModelSize))
+                                    aiEnabled -> stringResource(R.string.settings_ai_assistant_downloading)
+                                    else -> stringResource(R.string.settings_ai_assistant_off)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (downloadState is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Downloading) {
+                                val dl = downloadState as com.privateai.camera.bridge.GemmaModelManager.DownloadState.Downloading
+                                val pct = if (dl.totalBytes > 0) (dl.progressBytes.toFloat() / dl.totalBytes) else 0f
+                                val pctInt = (pct * 100).toInt()
+                                Spacer(Modifier.height(6.dp))
+                                androidx.compose.material3.LinearProgressIndicator(
+                                    progress = { pct },
+                                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "$pctInt%  —  ${StorageManager.formatSize(dl.progressBytes)} / ${StorageManager.formatSize(dl.totalBytes)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (downloadState is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error) {
+                                val err = downloadState as com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error
+                                Spacer(Modifier.height(4.dp))
+                                Text(err.message, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                                Spacer(Modifier.height(6.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = {
+                                        com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
+                                        aiEnabled = true
+                                        com.privateai.camera.bridge.GemmaModelManager.startDownload(context)
+                                    }) { Text(stringResource(R.string.action_retry)) }
+                                }
+                            }
+                        }
+                        Switch(checked = aiEnabled, onCheckedChange = null)
+                    }
+
+                    if (showAiDownloadDialog) {
+                        val profiler = remember { com.privateai.camera.service.DeviceProfiler.getProfile(context) }
+                        val freeStorage = remember { storageInfo.deviceFreeBytes }
+                        val totalRamMb = profiler.ramMb
+                        val requiredStorageBytes = 3_000_000_000L
+                        val requiredRamMb = 4000
+                        val hasEnoughStorage = freeStorage >= requiredStorageBytes
+                        val hasEnoughRam = totalRamMb >= requiredRamMb
+                        val canProceed = hasEnoughStorage
+
+                        AlertDialog(
+                            onDismissRequest = { showAiDownloadDialog = false },
+                            title = { Text(stringResource(R.string.settings_ai_dialog_title)) },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(stringResource(R.string.settings_ai_dialog_intro))
+                                    Text(stringResource(R.string.settings_ai_dialog_feature_summarize), style = MaterialTheme.typography.bodySmall)
+                                    Text(stringResource(R.string.settings_ai_dialog_feature_grammar), style = MaterialTheme.typography.bodySmall)
+                                    Text(stringResource(R.string.settings_ai_dialog_feature_photos), style = MaterialTheme.typography.bodySmall)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(stringResource(R.string.settings_ai_dialog_storage_label), fontWeight = FontWeight.Medium)
+                                    Text(
+                                        stringResource(R.string.settings_ai_dialog_storage_line, StorageManager.formatSize(freeStorage)),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (hasEnoughStorage) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+                                    )
+                                    if (!hasEnoughStorage) {
+                                        Text(
+                                            stringResource(R.string.settings_ai_dialog_storage_low, StorageManager.formatSize(requiredStorageBytes - freeStorage)),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(stringResource(R.string.settings_ai_dialog_memory_label), fontWeight = FontWeight.Medium)
+                                    Text(
+                                        stringResource(R.string.settings_ai_dialog_memory_line, totalRamMb),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (hasEnoughRam) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+                                    )
+                                    if (!hasEnoughRam) {
+                                        Text(stringResource(R.string.settings_ai_dialog_memory_low), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                                    }
+                                    if (totalRamMb in requiredRamMb..5999) {
+                                        Text(stringResource(R.string.settings_ai_dialog_memory_recommended), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showAiDownloadDialog = false
+                                        com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
+                                        aiEnabled = true
+                                        if (!aiModelDownloaded) {
+                                            com.privateai.camera.bridge.GemmaModelManager.startDownload(context)
+                                        }
+                                    },
+                                    enabled = canProceed
+                                ) { Text(stringResource(if (canProceed) R.string.settings_ai_dialog_confirm else R.string.settings_ai_dialog_confirm_blocked)) }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showAiDownloadDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+                            }
+                        )
+                    }
+
+                    // Status-conditional sub-toggles + actions.
+                    val aiStatusForSection by com.privateai.camera.bridge.rememberAiStatus()
+                    when (aiStatusForSection) {
+                        com.privateai.camera.bridge.AiStatus.READY -> {
+                            AppSettingToggle(
+                                context = context,
+                                key = "show_ai_labels",
+                                title = stringResource(R.string.settings_show_ai_labels),
+                                subtitle = stringResource(R.string.settings_show_ai_labels_desc),
+                                defaultValue = true
+                            )
+                            AppSettingToggle(
+                                context = context,
+                                key = "auto_ai_tag_new_photos",
+                                title = stringResource(R.string.settings_auto_ai_tag),
+                                subtitle = stringResource(R.string.settings_auto_ai_tag_desc),
+                                defaultValue = false
+                            )
+                            AppSettingToggle(
+                                context = context,
+                                key = "detect_tts",
+                                title = stringResource(R.string.settings_detect_tts),
+                                subtitle = stringResource(R.string.settings_detect_tts_desc),
+                                defaultValue = false
+                            )
+                            AppSettingToggle(
+                                context = context,
+                                key = "smart_scan_enabled",
+                                title = stringResource(R.string.settings_smart_scan),
+                                subtitle = stringResource(R.string.settings_smart_scan_desc),
+                                defaultValue = false
+                            )
+                            AppSettingToggle(
+                                context = context,
+                                key = "voice_output_enabled",
+                                title = stringResource(R.string.settings_voice_output),
+                                subtitle = stringResource(R.string.settings_voice_output_desc),
+                                defaultValue = false
+                            )
+                            AppSettingToggle(
+                                context = context,
+                                key = "assistant_unlocked_access",
+                                title = stringResource(R.string.settings_assistant_unlocked_access),
+                                subtitle = stringResource(R.string.settings_assistant_unlocked_access_desc),
+                                defaultValue = false
+                            )
+
+                            // Process all photos with AI (moved from Advanced).
+                            var showProcessAllDialog by remember { mutableStateOf(false) }
+                            var pendingCounts by remember {
+                                mutableStateOf(com.privateai.camera.service.GemmaIndexingManager.PendingCounts(0, 0, 0))
+                            }
+                            var selectedMode by remember {
+                                mutableStateOf(com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH)
+                            }
+                            var selectedLimit by remember { mutableStateOf(Int.MAX_VALUE) }
+                            val gemmaRunning by com.privateai.camera.service.GemmaIndexingManager.isRunning.collectAsState()
+                            val gemmaProgress by com.privateai.camera.service.GemmaIndexingManager.progress.collectAsState()
+
+                            LaunchedEffect(gemmaRunning) {
+                                if (!gemmaRunning) {
+                                    pendingCounts = withContext(Dispatchers.IO) {
+                                        com.privateai.camera.service.GemmaIndexingManager.countPending(context)
+                                    }
+                                }
+                            }
+
+                            SettingsItem(
+                                icon = Icons.Default.AutoAwesome,
+                                title = if (gemmaRunning) {
+                                    stringResource(R.string.settings_process_all_ai_progress, gemmaProgress.first, gemmaProgress.second)
+                                } else {
+                                    stringResource(R.string.settings_process_all_ai)
+                                },
+                                subtitle = if (!gemmaRunning && pendingCounts.both > 0) {
+                                    stringResource(R.string.settings_process_all_ai_pending, pendingCounts.both)
+                                } else {
+                                    stringResource(R.string.settings_process_all_ai_desc)
+                                },
+                                onClick = {
+                                    if (gemmaRunning) {
+                                        com.privateai.camera.service.GemmaIndexingManager.stop()
+                                    } else {
+                                        scope.launch {
+                                            pendingCounts = withContext(Dispatchers.IO) {
+                                                com.privateai.camera.service.GemmaIndexingManager.countPending(context)
+                                            }
+                                            selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH
+                                            showProcessAllDialog = true
+                                        }
+                                    }
+                                }
+                            )
+
+                            if (showProcessAllDialog) {
+                                val modeAvailableCount = when (selectedMode) {
+                                    com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY -> pendingCounts.description
+                                    com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY -> pendingCounts.tags
+                                    com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH -> pendingCounts.both
+                                }
+                                val selectedCount = minOf(modeAvailableCount, selectedLimit)
+                                val perPhotoSec = if (selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH) 10 else 5
+                                val etaMin = (selectedCount * perPhotoSec + 59) / 60
+                                AlertDialog(
+                                    onDismissRequest = { showProcessAllDialog = false },
+                                    title = { Text(stringResource(R.string.settings_process_all_ai)) },
+                                    text = {
+                                        Column {
+                                            Text(
+                                                stringResource(R.string.settings_process_all_ai_pick_mode),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.padding(bottom = 8.dp)
+                                            )
+                                            ModeRow(
+                                                label = stringResource(R.string.settings_process_mode_description),
+                                                count = pendingCounts.description,
+                                                selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY,
+                                                onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY }
+                                            )
+                                            ModeRow(
+                                                label = stringResource(R.string.settings_process_mode_tags),
+                                                count = pendingCounts.tags,
+                                                selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY,
+                                                onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY }
+                                            )
+                                            ModeRow(
+                                                label = stringResource(R.string.settings_process_mode_both),
+                                                count = pendingCounts.both,
+                                                selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH,
+                                                onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH }
+                                            )
+                                            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                                            Text(
+                                                stringResource(R.string.settings_process_all_ai_pick_limit),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.padding(bottom = 4.dp)
+                                            )
+                                            val limitOptions = listOf(25, 100, 500, Int.MAX_VALUE)
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                limitOptions.forEach { lim ->
+                                                    val label = if (lim == Int.MAX_VALUE)
+                                                        stringResource(R.string.settings_process_limit_all) else lim.toString()
+                                                    FilterChip(
+                                                        selected = selectedLimit == lim,
+                                                        onClick = { selectedLimit = lim },
+                                                        label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                if (selectedLimit == Int.MAX_VALUE)
+                                                    stringResource(R.string.settings_process_all_ai_eta, etaMin)
+                                                else
+                                                    stringResource(R.string.settings_process_all_ai_eta_capped, selectedCount, etaMin),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(top = 8.dp)
+                                            )
+                                        }
+                                    },
+                                    confirmButton = {
+                                        TextButton(
+                                            onClick = {
+                                                showProcessAllDialog = false
+                                                com.privateai.camera.service.GemmaIndexingManager.processAll(context, selectedMode, selectedLimit)
+                                            },
+                                            enabled = selectedCount > 0
+                                        ) { Text(stringResource(R.string.action_process)) }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showProcessAllDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+                                    }
+                                )
+                            }
+
+                            // Delete AI model — destructive, but it's just data,
+                            // so no PIN gate. Visible only when the model is on
+                            // disk.
+                            if (aiModelDownloaded) {
+                                SettingsItem(
+                                    icon = Icons.Default.Delete,
+                                    title = stringResource(R.string.settings_ai_delete_title),
+                                    subtitle = stringResource(R.string.settings_ai_delete_subtitle, StorageManager.formatSize(aiModelSize)),
+                                    onClick = {
+                                        com.privateai.camera.bridge.GemmaRunner.deleteModel(context)
+                                        com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
+                                        aiEnabled = false
+                                        aiModelDownloaded = false
+                                    }
+                                )
+                            }
+                        }
+                        com.privateai.camera.bridge.AiStatus.DOWNLOADING -> {
+                            Text(
+                                stringResource(R.string.settings_ai_section_downloading_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                        com.privateai.camera.bridge.AiStatus.OFF,
+                        com.privateai.camera.bridge.AiStatus.FAILED -> {
+                            Text(
+                                stringResource(R.string.settings_ai_section_off_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                } // end effExpandedAiSection
+            } // end showAi
 
             // Features section
             val showFeatures = matchesSearch("Home Screen Features", "Camera", "Detect", "Scan", "QR Scan", "Translate", "Vault", "Notes", "Insights", "Tools", "reorder")
@@ -468,69 +842,19 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             } // end effExpandedFeatures
             } // end showFeatures
 
-            // AI Detection section
-            val showAiDetection = matchesSearch("AI Detection", "Confidence", "Detection Categories", "categories", "AI labels", "Show AI labels", "tags")
-            if (showAiDetection) {
+            // Object Detection — knobs for the always-on ONNX YOLOv8n
+            // classifier. All Gemma-related toggles (show AI labels, auto-tag,
+            // smart scan, voice output, etc.) moved to the dedicated AI
+            // section above. What's left here is just the classifier's own
+            // controls, which run regardless of whether Gemma is enabled.
+            val showObjectDetection = matchesSearch("Object Detection", "Detection", "Confidence", "Detection Categories", "categories")
+            if (showObjectDetection) {
             val expandedAi = rememberSectionExpansion(context, "ai_detection")
             val effExpandedAi = expandedAi.value || searchQuery.isNotBlank()
-            CollapsibleSectionHeader(stringResource(R.string.settings_section_ai_detection), effExpandedAi) {
+            CollapsibleSectionHeader(stringResource(R.string.settings_section_object_detection), effExpandedAi) {
                 expandedAi.value = !expandedAi.value
             }
             if (effExpandedAi) {
-
-            AppSettingToggle(
-                context = context,
-                key = "show_ai_labels",
-                title = stringResource(R.string.settings_show_ai_labels),
-                subtitle = stringResource(R.string.settings_show_ai_labels_desc),
-                defaultValue = true
-            )
-
-            AppSettingToggle(
-                context = context,
-                key = "detect_tts",
-                title = stringResource(R.string.settings_detect_tts),
-                subtitle = stringResource(R.string.settings_detect_tts_desc),
-                defaultValue = false
-            )
-
-            // Track C: opt-in auto Gemma tagging for newly saved photos +
-            // explicit bulk button to process the existing backlog.
-            // Both gated on AI availability — hidden if Gemma isn't ready.
-            val aiStatusForDetection by com.privateai.camera.bridge.rememberAiStatus()
-            if (aiStatusForDetection.isReady) {
-                AppSettingToggle(
-                    context = context,
-                    key = "auto_ai_tag_new_photos",
-                    title = stringResource(R.string.settings_auto_ai_tag),
-                    subtitle = stringResource(R.string.settings_auto_ai_tag_desc),
-                    defaultValue = false
-                )
-
-                // Smart scan — post-save AI suggestion (filename / folder /
-                // extracted fields) after the document scanner saves a PDF.
-                AppSettingToggle(
-                    context = context,
-                    key = "smart_scan_enabled",
-                    title = stringResource(R.string.settings_smart_scan),
-                    subtitle = stringResource(R.string.settings_smart_scan_desc),
-                    defaultValue = false
-                )
-
-                // Track B — Voice output for the Assistant. When ON,
-                // assistant replies are spoken via Android TextToSpeech.
-                // The mic button + per-bubble Replay icon work regardless
-                // of this toggle.
-                AppSettingToggle(
-                    context = context,
-                    key = "voice_output_enabled",
-                    title = stringResource(R.string.settings_voice_output),
-                    subtitle = stringResource(R.string.settings_voice_output_desc),
-                    defaultValue = false
-                )
-
-                // ("Process all photos with AI…" moved to Advanced section.)
-            }
 
             var showCategoriesDialog by remember { mutableStateOf(false) }
             var categoryCount by remember { mutableStateOf(getSelectedCategories(context).size) }
@@ -570,16 +894,9 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                 })
             }
 
-            Text(
-                stringResource(R.string.settings_ai_detection_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             } // end effExpandedAi
-            } // end showAiDetection
+            } // end showObjectDetection
 
             // Device section
             val showDevice = matchesSearch("Device", "Performance Tier", "Device Info", "Re-benchmark", "benchmark", "Language")
@@ -1334,215 +1651,9 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         IntruderAlertsSetting(context)
                         Spacer(Modifier.height(8.dp))
 
-                        // AI Assistant (Gemma 4)
-                        var aiEnabled by remember { mutableStateOf(com.privateai.camera.bridge.GemmaRunner.isEnabled(context)) }
-                        var aiModelDownloaded by remember { mutableStateOf(com.privateai.camera.bridge.GemmaRunner.isModelDownloaded(context)) }
-                        var showAiDownloadDialog by remember { mutableStateOf(false) }
-                        val aiModelSize = remember { com.privateai.camera.bridge.GemmaRunner.getModelSizeBytes(context) }
-                        val downloadState by com.privateai.camera.bridge.GemmaModelManager.downloadState.collectAsState()
-
-                        // React to download completion or failure
-                        androidx.compose.runtime.LaunchedEffect(downloadState) {
-                            when (downloadState) {
-                                is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Complete -> {
-                                    aiModelDownloaded = true
-                                }
-                                is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error -> {
-                                    com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
-                                    aiEnabled = false
-                                    aiModelDownloaded = false
-                                }
-                                else -> {}
-                            }
-                        }
-
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clickable {
-                                    if (!aiEnabled) {
-                                        if (aiModelDownloaded) {
-                                            // Model already on disk — just flip the switch.
-                                            // The download dialog is for storage/RAM warnings before
-                                            // a fresh download; not relevant if we already have the file.
-                                            //
-                                            // Also clear sticky crash flags. `load_crashed` /
-                                            // `vision_crashed` survive across app launches; if the
-                                            // user is explicitly re-enabling, treat it as "retry."
-                                            // Without this, a previous failed load (or a flag carried
-                                            // over from a backup of a different device) leaves the
-                                            // Assistant permanently dark even though the toggle says ON.
-                                            com.privateai.camera.bridge.GemmaRunner.resetCrashFlag(context)
-                                            com.privateai.camera.bridge.GemmaRunner.resetVisionCrashFlag(context)
-                                            com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
-                                            aiEnabled = true
-                                        } else {
-                                            showAiDownloadDialog = true
-                                        }
-                                    } else {
-                                        com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
-                                        com.privateai.camera.bridge.GemmaRunner.unload()
-                                        // Cancel any in-flight model download so it doesn't keep
-                                        // running silently after the user disabled AI.
-                                        com.privateai.camera.bridge.GemmaModelManager.cancelDownload(context)
-                                        aiEnabled = false
-                                    }
-                                }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Info, null, Modifier.size(24.dp),
-                                tint = if (aiEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Column(Modifier.weight(1f)) {
-                                Text(stringResource(R.string.settings_ai_assistant_title), style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    when {
-                                        aiEnabled && aiModelDownloaded -> stringResource(R.string.settings_ai_assistant_enabled, StorageManager.formatSize(aiModelSize))
-                                        aiEnabled -> stringResource(R.string.settings_ai_assistant_downloading)
-                                        else -> stringResource(R.string.settings_ai_assistant_off)
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                // Show download progress
-                                if (downloadState is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Downloading) {
-                                    val dl = downloadState as com.privateai.camera.bridge.GemmaModelManager.DownloadState.Downloading
-                                    val pct = if (dl.totalBytes > 0) (dl.progressBytes.toFloat() / dl.totalBytes) else 0f
-                                    val pctInt = (pct * 100).toInt()
-                                    Spacer(Modifier.height(6.dp))
-                                    androidx.compose.material3.LinearProgressIndicator(
-                                        progress = { pct },
-                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        "$pctInt%  —  ${StorageManager.formatSize(dl.progressBytes)} / ${StorageManager.formatSize(dl.totalBytes)}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                if (downloadState is com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error) {
-                                    val err = downloadState as com.privateai.camera.bridge.GemmaModelManager.DownloadState.Error
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        err.message,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                    Spacer(Modifier.height(6.dp))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        TextButton(onClick = {
-                                            // Re-enable AI (cleared by error handler) + restart fresh.
-                                            com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
-                                            aiEnabled = true
-                                            com.privateai.camera.bridge.GemmaModelManager.startDownload(context)
-                                        }) { Text(stringResource(R.string.action_retry)) }
-                                    }
-                                }
-                            }
-                            Switch(checked = aiEnabled, onCheckedChange = null)
-                        }
-
-                        // Enable AI confirmation dialog
-                        if (showAiDownloadDialog) {
-                            val profiler = remember { com.privateai.camera.service.DeviceProfiler.getProfile(context) }
-                            val freeStorage = remember { storageInfo.deviceFreeBytes }
-                            val totalRamMb = profiler.ramMb
-                            val requiredStorageBytes = 3_000_000_000L // ~2.8 GB with buffer
-                            val requiredRamMb = 4000
-                            val hasEnoughStorage = freeStorage >= requiredStorageBytes
-                            val hasEnoughRam = totalRamMb >= requiredRamMb
-                            val canProceed = hasEnoughStorage // RAM is a warning, storage is a blocker
-
-                            AlertDialog(
-                                onDismissRequest = { showAiDownloadDialog = false },
-                                title = { Text(stringResource(R.string.settings_ai_dialog_title)) },
-                                text = {
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(stringResource(R.string.settings_ai_dialog_intro))
-                                        Text(stringResource(R.string.settings_ai_dialog_feature_summarize), style = MaterialTheme.typography.bodySmall)
-                                        Text(stringResource(R.string.settings_ai_dialog_feature_grammar), style = MaterialTheme.typography.bodySmall)
-                                        Text(stringResource(R.string.settings_ai_dialog_feature_photos), style = MaterialTheme.typography.bodySmall)
-                                        Spacer(Modifier.height(4.dp))
-
-                                        // Storage check
-                                        Text(stringResource(R.string.settings_ai_dialog_storage_label), fontWeight = FontWeight.Medium)
-                                        Text(
-                                            stringResource(R.string.settings_ai_dialog_storage_line, StorageManager.formatSize(freeStorage)),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = if (hasEnoughStorage) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
-                                        )
-                                        if (!hasEnoughStorage) {
-                                            Text(
-                                                stringResource(R.string.settings_ai_dialog_storage_low, StorageManager.formatSize(requiredStorageBytes - freeStorage)),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.error,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        }
-
-                                        // RAM check
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(stringResource(R.string.settings_ai_dialog_memory_label), fontWeight = FontWeight.Medium)
-                                        Text(
-                                            stringResource(R.string.settings_ai_dialog_memory_line, totalRamMb),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = if (hasEnoughRam) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
-                                        )
-                                        if (!hasEnoughRam) {
-                                            Text(
-                                                stringResource(R.string.settings_ai_dialog_memory_low),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.error
-                                            )
-                                        }
-
-                                        if (totalRamMb in requiredRamMb..5999) {
-                                            Text(
-                                                stringResource(R.string.settings_ai_dialog_memory_recommended),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                },
-                                confirmButton = {
-                                    TextButton(
-                                        onClick = {
-                                            showAiDownloadDialog = false
-                                            com.privateai.camera.bridge.GemmaRunner.setEnabled(context, true)
-                                            aiEnabled = true
-                                            if (!aiModelDownloaded) {
-                                                com.privateai.camera.bridge.GemmaModelManager.startDownload(context)
-                                            }
-                                        },
-                                        enabled = canProceed
-                                    ) { Text(stringResource(if (canProceed) R.string.settings_ai_dialog_confirm else R.string.settings_ai_dialog_confirm_blocked)) }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showAiDownloadDialog = false }) { Text(stringResource(R.string.action_cancel)) }
-                                }
-                            )
-                        }
-
-                        // Delete model option
-                        if (aiModelDownloaded) {
-                            SettingsItem(
-                                icon = Icons.Default.Delete,
-                                title = stringResource(R.string.settings_ai_delete_title),
-                                subtitle = stringResource(R.string.settings_ai_delete_subtitle, StorageManager.formatSize(aiModelSize)),
-                                onClick = {
-                                    com.privateai.camera.bridge.GemmaRunner.deleteModel(context)
-                                    com.privateai.camera.bridge.GemmaRunner.setEnabled(context, false)
-                                    aiEnabled = false
-                                    aiModelDownloaded = false
-                                }
-                            )
-                        }
-
+                        // (AI Assistant toggle, download dialog, and Delete
+                        // AI Model live in the dedicated top-level AI section
+                        // now — no PIN gate for AI controls.)
                         HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
                         // Emergency PIN
@@ -1716,148 +1827,9 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
 
                         HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
-                        // ── Process all photos with AI (moved from AI Detection)
-                        // Heavy operation (~5-10 s per photo on the Gemma vision
-                        // engine). Lives under Advanced now so it's not the first
-                        // thing a casual user sees in the AI Detection section.
-                        var showProcessAllDialog by remember { mutableStateOf(false) }
-                        var pendingCounts by remember {
-                            mutableStateOf(com.privateai.camera.service.GemmaIndexingManager.PendingCounts(0, 0, 0))
-                        }
-                        var selectedMode by remember {
-                            mutableStateOf(com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH)
-                        }
-                        var selectedLimit by remember { mutableStateOf(Int.MAX_VALUE) }
-                        val gemmaRunning by com.privateai.camera.service.GemmaIndexingManager.isRunning.collectAsState()
-                        val gemmaProgress by com.privateai.camera.service.GemmaIndexingManager.progress.collectAsState()
-
-                        LaunchedEffect(gemmaRunning) {
-                            if (!gemmaRunning) {
-                                pendingCounts = withContext(Dispatchers.IO) {
-                                    com.privateai.camera.service.GemmaIndexingManager.countPending(context)
-                                }
-                            }
-                        }
-
-                        SettingsItem(
-                            icon = Icons.Default.AutoAwesome,
-                            title = if (gemmaRunning) {
-                                stringResource(
-                                    R.string.settings_process_all_ai_progress,
-                                    gemmaProgress.first, gemmaProgress.second
-                                )
-                            } else {
-                                stringResource(R.string.settings_process_all_ai)
-                            },
-                            subtitle = if (!gemmaRunning && pendingCounts.both > 0) {
-                                stringResource(R.string.settings_process_all_ai_pending, pendingCounts.both)
-                            } else {
-                                stringResource(R.string.settings_process_all_ai_desc)
-                            },
-                            onClick = {
-                                if (gemmaRunning) {
-                                    com.privateai.camera.service.GemmaIndexingManager.stop()
-                                } else {
-                                    scope.launch {
-                                        pendingCounts = withContext(Dispatchers.IO) {
-                                            com.privateai.camera.service.GemmaIndexingManager.countPending(context)
-                                        }
-                                        selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH
-                                        showProcessAllDialog = true
-                                    }
-                                }
-                            }
-                        )
-
-                        if (showProcessAllDialog) {
-                            val modeAvailableCount = when (selectedMode) {
-                                com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY -> pendingCounts.description
-                                com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY -> pendingCounts.tags
-                                com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH -> pendingCounts.both
-                            }
-                            val selectedCount = minOf(modeAvailableCount, selectedLimit)
-                            val perPhotoSec = if (selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH) 10 else 5
-                            val etaMin = (selectedCount * perPhotoSec + 59) / 60
-                            AlertDialog(
-                                onDismissRequest = { showProcessAllDialog = false },
-                                title = { Text(stringResource(R.string.settings_process_all_ai)) },
-                                text = {
-                                    Column {
-                                        Text(
-                                            stringResource(R.string.settings_process_all_ai_pick_mode),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            modifier = Modifier.padding(bottom = 8.dp)
-                                        )
-                                        ModeRow(
-                                            label = stringResource(R.string.settings_process_mode_description),
-                                            count = pendingCounts.description,
-                                            selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY,
-                                            onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.DESCRIPTION_ONLY }
-                                        )
-                                        ModeRow(
-                                            label = stringResource(R.string.settings_process_mode_tags),
-                                            count = pendingCounts.tags,
-                                            selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY,
-                                            onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.TAGS_ONLY }
-                                        )
-                                        ModeRow(
-                                            label = stringResource(R.string.settings_process_mode_both),
-                                            count = pendingCounts.both,
-                                            selected = selectedMode == com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH,
-                                            onClick = { selectedMode = com.privateai.camera.service.GemmaIndexingManager.ProcessMode.BOTH }
-                                        )
-
-                                        HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
-                                        Text(
-                                            stringResource(R.string.settings_process_all_ai_pick_limit),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            modifier = Modifier.padding(bottom = 4.dp)
-                                        )
-                                        val limitOptions = listOf(25, 100, 500, Int.MAX_VALUE)
-                                        Row(
-                                            Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            limitOptions.forEach { lim ->
-                                                val label = if (lim == Int.MAX_VALUE)
-                                                    stringResource(R.string.settings_process_limit_all)
-                                                else lim.toString()
-                                                FilterChip(
-                                                    selected = selectedLimit == lim,
-                                                    onClick = { selectedLimit = lim },
-                                                    label = { Text(label, style = MaterialTheme.typography.labelSmall) }
-                                                )
-                                            }
-                                        }
-
-                                        Text(
-                                            if (selectedLimit == Int.MAX_VALUE)
-                                                stringResource(R.string.settings_process_all_ai_eta, etaMin)
-                                            else
-                                                stringResource(R.string.settings_process_all_ai_eta_capped, selectedCount, etaMin),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(top = 8.dp)
-                                        )
-                                    }
-                                },
-                                confirmButton = {
-                                    TextButton(
-                                        onClick = {
-                                            showProcessAllDialog = false
-                                            com.privateai.camera.service.GemmaIndexingManager.processAll(context, selectedMode, selectedLimit)
-                                        },
-                                        enabled = selectedCount > 0
-                                    ) { Text(stringResource(R.string.action_process)) }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showProcessAllDialog = false }) {
-                                        Text(stringResource(R.string.action_cancel))
-                                    }
-                                }
-                            )
-                        }
+                        // ("Process all photos with AI" lives in the
+                        // dedicated AI section now — same code, different
+                        // home, gated on AiStatus.READY.)
                     }
                 } // end showAdvanced
             } // end !isDuressActive
