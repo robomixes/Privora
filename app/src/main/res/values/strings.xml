@@ -451,7 +451,7 @@
     <!-- Settings: About -->
     <string name="settings_section_about">About</string>
     <string name="settings_privo">Privora</string>
-    <string name="settings_privo_desc">Version %1$s \u2022 AI camera that never sends your data anywhere</string>
+    <string name="settings_privo_desc">Version %1$s \u2022 Private camera + encrypted vault. Optional on-device AI.</string>
     <string name="settings_crash_logs">Crash Logs (%1$d)</string>
     <string name="settings_crash_logs_desc">View local crash reports \u2014 never sent anywhere</string>
     <string name="settings_crash_logs_title">Crash Logs</string>
@@ -1069,15 +1069,19 @@
     <string name="wizard_privacy_autolock_desc">When you leave Privora, lock the vault after this delay.</string>
     <string name="wizard_privacy_change_later_hint">You can change both later from Settings → Security.</string>
     <string name="wizard_step5_title">AI model</string>
-    <string name="wizard_step5_subtitle">Gemma 4 runs locally for chat, summaries, photo descriptions. Optional.</string>
+    <string name="wizard_step5_subtitle">Privora works fully without AI. If you turn it on, Gemma 4 runs locally for chat, summaries, photo descriptions — no data leaves your phone.</string>
     <string name="wizard_step5_storage">Required: %1$s   •   Free: %2$s</string>
     <string name="wizard_step5_already_downloaded">AI model already downloaded.</string>
     <string name="wizard_step5_low_tier">Your device may be too slow for the AI Assistant. Skip this step.</string>
-    <string name="wizard_step5_no_space">Not enough storage. Free up space and re-run the wizard from Settings.</string>
+    <string name="wizard_step5_no_space">Not enough storage. Free up space and enable AI later in Settings → AI.</string>
     <string name="wizard_step5_download">Download AI model (~2.7 GB)</string>
-    <string name="wizard_step5_skip_hint">You can download it later from Settings → Advanced.</string>
+    <string name="wizard_step5_skip_hint">You can enable it later from Settings → AI.</string>
+    <string name="wizard_step5_ai_toggle_title">AI Assistant</string>
+    <string name="wizard_step5_ai_toggle_on">On — features will be available across the app.</string>
+    <string name="wizard_step5_ai_toggle_off">Off — Privora works fully without it.</string>
     <string name="wizard_step6_title">All set</string>
     <string name="wizard_step6_subtitle">Privora is calibrated to your device and preferences. Welcome aboard.</string>
+    <string name="wizard_step6_ai_off_hint">On-device AI is off — Privora works fully without it. You can enable it any time in Settings → AI.</string>
     <string name="settings_rerun_wizard">Re-run setup wizard</string>
     <string name="settings_rerun_wizard_desc">Reconfigure layout, modules, and AI suitability</string>
 

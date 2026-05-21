@@ -432,7 +432,7 @@
     <!-- Settings: About -->
     <string name="settings_section_about">关于</string>
     <string name="settings_privo">Privora</string>
-    <string name="settings_privo_desc">版本 %1$s \u2022 永不将您的数据发送到任何地方的 AI 相机</string>
+    <string name="settings_privo_desc">版本 %1$s • 私密相机 + 加密保险库。可选的设备端 AI。</string>
     <string name="settings_crash_logs">崩溃日志（%1$d）</string>
     <string name="settings_crash_logs_desc">查看本地崩溃报告 \u2014 永远不会发送到任何地方</string>
     <string name="settings_crash_logs_title">崩溃日志</string>
@@ -988,15 +988,19 @@
     <string name="wizard_privacy_autolock_desc">离开 Privora 后，按此延迟锁定保险库。</string>
     <string name="wizard_privacy_change_later_hint">您稍后可以在设置 → 安全中修改两项设置。</string>
     <string name="wizard_step5_title">AI 模型</string>
-    <string name="wizard_step5_subtitle">Gemma 4 本地运行，用于聊天、摘要、照片描述。可选。</string>
+    <string name="wizard_step5_subtitle">Privora 完全可以在没有 AI 的情况下使用。如果开启，Gemma 4 将在本地运行，用于聊天、摘要和照片描述 — 任何数据都不会离开您的手机。</string>
     <string name="wizard_step5_storage">需要：%1$s   •   可用：%2$s</string>
     <string name="wizard_step5_already_downloaded">AI 模型已下载。</string>
     <string name="wizard_step5_low_tier">您的设备可能运行 AI 助手过慢。建议跳过此步骤。</string>
-    <string name="wizard_step5_no_space">存储空间不足。请释放空间后从设置中重新运行向导。</string>
+    <string name="wizard_step5_no_space">存储空间不足。请释放空间，稍后在 设置 → AI 中启用 AI。</string>
     <string name="wizard_step5_download">下载 AI 模型（约 2.7 GB）</string>
-    <string name="wizard_step5_skip_hint">您可以稍后在设置 → 高级中下载。</string>
+    <string name="wizard_step5_skip_hint">您可以稍后在 设置 → AI 中启用。</string>
+    <string name="wizard_step5_ai_toggle_title">AI 助手</string>
+    <string name="wizard_step5_ai_toggle_on">已开启 — 整个应用都将提供 AI 功能。</string>
+    <string name="wizard_step5_ai_toggle_off">已关闭 — Privora 完全可以在没有 AI 的情况下使用。</string>
     <string name="wizard_step6_title">设置完成</string>
     <string name="wizard_step6_subtitle">Privora 已根据您的设备和偏好完成校准。欢迎使用。</string>
+    <string name="wizard_step6_ai_off_hint">设备端 AI 已关闭 — Privora 完全可以在没有 AI 的情况下使用。您可以随时在 设置 → AI 中启用。</string>
     <string name="settings_rerun_wizard">重新运行设置向导</string>
     <string name="settings_rerun_wizard_desc">重新配置布局、模块和 AI 适配性</string>
 
