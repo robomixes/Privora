@@ -137,6 +137,11 @@ fun CameraScreen(onBack: (() -> Unit)? = null) {
 fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val captureScope = androidx.compose.runtime.rememberCoroutineScope()
+    // Single source of truth for the AI gating in this screen (Detect FAB +
+    // whole-scene Describe). When AI isn't READY the buttons don't render
+    // at all — see AiStatus.kt for the rule.
+    val aiStatus by com.privateai.camera.bridge.rememberAiStatus()
+    val aiReady = aiStatus.isReady
     var detections by remember { mutableStateOf<List<Detection>>(emptyList()) }
     var inferenceTimeMs by remember { mutableLongStateOf(0L) }
     var frameCount by remember { mutableLongStateOf(0L) }
@@ -429,7 +434,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
         // the selection and unfreezes).
         if (isFrozen) {
             selectedDetection?.let { det ->
-                if (com.privateai.camera.bridge.GemmaRunner.isAvailable(context)) {
+                if (aiReady) {
                     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                         val sw = maxWidth
                         val sh = maxHeight
@@ -741,7 +746,7 @@ fun CameraPreviewWithDetection(onBack: (() -> Unit)? = null) {
         // FAB on the right). Only shown when live (not frozen) and Gemma is
         // available. Tap → freezes the current frame, runs Gemma vision over
         // the whole image, surfaces the result in a card at BottomCenter.
-        if (!isFrozen && com.privateai.camera.bridge.GemmaRunner.isAvailable(context)) {
+        if (!isFrozen && aiReady) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomStart)

@@ -3414,7 +3414,11 @@ fun VaultScreen(
                     }
                 }
 
-                val aiActionsAvailable = com.privateai.camera.bridge.GemmaRunner.isAvailable(context)
+                // AiStatus is the single source of truth — same rule as the
+                // rest of the app: when AI isn't READY the AI menu items
+                // don't render at all (they're hidden, not disabled).
+                val aiStatusForVault by com.privateai.camera.bridge.rememberAiStatus()
+                val aiActionsAvailable = aiStatusForVault.isReady
 
                 // Top-right overflow menu — Info / Find similar / AI actions /
                 // Share with face blur. Mirrors the gallery's 3-dot pattern and

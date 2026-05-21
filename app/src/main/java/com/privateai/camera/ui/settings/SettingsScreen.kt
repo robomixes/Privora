@@ -497,7 +497,8 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
             // Track C: opt-in auto Gemma tagging for newly saved photos +
             // explicit bulk button to process the existing backlog.
             // Both gated on AI availability — hidden if Gemma isn't ready.
-            if (com.privateai.camera.bridge.GemmaRunner.isAvailable(context)) {
+            val aiStatusForDetection by com.privateai.camera.bridge.rememberAiStatus()
+            if (aiStatusForDetection.isReady) {
                 AppSettingToggle(
                     context = context,
                     key = "auto_ai_tag_new_photos",
