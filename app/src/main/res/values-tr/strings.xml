@@ -445,7 +445,7 @@
     <!-- Settings: About -->
     <string name="settings_section_about">Hakkında</string>
     <string name="settings_privo">Privora</string>
-    <string name="settings_privo_desc">Sürüm %1$s • Verilerini hiçbir yere göndermeyen YZ kamerası</string>
+    <string name="settings_privo_desc">Sürüm %1$s • Özel kamera + şifreli kasa. Cihazda isteğe bağlı AI.</string>
     <string name="settings_crash_logs">Çökme kayıtları (%1$d)</string>
     <string name="settings_crash_logs_desc">Yerel çökme raporlarını gör — hiçbir yere gönderilmez</string>
     <string name="settings_crash_logs_title">Çökme kayıtları</string>
@@ -1063,15 +1063,19 @@
     <string name="wizard_privacy_autolock_desc">Privora\'dan ayrıldığında, kasayı bu gecikmeden sonra kilitle.</string>
     <string name="wizard_privacy_change_later_hint">İkisini de sonradan Ayarlar → Güvenlik\'ten değiştirebilirsin.</string>
     <string name="wizard_step5_title">YZ modeli</string>
-    <string name="wizard_step5_subtitle">Gemma 4, sohbet, özet ve fotoğraf açıklamaları için yerelde çalışır. İsteğe bağlı.</string>
+    <string name="wizard_step5_subtitle">Privora yapay zeka olmadan tamamen çalışır. Açarsanız, Gemma 4 sohbet, özetler ve fotoğraf açıklamaları için yerel olarak çalışır — hiçbir veri telefonunuzdan ayrılmaz.</string>
     <string name="wizard_step5_storage">Gereken: %1$s   •   Boş: %2$s</string>
     <string name="wizard_step5_already_downloaded">YZ modeli zaten indirildi.</string>
     <string name="wizard_step5_low_tier">Cihazın YZ Asistanı için fazla yavaş olabilir. Bu adımı atla.</string>
-    <string name="wizard_step5_no_space">Yeterli depolama yok. Yer aç ve sihirbazı Ayarlar\'dan yeniden çalıştır.</string>
+    <string name="wizard_step5_no_space">Yeterli depolama yok. Yer açın ve yapay zekayı daha sonra Ayarlar → AI\'dan etkinleştirin.</string>
     <string name="wizard_step5_download">YZ modelini indir (~2,7 GB)</string>
-    <string name="wizard_step5_skip_hint">Bunu daha sonra Ayarlar → Gelişmiş\'ten indirebilirsin.</string>
+    <string name="wizard_step5_skip_hint">Daha sonra Ayarlar → AI\'dan etkinleştirebilirsiniz.</string>
+    <string name="wizard_step5_ai_toggle_title">AI Asistanı</string>
+    <string name="wizard_step5_ai_toggle_on">Açık — özellikler uygulama genelinde kullanılabilir olacak.</string>
+    <string name="wizard_step5_ai_toggle_off">Kapalı — Privora onsuz tamamen çalışır.</string>
     <string name="wizard_step6_title">Hazır</string>
     <string name="wizard_step6_subtitle">Privora cihazına ve tercihlerine göre kalibre edildi. Aramıza hoş geldin.</string>
+    <string name="wizard_step6_ai_off_hint">Cihaz üzerinde AI kapalı — Privora onsuz tamamen çalışır. İstediğiniz zaman Ayarlar → AI\'dan etkinleştirebilirsiniz.</string>
     <string name="settings_rerun_wizard">Kurulum sihirbazını yeniden çalıştır</string>
     <string name="settings_rerun_wizard_desc">Düzeni, modülleri ve YZ uygunluğunu yeniden yapılandır</string>
 

@@ -683,10 +683,22 @@ private fun Step5AIModel() {
     val hasSpace = freeBytes >= requiredBytes
     val downloadState by GemmaModelManager.downloadState.collectAsState()
     var modelDownloaded by remember { mutableStateOf(GemmaRunner.isModelDownloaded(context)) }
+    // Mirror the on/off pref so a Switch can drive it directly. When the
+    // model is already on disk (e.g. carried over from a backup, or the
+    // user re-ran the wizard) the wizard previously showed only a green
+    // "already downloaded" card with no way to flip AI on — so the user
+    // landed on the finish screen still thinking AI wasn't usable.
+    var aiEnabled by remember { mutableStateOf(GemmaRunner.isEnabled(context)) }
 
     LaunchedEffect(downloadState) {
         if (downloadState is GemmaModelManager.DownloadState.Complete) {
             modelDownloaded = true
+            // Auto-enable on first successful download — keeps the post-
+            // download flow obvious. User can always flip it off below.
+            if (!aiEnabled) {
+                GemmaRunner.setEnabled(context, true)
+                aiEnabled = true
+            }
         }
     }
 
@@ -733,6 +745,42 @@ private fun Step5AIModel() {
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
+                }
+                // Explicit on/off so the user can flip AI without leaving
+                // the wizard. Same SharedPref the Settings → AI toggle
+                // drives, so state stays in sync.
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clickable {
+                            val next = !aiEnabled
+                            if (next) {
+                                GemmaRunner.resetCrashFlag(context)
+                                GemmaRunner.resetVisionCrashFlag(context)
+                            } else {
+                                GemmaRunner.unload()
+                            }
+                            GemmaRunner.setEnabled(context, next)
+                            aiEnabled = next
+                        }
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            stringResource(R.string.wizard_step5_ai_toggle_title),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            stringResource(
+                                if (aiEnabled) R.string.wizard_step5_ai_toggle_on
+                                else R.string.wizard_step5_ai_toggle_off
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    androidx.compose.material3.Switch(checked = aiEnabled, onCheckedChange = null)
                 }
             }
             deviceTier == DeviceTier.LOW -> {
@@ -828,6 +876,8 @@ private fun Step5AIModel() {
 
 @Composable
 private fun Step6Finish() {
+    val context = LocalContext.current
+    val aiEnabled = remember { com.privateai.camera.bridge.GemmaRunner.isEnabled(context) }
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -862,6 +912,19 @@ private fun Step6Finish() {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
+        // Reassure users who skipped the AI download that they didn't lose
+        // anything — the app works fully without it, and the toggle is one
+        // tap away in the new Settings → AI section.
+        if (!aiEnabled) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                stringResource(R.string.wizard_step6_ai_off_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp)
+            )
+        }
     }
 }
 

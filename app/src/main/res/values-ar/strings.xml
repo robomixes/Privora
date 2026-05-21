@@ -430,7 +430,7 @@
     <!-- Settings: About -->
     <string name="settings_section_about">حول التطبيق</string>
     <string name="settings_privo">Privora</string>
-    <string name="settings_privo_desc">الإصدار %1$s \u2022 كاميرا ذكاء اصطناعي لا ترسل بياناتك أبداً إلى أي مكان</string>
+    <string name="settings_privo_desc">الإصدار %1$s • كاميرا خاصة + خزنة مشفرة. ذكاء اصطناعي اختياري على الجهاز.</string>
     <string name="settings_crash_logs">سجلات الأعطال (%1$d)</string>
     <string name="settings_crash_logs_desc">عرض تقارير الأعطال المحلية \u2014 لا تُرسل أبداً إلى أي مكان</string>
     <string name="settings_crash_logs_title">سجلات الأعطال</string>
@@ -990,15 +990,19 @@
     <string name="wizard_privacy_autolock_desc">عند الخروج من Privora، يتم قفل الخزينة بعد هذه المدة.</string>
     <string name="wizard_privacy_change_later_hint">يمكنك تغيير الاثنين لاحقاً من الإعدادات ← الأمان.</string>
     <string name="wizard_step5_title">نموذج الذكاء الاصطناعي</string>
-    <string name="wizard_step5_subtitle">Gemma 4 يعمل محلياً للدردشة والتلخيص ووصف الصور. اختياري.</string>
+    <string name="wizard_step5_subtitle">يعمل Privora بالكامل بدون الذكاء الاصطناعي. إذا قمت بتشغيله، يعمل Gemma 4 محلياً للدردشة والملخصات وأوصاف الصور — لا تغادر أي بيانات هاتفك.</string>
     <string name="wizard_step5_storage">المطلوب: %1$s   •   المتاح: %2$s</string>
     <string name="wizard_step5_already_downloaded">نموذج الذكاء الاصطناعي مُنزَّل بالفعل.</string>
     <string name="wizard_step5_low_tier">قد يكون جهازك بطيئاً للمساعد الذكي. يُنصح بتخطي هذه الخطوة.</string>
-    <string name="wizard_step5_no_space">المساحة غير كافية. حرّر مساحة وأعد تشغيل المعالج من الإعدادات.</string>
+    <string name="wizard_step5_no_space">مساحة التخزين غير كافية. حرر مساحة وفعّل الذكاء الاصطناعي لاحقاً من الإعدادات ← الذكاء الاصطناعي.</string>
     <string name="wizard_step5_download">تنزيل نموذج الذكاء الاصطناعي (~2.7 جيجابايت)</string>
-    <string name="wizard_step5_skip_hint">يمكنك تنزيله لاحقاً من الإعدادات ← متقدم.</string>
+    <string name="wizard_step5_skip_hint">يمكنك تفعيله لاحقاً من الإعدادات ← الذكاء الاصطناعي.</string>
+    <string name="wizard_step5_ai_toggle_title">مساعد الذكاء الاصطناعي</string>
+    <string name="wizard_step5_ai_toggle_on">مفعّل — ستتوفر الميزات في جميع أنحاء التطبيق.</string>
+    <string name="wizard_step5_ai_toggle_off">معطل — Privora يعمل بالكامل بدونه.</string>
     <string name="wizard_step6_title">اكتمل كل شيء</string>
     <string name="wizard_step6_subtitle">تمت معايرة Privora حسب جهازك وتفضيلاتك. أهلاً بك.</string>
+    <string name="wizard_step6_ai_off_hint">الذكاء الاصطناعي على الجهاز معطل — Privora يعمل بالكامل بدونه. يمكنك تفعيله في أي وقت من الإعدادات ← الذكاء الاصطناعي.</string>
     <string name="settings_rerun_wizard">إعادة تشغيل معالج الإعداد</string>
     <string name="settings_rerun_wizard_desc">إعادة تكوين التخطيط والوحدات وملاءمة الذكاء الاصطناعي</string>
 

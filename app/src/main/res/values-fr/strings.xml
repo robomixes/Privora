@@ -389,7 +389,7 @@
     <!-- Settings: About -->
     <string name="settings_section_about">\u00C0 propos</string>
     <string name="settings_privo">Privora</string>
-    <string name="settings_privo_desc">Version %1$s \u2022 Appareil photo IA qui n\'envoie jamais vos données nulle part</string>
+    <string name="settings_privo_desc">Version %1$s • Appareil photo privé + coffre chiffré. IA embarquée optionnelle.</string>
     <string name="settings_crash_logs">Journaux de plantage (%1$d)</string>
     <string name="settings_crash_logs_desc">Consulter les rapports de plantage locaux \u2014 jamais envoyés nulle part</string>
     <string name="settings_crash_logs_title">Journaux de plantage</string>
@@ -945,15 +945,19 @@
     <string name="wizard_privacy_autolock_desc">Lorsque vous quittez Privora, verrouiller le coffre après ce délai.</string>
     <string name="wizard_privacy_change_later_hint">Vous pouvez modifier les deux ultérieurement dans Paramètres → Sécurité.</string>
     <string name="wizard_step5_title">Modèle IA</string>
-    <string name="wizard_step5_subtitle">Gemma 4 fonctionne localement pour le chat, les résumés et les descriptions de photos. Optionnel.</string>
+    <string name="wizard_step5_subtitle">Privora fonctionne entièrement sans IA. Si vous l\'activez, Gemma 4 s\'exécute en local pour le chat, les résumés et les descriptions de photos — aucune donnée ne quitte votre téléphone.</string>
     <string name="wizard_step5_storage">Requis : %1$s   •   Libre : %2$s</string>
     <string name="wizard_step5_already_downloaded">Modèle IA déjà téléchargé.</string>
     <string name="wizard_step5_low_tier">Votre appareil est peut-être trop lent pour l\'assistant IA. Ignorez cette étape.</string>
-    <string name="wizard_step5_no_space">Pas assez d\'espace. Libérez de l\'espace et relancez l\'assistant.</string>
+    <string name="wizard_step5_no_space">Pas assez d\'espace. Libérez de l\'espace et activez l\'IA plus tard dans Paramètres → IA.</string>
     <string name="wizard_step5_download">Télécharger le modèle IA (~2,7 Go)</string>
-    <string name="wizard_step5_skip_hint">Vous pouvez le télécharger plus tard depuis Paramètres → Avancé.</string>
+    <string name="wizard_step5_skip_hint">Vous pouvez l\'activer plus tard depuis Paramètres → IA.</string>
+    <string name="wizard_step5_ai_toggle_title">Assistant IA</string>
+    <string name="wizard_step5_ai_toggle_on">Activé — les fonctionnalités seront disponibles dans toute l\'application.</string>
+    <string name="wizard_step5_ai_toggle_off">Désactivé — Privora fonctionne entièrement sans.</string>
     <string name="wizard_step6_title">Tout est prêt</string>
     <string name="wizard_step6_subtitle">Privora est configuré selon votre appareil et vos préférences. Bienvenue.</string>
+    <string name="wizard_step6_ai_off_hint">L\'IA embarquée est désactivée — Privora fonctionne entièrement sans. Vous pouvez l\'activer à tout moment dans Paramètres → IA.</string>
     <string name="settings_rerun_wizard">Relancer l\'assistant de configuration</string>
     <string name="settings_rerun_wizard_desc">Reconfigurer la disposition, les modules et l\'IA</string>
 

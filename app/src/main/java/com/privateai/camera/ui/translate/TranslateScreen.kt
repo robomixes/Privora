@@ -274,7 +274,8 @@ fun TranslateScreen(onBack: (() -> Unit)? = null) {
             )
 
             // AI grammar check — fix spelling/grammar before translating (only when AI active)
-            val aiAvailable = remember { com.privateai.camera.bridge.GemmaRunner.isAvailable(context) }
+            val aiStatusForGrammar by com.privateai.camera.bridge.rememberAiStatus()
+            val aiAvailable = aiStatusForGrammar.isReady
             var isFixingGrammar by remember { mutableStateOf(false) }
             if (aiAvailable && sourceText.isNotBlank()) {
                 Row(

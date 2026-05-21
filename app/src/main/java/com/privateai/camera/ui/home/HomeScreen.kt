@@ -154,6 +154,10 @@ fun HomeScreen(
 
     var isVaultUnlocked by remember { mutableStateOf(VaultLockManager.isUnlockedWithinGrace(context)) }
     var showImportBanner by remember { mutableStateOf(importSummary != null) }
+    // Single source of truth for AI gating — see AiStatus.kt. Used for the
+    // top-bar assistant icon and the AI-tip strip below.
+    val aiStatus by com.privateai.camera.bridge.rememberAiStatus()
+    val aiReady = aiStatus.isReady
 
     // Tip strip — starts with the synchronous daily-rotation tip, upgrades to
     // an AI-generated tip when Gemma is available + vault is unlocked. The
@@ -163,11 +167,11 @@ fun HomeScreen(
         getTodayTip(context)
     }
     var aiTip by remember { mutableStateOf<AiTipResult?>(null) }
-    LaunchedEffect(isVaultUnlocked, VaultLockManager.isDuressActive) {
+    LaunchedEffect(isVaultUnlocked, VaultLockManager.isDuressActive, aiReady) {
         if (!isVaultUnlocked || VaultLockManager.isDuressActive) {
             aiTip = null; return@LaunchedEffect
         }
-        if (!com.privateai.camera.bridge.GemmaRunner.isAvailable(context)) return@LaunchedEffect
+        if (!aiReady) { aiTip = null; return@LaunchedEffect }
         // Cached returns instantly when we have an entry for this hour+lang
         getCachedAiTip(context)?.let { aiTip = it; return@LaunchedEffect }
         // Cold cache — burn one Gemma generation in the background
@@ -379,7 +383,7 @@ fun HomeScreen(
                         com.privateai.camera.ui.settings.isAssistantUnlockedAccessEnabled(context)
                     }
                     if ((isVaultUnlocked || assistantUnlockedAccess)
-                        && com.privateai.camera.bridge.GemmaRunner.isAvailable(context)
+                        && aiReady
                         && !VaultLockManager.isDuressActive
                         && onAssistantClick != null
                     ) {
