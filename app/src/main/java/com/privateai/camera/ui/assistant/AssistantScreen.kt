@@ -77,6 +77,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -212,8 +214,9 @@ fun AssistantScreen(
 
     // Full-screen image zoom — set when the user taps any thumbnail in the
     // chat (attached-image preview, sent user image, or a search-result
-    // thumb). Cleared on dismiss / back / outside tap.
-    var zoomBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    // thumb). Carries the whole strip so the user can swipe between sibling
+    // photos, plus the initial index. Cleared on dismiss / back / outside tap.
+    var zoomTarget by remember { mutableStateOf<ZoomTarget?>(null) }
 
     // The in-flight assistant Job — set when sendMessage() launches a turn,
     // cancelled when the user taps Stop while the model is still thinking.
@@ -1092,7 +1095,7 @@ fun AssistantScreen(
                             // (this bubble or another), QUEUE_FLUSH replaces.
                             speakOnce(replyText)
                         },
-                        onImageZoom = { bmp -> zoomBitmap = bmp }
+                        onImageZoom = { target -> zoomTarget = target }
                     )
                 }
 
@@ -1122,7 +1125,13 @@ fun AssistantScreen(
                             modifier = Modifier
                                 .size(56.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { zoomBitmap = attachedImageThumb }
+                                .clickable {
+                                    attachedImageThumb?.let { bmp ->
+                                        zoomTarget = ZoomTarget(
+                                            listOf(ZoomSource.RawBitmap(bmp)), 0
+                                        )
+                                    }
+                                }
                         )
                     } else {
                         Icon(
@@ -1574,31 +1583,58 @@ fun AssistantScreen(
                 )
             }
 
-            // Full-screen image viewer. Opens when the user taps any
-            // thumbnail in the chat (attached image, sent user image, or
-            // search-result thumb). Plain tap / Back dismisses.
-            zoomBitmap?.let { bmp ->
+            // Full-screen swipeable image viewer. Opens when the user taps
+            // any thumbnail in the chat (attached image, sent user image, or
+            // a search-result thumb). When the strip has more than one
+            // source, the user can swipe left/right between siblings; the
+            // viewer always pulls *full resolution* from the vault for
+            // VaultPhoto sources (raw-bitmap sources — user-sent images —
+            // are already full-res in memory). Plain tap / Close button /
+            // Back all dismiss.
+            zoomTarget?.let { target ->
                 androidx.compose.ui.window.Dialog(
-                    onDismissRequest = { zoomBitmap = null },
+                    onDismissRequest = { zoomTarget = null },
                     properties = androidx.compose.ui.window.DialogProperties(
                         usePlatformDefaultWidth = false
                     )
                 ) {
+                    val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+                        initialPage = target.index.coerceIn(0, target.sources.lastIndex),
+                        pageCount = { target.sources.size }
+                    )
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.95f))
-                            .clickable { zoomBitmap = null },
+                            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.95f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            bitmap = bmp.asImageBitmap(),
-                            contentDescription = stringResource(R.string.assistant_image_zoom_view),
-                            contentScale = ContentScale.Fit,
+                        androidx.compose.foundation.pager.HorizontalPager(
+                            state = pagerState,
                             modifier = Modifier.fillMaxSize()
-                        )
+                        ) { page ->
+                            ZoomedImagePage(
+                                source = target.sources[page],
+                                onTap = { zoomTarget = null }
+                            )
+                        }
+                        // Page indicator (only when multiple sources).
+                        if (target.sources.size > 1) {
+                            Text(
+                                "${pagerState.currentPage + 1} / ${target.sources.size}",
+                                color = androidx.compose.ui.graphics.Color.White,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 24.dp)
+                                    .background(
+                                        androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f),
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
                         IconButton(
-                            onClick = { zoomBitmap = null },
+                            onClick = { zoomTarget = null },
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(12.dp)
@@ -1623,6 +1659,71 @@ private data class TurnResult(
     val action: ProposedAction? = null,
     val photoThumbs: List<PhotoThumb> = emptyList()
 )
+
+/**
+ * One page of the full-screen zoom pager. For [ZoomSource.RawBitmap] we
+ * render the bitmap as-is (user-sent images are already full-res). For
+ * [ZoomSource.VaultPhoto] we show the thumbnail immediately, then async-load
+ * the full original from the encrypted vault so the user actually gets the
+ * full resolution instead of a stretched 96 dp thumbnail.
+ */
+@Composable
+private fun ZoomedImagePage(
+    source: ZoomSource,
+    onTap: () -> Unit
+) {
+    val context = LocalContext.current
+    var fullBitmap by remember(source) {
+        mutableStateOf<android.graphics.Bitmap?>(
+            if (source is ZoomSource.RawBitmap) source.bmp else null
+        )
+    }
+    var loading by remember(source) { mutableStateOf(source is ZoomSource.VaultPhoto) }
+
+    LaunchedEffect(source) {
+        if (source is ZoomSource.VaultPhoto) {
+            loading = true
+            val loaded = withContext(Dispatchers.IO) {
+                runCatching {
+                    // The vault is already unlocked at this point (the user
+                    // got back search results, which require a live session)
+                    // so a fresh CryptoManager.initialize() returns the same
+                    // KEK and decryption succeeds. Decoding here, not in the
+                    // outer composable, keeps the file scoped to the page.
+                    val crypto = com.privateai.camera.security.CryptoManager(context).also { it.initialize() }
+                    val vault = com.privateai.camera.security.VaultRepository(context, crypto)
+                    val photo = vault.listAllPhotos().firstOrNull { it.id == source.id }
+                    if (photo != null) vault.loadFullPhoto(photo) else null
+                }.getOrNull()
+            }
+            if (loaded != null) fullBitmap = loaded
+            loading = false
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(onClick = onTap),
+        contentAlignment = Alignment.Center
+    ) {
+        val displayBitmap = fullBitmap
+            ?: (source as? ZoomSource.VaultPhoto)?.thumb
+        if (displayBitmap != null) {
+            Image(
+                bitmap = displayBitmap.asImageBitmap(),
+                contentDescription = stringResource(R.string.assistant_image_zoom_view),
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        if (loading && fullBitmap == null) {
+            androidx.compose.material3.CircularProgressIndicator(
+                color = androidx.compose.ui.graphics.Color.White
+            )
+        }
+    }
+}
 
 /**
  * Build the chat-bubble summary for a search_photos tool result host-side.

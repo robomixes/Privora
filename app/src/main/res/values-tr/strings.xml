@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Privora</string>
     <string name="widget_name">Privora Hızlı Erişim</string>
@@ -432,7 +432,7 @@
     <string name="settings_face_blur">Paylaşımda yüz bulanıklaştırma</string>
     <string name="settings_face_blur_desc">Fotoğrafları paylaşmadan önce yüzleri otomatik bulanıklaştır</string>
     <string name="settings_network_policy">Ağ politikası</string>
-    <string name="settings_network_policy_desc">Analiz yok, telemetri yok. Ağ yalnızca ML Kit model indirmeleri için kullanılır.</string>
+    <string name="settings_network_policy_desc">Analiz yok, telemetri yok. Ağ yalnızca cihaz üzerindeki model indirmeleri için kullanılır (Gemma, Tesseract OCR dil paketleri).</string>
     <string name="settings_backup_exclusion">Yedekleme dışında tutma</string>
     <string name="settings_backup_exclusion_desc">Kasa verisi cihaz yedeklerinin dışında tutulur</string>
 
@@ -457,7 +457,6 @@
     <string name="settings_privacy_policy_desc">Gizlilik politikamızı görüntüle</string>
     <string name="settings_privacy_promise">Gizlilik sözü</string>
     <string name="settings_privacy_promise_text">Tüm YZ işlemleri cihazında çalışır. Fotoğraflar ve notlar, telefonunun donanım güvenlik modülünde saklanan kurulum başına bir anahtarla AES-256-GCM ile şifrelenir. Hiçbir sunucuya veri gönderilmez. Analiz yok. Telemetri yok.</string>
-    <string name="settings_ml_kit_note">Not: Belge Tarayıcı ve Çeviri şu anda Google Play Servisleri üzerinden çalışan Google ML Kit kullanır. Bunlar gelecekteki bir güncellemede tamamen gizli alternatiflerle değiştirilecek.</string>
 
     <!-- Insights screen -->
     <string name="insights_title">Analizler</string>

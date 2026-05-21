@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Privora</string>
     <string name="widget_name">وصول سريع - Privora</string>
@@ -417,7 +417,7 @@
     <string name="settings_face_blur">طمس الوجوه عند المشاركة</string>
     <string name="settings_face_blur_desc">طمس الوجوه تلقائياً قبل مشاركة الصور</string>
     <string name="settings_network_policy">سياسة الشبكة</string>
-    <string name="settings_network_policy_desc">لا تحليلات، لا قياس عن بُعد. تُستخدم الشبكة فقط لتنزيل نماذج ML Kit.</string>
+    <string name="settings_network_policy_desc">لا تحليلات، لا قياس عن بُعد. تُستخدم الشبكة فقط لتنزيل النماذج على الجهاز (Gemma، حزم لغات Tesseract OCR).</string>
     <string name="settings_backup_exclusion">استثناء من النسخ الاحتياطي</string>
     <string name="settings_backup_exclusion_desc">بيانات الخزنة مستثناة من النسخ الاحتياطية للجهاز</string>
 
@@ -442,7 +442,6 @@
     <string name="settings_privacy_policy_desc">عرض سياسة الخصوصية</string>
     <string name="settings_privacy_promise">وعد الخصوصية</string>
     <string name="settings_privacy_promise_text">تتم جميع معالجات الذكاء الاصطناعي على جهازك. الصور والملاحظات مشفرة بتقنية AES-256-GCM بمفتاح فريد لكل تثبيت مخزّن في وحدة الأمان المادية لهاتفك. لا تُرسل أي بيانات إلى أي خادم. لا تحليلات. لا قياس عن بُعد.</string>
-    <string name="settings_ml_kit_note">ملاحظة: يستخدم ماسح المستندات والترجمة حالياً Google ML Kit الذي يعمل عبر خدمات Google Play. سيتم استبدالهما ببدائل خاصة بالكامل في تحديث مستقبلي.</string>
 
     <!-- Insights screen -->
     <string name="insights_title">التحليلات</string>

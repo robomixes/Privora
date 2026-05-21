@@ -432,7 +432,7 @@
     <string name="settings_face_blur">Face Blur on Share</string>
     <string name="settings_face_blur_desc">Automatically blur faces before sharing photos</string>
     <string name="settings_network_policy">Network Policy</string>
-    <string name="settings_network_policy_desc">No analytics, no telemetry. Network used only for ML Kit model downloads.</string>
+    <string name="settings_network_policy_desc">No analytics, no telemetry. Network used only for on-device model downloads (Gemma, Tesseract OCR language packs).</string>
     <string name="settings_backup_exclusion">Backup Exclusion</string>
     <string name="settings_backup_exclusion_desc">Vault data excluded from device backups</string>
 
@@ -457,7 +457,6 @@
     <string name="settings_privacy_policy_desc">View our privacy policy</string>
     <string name="settings_privacy_promise">Privacy Promise</string>
     <string name="settings_privacy_promise_text">All AI processing runs on your device. Photos and notes are AES-256-GCM encrypted with a per-install key stored in your phone\'s hardware security module. No data is sent to any server. No analytics. No telemetry.</string>
-    <string name="settings_ml_kit_note">Note: Document Scanner and Translation currently use Google ML Kit which runs through Google Play Services. These will be replaced with fully private alternatives in a future update.</string>
 
     <!-- Insights screen -->
     <string name="insights_title">Insights</string>

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Privora</string>
     <string name="widget_name">Acceso Rápido Privora</string>
@@ -417,7 +417,7 @@
     <string name="settings_face_blur">Difuminar rostros al compartir</string>
     <string name="settings_face_blur_desc">Difuminar rostros automáticamente antes de compartir fotos</string>
     <string name="settings_network_policy">Política de red</string>
-    <string name="settings_network_policy_desc">Sin analíticas, sin telemetría. La red solo se usa para descargas de modelos de ML Kit.</string>
+    <string name="settings_network_policy_desc">Sin analíticas, sin telemetría. La red solo se usa para descargas de modelos en el dispositivo (Gemma, paquetes de idioma de Tesseract OCR).</string>
     <string name="settings_backup_exclusion">Exclusión de respaldos</string>
     <string name="settings_backup_exclusion_desc">Los datos de la bóveda se excluyen de los respaldos del dispositivo</string>
 
@@ -442,7 +442,6 @@
     <string name="settings_privacy_policy_desc">Ver nuestra política de privacidad</string>
     <string name="settings_privacy_promise">Promesa de privacidad</string>
     <string name="settings_privacy_promise_text">Todo el procesamiento de IA se ejecuta en tu dispositivo. Las fotos y notas están cifradas con AES-256-GCM usando una clave por instalación almacenada en el módulo de seguridad de hardware de tu teléfono. No se envían datos a ningún servidor. Sin analíticas. Sin telemetría.</string>
-    <string name="settings_ml_kit_note">Nota: El escáner de documentos y la traducción actualmente usan Google ML Kit que se ejecuta a través de Google Play Services. Estos serán reemplazados por alternativas completamente privadas en una futura actualización.</string>
 
     <!-- Insights screen -->
     <string name="insights_title">Análisis</string>

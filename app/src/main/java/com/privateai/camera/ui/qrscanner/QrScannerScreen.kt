@@ -95,7 +95,13 @@ import java.util.concurrent.Executors
 @Composable
 fun QrScannerScreen(
     onBack: (() -> Unit)? = null,
-    onOtpAuthScanned: ((String) -> Unit)? = null
+    onOtpAuthScanned: ((String) -> Unit)? = null,
+    // When true, the scanner is in "authenticator setup" mode: ZXing is
+    // restricted to QR_CODE only (so a stray 1-D barcode in frame can't be
+    // mis-decoded into something that isn't an otpauth:// URI), and any
+    // non-otpauth result is silently ignored so the scan keeps running until
+    // a real authenticator QR is captured.
+    otpAuthOnly: Boolean = false
 ) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -126,7 +132,7 @@ fun QrScannerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("QR Code") },
+                title = { Text(if (otpAuthOnly) "Scan authenticator QR" else "QR Code") },
                 navigationIcon = {
                     IconButton(onClick = { onBack?.invoke() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
@@ -136,26 +142,29 @@ fun QrScannerScreen(
         }
     ) { innerPadding ->
         Column(Modifier.fillMaxSize().padding(innerPadding)) {
-            // Tab row
-            TabRow(selectedTabIndex = selectedTab) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    text = { Text("Scan") },
-                    icon = { Icon(Icons.Default.QrCodeScanner, null, Modifier.size(18.dp)) }
-                )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    text = { Text("Generate") },
-                    icon = { Icon(Icons.Default.QrCode2, null, Modifier.size(18.dp)) }
-                )
-                Tab(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    text = { Text("History") },
-                    icon = { Icon(Icons.Default.History, null, Modifier.size(18.dp)) }
-                )
+            // Tab row — hidden in otpAuthOnly mode (the user is here to scan a
+            // single authenticator code, not to browse history or generate).
+            if (!otpAuthOnly) {
+                TabRow(selectedTabIndex = selectedTab) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("Scan") },
+                        icon = { Icon(Icons.Default.QrCodeScanner, null, Modifier.size(18.dp)) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("Generate") },
+                        icon = { Icon(Icons.Default.QrCode2, null, Modifier.size(18.dp)) }
+                    )
+                    Tab(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        text = { Text("History") },
+                        icon = { Icon(Icons.Default.History, null, Modifier.size(18.dp)) }
+                    )
+                }
             }
 
             when (selectedTab) {
@@ -167,7 +176,8 @@ fun QrScannerScreen(
                         if (history.size > 200) history.removeAt(history.lastIndex)
                     },
                     onShowDetail = { detailItem = it },
-                    onOtpAuthScanned = onOtpAuthScanned
+                    onOtpAuthScanned = onOtpAuthScanned,
+                    otpAuthOnly = otpAuthOnly
                 )
                 1 -> QrGenerateTab(
                     onBack = onBack,
@@ -203,7 +213,8 @@ private fun QrScanTab(
     onBack: (() -> Unit)?,
     onCodeScanned: (QrHistoryItem) -> Unit,
     onShowDetail: (QrHistoryItem) -> Unit,
-    onOtpAuthScanned: ((String) -> Unit)? = null
+    onOtpAuthScanned: ((String) -> Unit)? = null,
+    otpAuthOnly: Boolean = false
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -217,6 +228,15 @@ private fun QrScanTab(
     var showResult by remember { mutableStateOf(false) }
     var flashOn by remember { mutableStateOf(false) }
     var cameraControl by remember { mutableStateOf<androidx.camera.core.CameraControl?>(null) }
+    // Re-scan suppression. ZXing has no built-in dedup (ML Kit's old path did),
+    // so without this, dismissing the result sheet while the camera is still
+    // pointed at the same code re-fires the analyzer on the very next frame
+    // and the sheet pops back instantly — making it impossible to back out of
+    // the scanner. Track last-seen value + timestamp and skip duplicates that
+    // arrive within the cooldown window. Different code or window expired →
+    // a normal scan proceeds. Refs (not state) — we never render off these,
+    // so we don't want them to trigger recomposition.
+    val lastScanned = remember { java.util.concurrent.atomic.AtomicReference<Pair<String, Long>?>(null) }
 
     if (!hasCameraPermission) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -249,14 +269,22 @@ private fun QrScanTab(
 
     // Result bottom sheet
     if (showResult && scannedResult != null) {
+        // Re-stamp the cooldown anchor at dismiss time so the same QR still
+        // in the viewfinder can't immediately re-trigger. Detection-time
+        // anchoring alone fails when the user reads the sheet longer than
+        // the cooldown window.
+        val dismiss = {
+            scannedResult?.rawValue?.let { lastScanned.set(it to System.currentTimeMillis()) }
+            showResult = false
+        }
         ModalBottomSheet(
-            onDismissRequest = { showResult = false },
+            onDismissRequest = dismiss,
             sheetState = rememberModalBottomSheetState()
         ) {
             ScannedResultContent(
                 item = scannedResult!!,
                 context = context,
-                onDismiss = { showResult = false }
+                onDismiss = dismiss
             )
         }
     }
@@ -273,24 +301,37 @@ private fun QrScanTab(
         // scanner is QR-first but 1-D barcodes (EAN/UPC) are nice-to-have
         // for products / ISBNs. TRY_HARDER trades a small bit of CPU for
         // better recovery on tilted / dim / partly occluded codes.
-        val reader = remember {
+        val reader = remember(otpAuthOnly) {
+            // In otpAuthOnly mode, narrow to QR_CODE only. MultiFormatReader's
+            // 1-D readers (especially the loose ones like CODE_128 / ITF) can
+            // produce a "successful" decode on noisy regions of a QR finder
+            // pattern, returning a short numeric string instead of the real
+            // otpauth:// payload. That made the authenticator setup fail
+            // intermittently — the scanner would post a non-otpauth result
+            // and the user would see the generic result sheet with garbage
+            // text instead of jumping into the TOTP add screen.
+            val formats = if (otpAuthOnly) {
+                listOf(BarcodeFormat.QR_CODE)
+            } else {
+                listOf(
+                    BarcodeFormat.QR_CODE,
+                    BarcodeFormat.AZTEC,
+                    BarcodeFormat.DATA_MATRIX,
+                    BarcodeFormat.PDF_417,
+                    BarcodeFormat.EAN_13,
+                    BarcodeFormat.EAN_8,
+                    BarcodeFormat.UPC_A,
+                    BarcodeFormat.UPC_E,
+                    BarcodeFormat.CODE_128,
+                    BarcodeFormat.CODE_39,
+                    BarcodeFormat.CODE_93,
+                    BarcodeFormat.CODABAR,
+                    BarcodeFormat.ITF,
+                )
+            }
             MultiFormatReader().apply {
                 setHints(mapOf(
-                    DecodeHintType.POSSIBLE_FORMATS to listOf(
-                        BarcodeFormat.QR_CODE,
-                        BarcodeFormat.AZTEC,
-                        BarcodeFormat.DATA_MATRIX,
-                        BarcodeFormat.PDF_417,
-                        BarcodeFormat.EAN_13,
-                        BarcodeFormat.EAN_8,
-                        BarcodeFormat.UPC_A,
-                        BarcodeFormat.UPC_E,
-                        BarcodeFormat.CODE_128,
-                        BarcodeFormat.CODE_39,
-                        BarcodeFormat.CODE_93,
-                        BarcodeFormat.CODABAR,
-                        BarcodeFormat.ITF,
-                    ),
+                    DecodeHintType.POSSIBLE_FORMATS to formats,
                     DecodeHintType.TRY_HARDER to true,
                 ))
             }
@@ -342,30 +383,57 @@ private fun QrScanTab(
                                 try {
                                     val result = reader.decode(bitmap)
                                     val raw = result.text ?: ""
-                                    if (raw.isNotEmpty() && !showResult) {
-                                        // TOTP shortcut — same as the ML Kit
-                                        // path it replaces. Route otpauth://
-                                        // URIs straight to the Authenticator
-                                        // add screen instead of the generic
-                                        // result sheet.
-                                        if (onOtpAuthScanned != null && raw.startsWith("otpauth://", ignoreCase = true)) {
-                                            try { vibrate() } catch (_: Exception) {}
-                                            showResult = true
-                                            onOtpAuthScanned(raw)
-                                        } else {
-                                            val valueType = BarcodeType.classify(raw)
-                                            val item = QrHistoryItem(
-                                                rawValue = raw,
-                                                displayValue = raw,
-                                                format = BarcodeType.FORMAT_QR_CODE,
-                                                valueType = valueType,
-                                                typeLabel = getTypeLabel(valueType),
-                                                source = QrSource.SCANNED
-                                            )
-                                            scannedResult = item
-                                            showResult = true
-                                            onCodeScanned(item)
-                                            try { vibrate() } catch (_: Exception) {}
+                                    // Cooldown — see lastScanned declaration.
+                                    val now = System.currentTimeMillis()
+                                    val prev = lastScanned.get()
+                                    val isDuplicate = prev != null && prev.first == raw && (now - prev.second) < 3000L
+                                    if (raw.isNotEmpty() && !showResult && !isDuplicate) {
+                                        lastScanned.set(raw to now)
+                                        // Decode ran on the CameraX analyzer thread.
+                                        // ML Kit's BarcodeScanning used to post its
+                                        // success callback to main automatically; ZXing
+                                        // is synchronous, so we have to hop ourselves —
+                                        // otherwise `navController.navigate(...)` inside
+                                        // onOtpAuthScanned silently no-ops on a worker
+                                        // thread and the user never reaches the
+                                        // Authenticator add screen even though decoding
+                                        // succeeded.
+                                        ContextCompat.getMainExecutor(context).execute {
+                                            // TOTP shortcut — same as the ML Kit
+                                            // path it replaces. Route otpauth://
+                                            // URIs straight to the Authenticator
+                                            // add screen instead of the generic
+                                            // result sheet.
+                                            val isOtp = raw.startsWith("otpauth://", ignoreCase = true)
+                                            if (otpAuthOnly && !isOtp) {
+                                                // Authenticator setup mode: silently drop
+                                                // anything that isn't an otpauth URI so the
+                                                // user can keep scanning. Don't update the
+                                                // cooldown timestamp here — we already set
+                                                // it before the main-thread hop, which is
+                                                // fine; a wrong code won't loop tightly
+                                                // because the QR has to actually decode
+                                                // again before this branch runs.
+                                                android.util.Log.d("QrScanner", "Ignoring non-otpauth scan in authenticator mode")
+                                            } else if (onOtpAuthScanned != null && isOtp) {
+                                                try { vibrate() } catch (_: Exception) {}
+                                                showResult = true
+                                                onOtpAuthScanned(raw)
+                                            } else {
+                                                val valueType = BarcodeType.classify(raw)
+                                                val item = QrHistoryItem(
+                                                    rawValue = raw,
+                                                    displayValue = raw,
+                                                    format = BarcodeType.FORMAT_QR_CODE,
+                                                    valueType = valueType,
+                                                    typeLabel = getTypeLabel(valueType),
+                                                    source = QrSource.SCANNED
+                                                )
+                                                scannedResult = item
+                                                showResult = true
+                                                onCodeScanned(item)
+                                                try { vibrate() } catch (_: Exception) {}
+                                            }
                                         }
                                     }
                                 } catch (_: NotFoundException) {
@@ -453,7 +521,8 @@ private fun QrScanTab(
 
         // Bottom hint
         Text(
-            "Point camera at a QR code or barcode",
+            if (otpAuthOnly) "Point camera at the authenticator QR code"
+            else "Point camera at a QR code or barcode",
             color = Color.White,
             fontSize = 14.sp,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp)

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Privora</string>
     <string name="widget_name">Privora 快速访问</string>
@@ -419,7 +419,7 @@
     <string name="settings_face_blur">分享时模糊人脸</string>
     <string name="settings_face_blur_desc">分享照片前自动模糊人脸</string>
     <string name="settings_network_policy">网络策略</string>
-    <string name="settings_network_policy_desc">无分析、无遥测。网络仅用于 ML Kit 模型下载。</string>
+    <string name="settings_network_policy_desc">无分析、无遥测。网络仅用于设备端模型下载（Gemma、Tesseract OCR 语言包）。</string>
     <string name="settings_backup_exclusion">备份排除</string>
     <string name="settings_backup_exclusion_desc">保险库数据已从设备备份中排除</string>
 
@@ -444,7 +444,6 @@
     <string name="settings_privacy_policy_desc">查看我们的隐私政策</string>
     <string name="settings_privacy_promise">隐私承诺</string>
     <string name="settings_privacy_promise_text">所有 AI 处理均在您的设备上运行。照片和笔记使用 AES-256-GCM 加密，密钥存储在手机的硬件安全模块中，每次安装独立生成。不会向任何服务器发送任何数据。无分析。无遥测。</string>
-    <string name="settings_ml_kit_note">注意：文档扫描和翻译目前使用通过 Google Play 服务运行的 Google ML Kit。未来更新中将替换为完全私密的替代方案。</string>
 
     <!-- Insights screen -->
     <string name="insights_title">数据分析</string>

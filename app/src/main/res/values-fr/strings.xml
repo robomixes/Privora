@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Privora</string>
     <string name="widget_name">Privora Accès rapide</string>
@@ -376,7 +376,7 @@
     <string name="settings_face_blur">Floutage des visages au partage</string>
     <string name="settings_face_blur_desc">Flouter automatiquement les visages avant de partager des photos</string>
     <string name="settings_network_policy">Politique réseau</string>
-    <string name="settings_network_policy_desc">Aucune analyse, aucune télémétrie. Le réseau est utilisé uniquement pour le téléchargement des modèles ML Kit.</string>
+    <string name="settings_network_policy_desc">Aucune analyse, aucune télémétrie. Le réseau est utilisé uniquement pour le téléchargement des modèles embarqués (Gemma, paquets de langue Tesseract OCR).</string>
     <string name="settings_backup_exclusion">Exclusion des sauvegardes</string>
     <string name="settings_backup_exclusion_desc">Les données du coffre-fort sont exclues des sauvegardes de l\'appareil</string>
 
@@ -401,7 +401,6 @@
     <string name="settings_privacy_policy_desc">Consulter notre politique de confidentialité</string>
     <string name="settings_privacy_promise">Engagement de confidentialité</string>
     <string name="settings_privacy_promise_text">Tout le traitement IA s\'exécute sur votre appareil. Les photos et notes sont chiffrées en AES-256-GCM avec une clé unique par installation stockée dans le module de sécurité matériel de votre téléphone. Aucune donnée n\'est envoyée \u00E0 un serveur. Aucune analyse. Aucune télémétrie.</string>
-    <string name="settings_ml_kit_note">Note : Le scanner de documents et la traduction utilisent actuellement Google ML Kit qui fonctionne via Google Play Services. Ceux-ci seront remplacés par des alternatives entièrement privées dans une future mise \u00E0 jour.</string>
 
     <!-- Insights screen -->
     <string name="insights_title">Analyses</string>

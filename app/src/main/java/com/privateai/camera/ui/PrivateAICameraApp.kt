@@ -233,6 +233,21 @@ fun PrivateAICameraApp() {
                     }
                 )
             }
+            composable(
+                "qrscanner?otpOnly={otpOnly}",
+                arguments = listOf(navArgument("otpOnly") { defaultValue = "false"; type = NavType.StringType })
+            ) { backStackEntry ->
+                val otpOnly = backStackEntry.arguments?.getString("otpOnly") == "true"
+                QrScannerScreen(
+                    onBack = safeBack,
+                    onOtpAuthScanned = { uri ->
+                        navController.navigate("totp?uri=${android.net.Uri.encode(uri)}") {
+                            popUpTo("qrscanner?otpOnly={otpOnly}") { inclusive = true }
+                        }
+                    },
+                    otpAuthOnly = otpOnly
+                )
+            }
             composable("translate") {
                 TranslateScreen(onBack = safeBack)
             }
@@ -317,14 +332,14 @@ fun PrivateAICameraApp() {
                 val uri = backStackEntry.arguments?.getString("uri")?.ifBlank { null }
                 TotpListScreen(
                     onBack = safeBack,
-                    onScanQr = { navController.navigate("qrscanner") },
+                    onScanQr = { navController.navigate("qrscanner?otpOnly=true") },
                     seedFromUri = uri
                 )
             }
             composable("totp") {
                 TotpListScreen(
                     onBack = safeBack,
-                    onScanQr = { navController.navigate("qrscanner") }
+                    onScanQr = { navController.navigate("qrscanner?otpOnly=true") }
                 )
             }
             composable("tools") {

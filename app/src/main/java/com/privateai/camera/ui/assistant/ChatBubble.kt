@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
@@ -76,6 +77,22 @@ enum class ActionStatus { PENDING, ADDED, DISMISSED, FAILED }
  *  paired with the message bubble that summarized the search results. */
 data class PhotoThumb(val id: String, val bitmap: Bitmap)
 
+/**
+ * One image the full-screen zoom viewer can render. Carries enough info for
+ * the viewer to pull the *original* resolution (not just the thumbnail we
+ * already had in the bubble) when the source is a vault photo. Search-result
+ * thumbs would otherwise stretch a 96 dp bitmap across the whole screen and
+ * look terrible — the [VaultPhoto] variant lets the viewer async-load the
+ * full image via VaultRepository.loadFullPhoto.
+ */
+sealed class ZoomSource {
+    data class RawBitmap(val bmp: Bitmap) : ZoomSource()
+    data class VaultPhoto(val id: String, val thumb: Bitmap) : ZoomSource()
+}
+
+/** Selection passed to the host to open the full-screen zoom viewer. */
+data class ZoomTarget(val sources: List<ZoomSource>, val index: Int)
+
 /** A single message in the chat — user or assistant. */
 sealed class ChatMessage {
     /** Attached image (D2 — Ask the Assistant about a photo). null = plain text. */
@@ -104,10 +121,12 @@ fun ChatBubble(
     onSaveAsNote: ((String) -> Unit)? = null,
     onPhotoClick: ((String) -> Unit)? = null,
     onSpeak: ((String) -> Unit)? = null,
-    // Tap-to-zoom callbacks. Tapping any thumbnail in the chat (the user's
-    // attached image OR a search-result thumb) raises one of these so the
-    // host (AssistantScreen) can show its full-screen viewer dialog.
-    onImageZoom: ((Bitmap) -> Unit)? = null
+    // Tap-to-zoom callback. Tapping any thumbnail in the chat raises this
+    // with the list of sibling images + the index of the tapped one, so the
+    // host can render a swipeable full-screen viewer that pulls full-res
+    // from the vault for search-result photos. For a user-attached image
+    // there's just one source in the list.
+    onImageZoom: ((ZoomTarget) -> Unit)? = null
 ) {
     val isUser = message is ChatMessage.User
     val text = when (message) {
@@ -140,7 +159,9 @@ fun ChatBubble(
                             .size(160.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .clickable(enabled = onImageZoom != null) {
-                                onImageZoom?.invoke(bmp)
+                                onImageZoom?.invoke(
+                                    ZoomTarget(listOf(ZoomSource.RawBitmap(bmp)), 0)
+                                )
                             }
                     )
                 }
@@ -233,9 +254,13 @@ fun ChatBubble(
                             modifier = Modifier.padding(top = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            items(photoThumbs) { thumb ->
-                                // Tap → in-chat full-size viewer (uses the
-                                // thumb bitmap we already decoded host-side).
+                            itemsIndexed(photoThumbs) { idx, thumb ->
+                                // Tap → in-chat full-size viewer. We pass the
+                                // *whole strip* + the tapped index so the
+                                // viewer can let the user swipe between
+                                // results, and load each one's full-res
+                                // bitmap from the vault (not the 96 dp thumb
+                                // we have here, which would stretch ugly).
                                 // Long-press → open in Vault for full
                                 // metadata + sharing actions.
                                 Image(
@@ -247,7 +272,14 @@ fun ChatBubble(
                                         .clip(RoundedCornerShape(12.dp))
                                         .combinedClickable(
                                             onClick = {
-                                                onImageZoom?.invoke(thumb.bitmap)
+                                                onImageZoom?.invoke(
+                                                    ZoomTarget(
+                                                        photoThumbs.map { t ->
+                                                            ZoomSource.VaultPhoto(t.id, t.bitmap)
+                                                        },
+                                                        idx
+                                                    )
+                                                )
                                             },
                                             onLongClick = {
                                                 onPhotoClick?.invoke(thumb.id)

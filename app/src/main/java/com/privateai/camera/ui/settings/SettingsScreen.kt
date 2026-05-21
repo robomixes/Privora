@@ -1054,12 +1054,6 @@ fun SettingsScreen(onBack: (() -> Unit)? = null, onBackupClick: (() -> Unit)? = 
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp)
                     )
-                    Text(
-                        stringResource(R.string.settings_ml_kit_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
                 }
             }
             } // end effExpandedAbout

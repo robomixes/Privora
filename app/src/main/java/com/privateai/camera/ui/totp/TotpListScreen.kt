@@ -207,13 +207,15 @@ fun TotpListScreen(
 
     LaunchedEffect(page) { if (page == TotpPage.LIST) refresh() }
 
-    // Deep-link: a QR scanned from the system scanner can hand us an otpauth:// URI.
-    // Open the Add screen pre-populated when the gate is open.
-    var seedHandled by remember { mutableStateOf(false) }
-    LaunchedEffect(seedFromUri, page) {
-        if (!seedHandled && !seedFromUri.isNullOrBlank() && page == TotpPage.LIST) {
+    // Deep-link seed from a scanned QR. Mirror the nav-route arg into local
+    // state so we can *clear* it after the first Add-screen visit consumes
+    // it. Without this, every subsequent tap of the + FAB would pre-fill
+    // the form with the previously scanned URI (the nav route still carries
+    // the original ?uri=... arg until the user navigates away).
+    var pendingSeed by remember(seedFromUri) { mutableStateOf(seedFromUri) }
+    LaunchedEffect(pendingSeed, page) {
+        if (!pendingSeed.isNullOrBlank() && page == TotpPage.LIST) {
             page = TotpPage.ADD
-            seedHandled = true
         }
     }
 
@@ -308,10 +310,18 @@ fun TotpListScreen(
             }
         }
         TotpPage.ADD -> AddTotpScreen(
-            initialUri = seedFromUri,
+            initialUri = pendingSeed,
             existingEntry = null,
-            onBack = { page = TotpPage.LIST },
-            onSave = { entry -> trySaveNew(entry) },
+            onBack = {
+                // Consume the seed so the next + FAB tap opens a blank form,
+                // even if the nav route still has the original ?uri= arg.
+                pendingSeed = null
+                page = TotpPage.LIST
+            },
+            onSave = { entry ->
+                pendingSeed = null
+                trySaveNew(entry)
+            },
             onScanQr = onScanQr
         )
         TotpPage.EDIT -> {
@@ -735,6 +745,19 @@ private fun AddTotpScreen(
 ) {
     // Seed priority: existing entry (edit mode) > scanned otpauth URI > blank.
     val seed = remember(initialUri) { initialUri?.let { Totp.parseUri(it) } }
+    // If the scanner passed us a URI but it failed to parse, tell the user so
+    // they don't stare at an empty form thinking the scan went through. Used
+    // to be silent — confusing, especially after a long otpauth QR scan.
+    val ctxForToast = LocalContext.current
+    LaunchedEffect(initialUri) {
+        if (!initialUri.isNullOrBlank() && seed == null) {
+            Toast.makeText(
+                ctxForToast,
+                "Could not read that QR — enter the details manually",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
     val isEditing = existingEntry != null
 
     var label by remember { mutableStateOf(existingEntry?.label ?: seed?.label ?: "") }
